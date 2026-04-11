@@ -116,6 +116,7 @@ Double-check every number and the game_type before responding. Most matches ARE 
 
     const requestBody = JSON.stringify({
       model: "google/gemini-2.5-pro",
+      max_tokens: 8192,
       messages: [
         { role: "system", content: systemPrompt },
         {
@@ -184,6 +185,11 @@ Double-check every number and the game_type before responding. Most matches ARE 
 
 
     const aiResult = await response.json();
+    const finishReason = aiResult.choices?.[0]?.finish_reason;
+    if (finishReason === "length") {
+      console.error("AI response truncated due to token limit");
+      throw new Error("AI response was truncated. Please try again.");
+    }
     const content = aiResult.choices?.[0]?.message?.content;
 
     if (!content) {
