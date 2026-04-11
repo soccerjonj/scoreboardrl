@@ -116,6 +116,7 @@ Double-check every number and the game_type before responding. Most matches ARE 
 
     const requestBody = JSON.stringify({
       model: "google/gemini-2.5-pro",
+      max_tokens: 8192,
       messages: [
         { role: "system", content: systemPrompt },
         {
