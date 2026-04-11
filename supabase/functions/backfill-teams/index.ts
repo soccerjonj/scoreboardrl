@@ -7,7 +7,6 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-// Carry score calculation (mirrors client-side logic)
 interface PlayerForCarry {
   name: string;
   team: "blue" | "orange";
@@ -23,10 +22,10 @@ function calculateCarryScores(players: PlayerForCarry[]): Array<{ name: string; 
 
   for (const team of ["blue", "orange"] as const) {
     const teamPlayers = players.filter((p) => p.team === team);
-    if (teamPlayers.length <= 1) continue;
+    const teamSize = teamPlayers.length;
+    if (teamSize <= 1) continue;
 
     const opponents = players.filter((p) => p.team !== team);
-    const teamSize = teamPlayers.length;
     const teamGoals = teamPlayers.reduce((s, p) => s + p.goals, 0);
     const teamAssists = teamPlayers.reduce((s, p) => s + p.assists, 0);
     const teamShots = teamPlayers.reduce((s, p) => s + p.shots, 0);
@@ -37,7 +36,6 @@ function calculateCarryScores(players: PlayerForCarry[]): Array<{ name: string; 
     const teamAvgSaves = teamSaves / teamSize;
     const teamAvgScore = teamScore / teamSize;
     const teamAvgInvolvement = teamPlayers.reduce((s, p) => s + p.goals + p.assists + p.shots + p.saves, 0) / teamSize;
-    const teamShotWaste = teamShots > 0 ? (teamShots - teamGoals) / teamShots : 0;
     const teamOffenseWeight = teamGoals * 3 + teamAssists * 2;
 
     const hiddenContribs = teamPlayers.map((p) =>
@@ -49,24 +47,47 @@ function calculateCarryScores(players: PlayerForCarry[]): Array<{ name: string; 
     const isLoser = teamGoals < goalsAgainst;
 
     const rawCarries = teamPlayers.map((p, i) => {
-      const offensive = teamOffenseWeight > 0 ? (p.goals * 3 + p.assists * 2) / teamOffenseWeight : 0;
-      const maxEnablerRaw = Math.max(...teamPlayers.map((tp) => tp.assists)) * (1 + teamShotWaste);
-      const enablerBonus = maxEnablerRaw > 0 ? (p.assists * (1 + teamShotWaste)) / maxEnablerRaw : 0;
+      const offensive = teamOffenseWeight > 0
+        ? (p.goals * 3 + p.assists * 2) / teamOffenseWeight
+        : 0;
+
       const savesRatio = teamAvgSaves > 0 ? p.saves / teamAvgSaves : (p.saves > 0 ? 2 : 0);
       const clutchFactor = (p.saves + goalsAgainst) > 0 ? p.saves / (p.saves + goalsAgainst) : 0;
       const defensiveLoad = Math.min(savesRatio * clutchFactor, 3);
-      const scorePremium = teamAvgScore > 0 ? Math.min(Math.max((p.score - teamAvgScore) / teamAvgScore, -1), 2) : 0;
-      const residualCarryIndex = teamAvgHidden > 0 ? Math.min(hiddenContribs[i] / teamAvgHidden, 3) : hiddenContribs[i] > 0 ? 1 : 0;
+
+      const scorePremium = teamAvgScore > 0
+        ? Math.min(Math.max((p.score - teamAvgScore) / teamAvgScore, -1), 2)
+        : 0;
+
+      const ratioToAvg = teamAvgHidden > 0 ? hiddenContribs[i] / teamAvgHidden : (hiddenContribs[i] > 0 ? 1 : 0);
+      const hiddenFrac = p.score > 0 ? hiddenContribs[i] / p.score : 0;
+      const residualCarryIndex = Math.min(ratioToAvg * (1 + hiddenFrac * 2), 3);
+
       const involvement = p.goals + p.assists + p.shots + p.saves;
-      const involvementRate = teamAvgInvolvement > 0 ? Math.min(involvement / teamAvgInvolvement, 3) : involvement > 0 ? 1 : 0;
+      const involvementRate = teamAvgInvolvement > 0
+        ? Math.min(involvement / teamAvgInvolvement, 3)
+        : involvement > 0 ? 1 : 0;
 
-      let raw = offensive * 0.20 + enablerBonus * 0.15 + defensiveLoad * 0.20 + scorePremium * 0.15 + residualCarryIndex * 0.15 + involvementRate * 0.15;
+      let raw =
+        offensive          * 0.25 +
+        defensiveLoad      * 0.25 +
+        scorePremium       * 0.25 +
+        residualCarryIndex * 0.15 +
+        involvementRate    * 0.10;
 
-      const pillarsAboveAvg = [p.goals > teamGoals / teamSize, p.assists > teamAssists / teamSize, p.saves > teamAvgSaves].filter(Boolean).length;
+      const pillarsAboveAvg = [
+        p.goals   > teamGoals / teamSize,
+        p.assists > teamAssists / teamSize,
+        p.saves   > teamAvgSaves,
+        p.shots   > teamPlayers.reduce((s, tp) => s + tp.shots, 0) / teamSize,
+        p.score   > teamAvgScore,
+      ].filter(Boolean).length;
       raw *= 1.0 + pillarsAboveAvg * 0.1;
+
       if (p.goals >= 2 && p.shots + p.saves + p.assists < 3) raw *= 0.75;
       raw *= closenessMult;
       if (isLoser && savesRatio > 1.5) raw *= 0.9;
+
       return Math.max(raw, 0);
     });
 
@@ -77,7 +98,9 @@ function calculateCarryScores(players: PlayerForCarry[]): Array<{ name: string; 
     const topShare = totalRaw > 0 ? topRaw / totalRaw : fairShare;
     const excess = Math.max(topShare - fairShare, 0);
     const maxExcess = 1 - fairShare;
-    const carryScore = maxExcess > 0 ? Math.max(Math.round((excess / maxExcess) * 100), 1) : 1;
+    const carryScore = maxExcess > 0
+      ? Math.max(Math.round(Math.pow(excess / maxExcess, 0.6) * 100), 1)
+      : 1;
 
     const winner = results.find((r) => r.name === teamPlayers[maxIdx].name);
     if (winner) winner.carry_score = carryScore;
@@ -92,18 +115,77 @@ serve(async (req) => {
   }
 
   try {
-    const { limit: reqLimit } = await req.json().catch(() => ({ limit: 3 }));
-    const batchLimit = Math.min(reqLimit || 3, 5);
+    let reqLimit = 3;
+    let recalculate = false;
+    try {
+      const body = await req.json();
+      console.log("Body received:", JSON.stringify(body));
+      reqLimit = body.limit || 3;
+      recalculate = !!body.recalculate;
+    } catch { /* no body */ }
+    const batchLimit = Math.min(reqLimit, 50);
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
-
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Get all games with players that have null team
+    // If recalculate mode, just recalc carry scores for games that already have teams
+    if (recalculate) {
+      const { data: games, error: gamesErr } = await supabase
+        .from("games")
+        .select("id, game_mode, result, game_players (id, player_name, team, score, goals, assists, saves, shots)")
+        .order("played_at", { ascending: false })
+        .limit(batchLimit);
+
+      if (gamesErr) throw gamesErr;
+
+      console.log(`Recalculate: found ${(games || []).length} games`);
+
+      const results: any[] = [];
+      const normName = (n: string) => n?.trim().toLowerCase() ?? "";
+
+      for (const game of (games || [])) {
+        const players = game.game_players || [];
+        const allHaveTeam = players.every((p: any) => p.team === "blue" || p.team === "orange");
+        if (!allHaveTeam || players.length <= 2) {
+          results.push({ game_id: game.id, status: "skip", reason: "missing teams or 1v1" });
+          continue;
+        }
+
+        const carryInput: PlayerForCarry[] = players.map((p: any) => ({
+          name: p.player_name,
+          team: p.team as "blue" | "orange",
+          score: p.score || 0,
+          goals: p.goals || 0,
+          assists: p.assists || 0,
+          saves: p.saves || 0,
+          shots: p.shots || 0,
+        }));
+
+        const carryResults = calculateCarryScores(carryInput);
+
+        // Reset all carry scores to 0 first, then set the carriers
+        for (const player of players) {
+          const cr = carryResults.find((c) => normName(c.name) === normName(player.player_name));
+          await supabase
+            .from("game_players")
+            .update({ carry_score: cr?.carry_score ?? 0 })
+            .eq("id", player.id);
+        }
+
+        results.push({ game_id: game.id, status: "ok", players: players.length });
+      }
+
+      return new Response(JSON.stringify({ processed: results.length, results }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Original backfill logic for team assignment
+    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+
     const { data: games, error: gamesErr } = await supabase
       .from("games")
       .select("id, game_mode, result, screenshot_url, game_players (id, player_name, team, score, goals, assists, saves, shots, carry_score)")
@@ -112,25 +194,21 @@ serve(async (req) => {
 
     if (gamesErr) throw gamesErr;
 
-    // Filter to games where at least one player has no team
     const needsTeam = (games || []).filter((g: any) =>
       g.game_players?.some((p: any) => p.team === null)
     ).slice(0, batchLimit);
 
     console.log(`Processing ${needsTeam.length} games this batch`);
-
     const results: any[] = [];
 
     for (const game of needsTeam) {
       try {
-        // Download the screenshot
         const imgRes = await fetch(game.screenshot_url);
         if (!imgRes.ok) {
           results.push({ game_id: game.id, status: "skip", reason: "screenshot fetch failed" });
           continue;
         }
         const imgBuf = new Uint8Array(await imgRes.arrayBuffer());
-        // Chunk the encoding to avoid stack overflow
         let base64 = "";
         const chunkSize = 8192;
         for (let i = 0; i < imgBuf.length; i += chunkSize) {
@@ -139,7 +217,6 @@ serve(async (req) => {
         }
         base64 = btoa(base64);
 
-        // Ask AI for just team assignments
         const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -171,7 +248,6 @@ Return ONLY a JSON array of objects with "name" and "team" fields. Example:
 
         if (!aiRes.ok) {
           results.push({ game_id: game.id, status: "skip", reason: `AI error ${aiRes.status}` });
-          // Rate limit pause
           if (aiRes.status === 429) await new Promise(r => setTimeout(r, 5000));
           continue;
         }
@@ -188,8 +264,6 @@ Return ONLY a JSON array of objects with "name" and "team" fields. Example:
         if (jsonMatch) jsonStr = jsonMatch[1].trim();
 
         const teamAssignments: Array<{ name: string; team: string }> = JSON.parse(jsonStr);
-
-        // Match AI names to DB players and update team
         const normName = (n: string) => n?.trim().toLowerCase() ?? "";
         const players = game.game_players || [];
 
@@ -206,7 +280,6 @@ Return ONLY a JSON array of objects with "name" and "team" fields. Example:
           }
         }
 
-        // Now calculate carry scores if all players have teams
         const allHaveTeam = players.every((p: any) => p.team === "blue" || p.team === "orange");
         if (allHaveTeam && players.length > 2) {
           const carryInput: PlayerForCarry[] = players.map((p: any) => ({
@@ -220,7 +293,6 @@ Return ONLY a JSON array of objects with "name" and "team" fields. Example:
           }));
 
           const carryResults = calculateCarryScores(carryInput);
-
           for (const cr of carryResults) {
             const row = players.find((p: any) => normName(p.player_name) === normName(cr.name));
             if (row) {
@@ -233,8 +305,6 @@ Return ONLY a JSON array of objects with "name" and "team" fields. Example:
         }
 
         results.push({ game_id: game.id, status: "ok", players: players.length });
-
-        // Small delay between games to avoid rate limits
         await new Promise(r => setTimeout(r, 1000));
       } catch (err: any) {
         results.push({ game_id: game.id, status: "error", reason: err.message });
