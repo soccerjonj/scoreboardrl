@@ -1,0 +1,2 @@
+ALTER TABLE public.game_players
+  ADD COLUMN IF NOT EXISTS carry_score NUMERIC DEFAULT NULL;
