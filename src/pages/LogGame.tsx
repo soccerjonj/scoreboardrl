@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Save, Loader2 } from "lucide-react";
 import ScoreboardUploader from "@/components/game/ScoreboardUploader";
@@ -15,6 +16,72 @@ import type { Database } from "@/integrations/supabase/types";
 
 type GameMode = Database["public"]["Enums"]["game_mode"];
 type GameType = Database["public"]["Enums"]["game_type"];
+type RankTier = Database["public"]["Enums"]["rank_tier"];
+type RankDivision = Database["public"]["Enums"]["rank_division"];
+
+const RANK_TIERS: RankTier[] = [
+  "unranked",
+  "bronze_1", "bronze_2", "bronze_3",
+  "silver_1", "silver_2", "silver_3",
+  "gold_1", "gold_2", "gold_3",
+  "platinum_1", "platinum_2", "platinum_3",
+  "diamond_1", "diamond_2", "diamond_3",
+  "champion_1", "champion_2", "champion_3",
+  "grand_champion_1", "grand_champion_2", "grand_champion_3",
+  "supersonic_legend",
+];
+const RANK_DIVISIONS: RankDivision[] = ["I", "II", "III", "IV"];
+
+const TIER_LABELS: Record<RankTier, string> = {
+  unranked: "Unranked",
+  bronze_1: "Bronze I", bronze_2: "Bronze II", bronze_3: "Bronze III",
+  silver_1: "Silver I", silver_2: "Silver II", silver_3: "Silver III",
+  gold_1: "Gold I", gold_2: "Gold II", gold_3: "Gold III",
+  platinum_1: "Platinum I", platinum_2: "Platinum II", platinum_3: "Platinum III",
+  diamond_1: "Diamond I", diamond_2: "Diamond II", diamond_3: "Diamond III",
+  champion_1: "Champion I", champion_2: "Champion II", champion_3: "Champion III",
+  grand_champion_1: "Grand Champ I", grand_champion_2: "Grand Champ II", grand_champion_3: "Grand Champ III",
+  supersonic_legend: "Supersonic Legend",
+};
+
+function formatRank(tier: RankTier, division: RankDivision | null): string {
+  const base = TIER_LABELS[tier] ?? tier;
+  if (!division || tier === "unranked" || tier === "supersonic_legend") return base;
+  return `${base} Div ${division}`;
+}
+
+function shiftRank(
+  tier: RankTier,
+  division: RankDivision | null,
+  direction: "up" | "down"
+): { rank_tier: RankTier; rank_division: RankDivision | null } {
+  const tierIdx = RANK_TIERS.indexOf(tier);
+
+  if (tier === "supersonic_legend") {
+    if (direction === "down") return { rank_tier: "grand_champion_3", rank_division: "IV" };
+    return { rank_tier: tier, rank_division: null };
+  }
+  if (tier === "unranked") {
+    if (direction === "up") return { rank_tier: "bronze_1", rank_division: "I" };
+    return { rank_tier: tier, rank_division: null };
+  }
+
+  const divIdx = division ? RANK_DIVISIONS.indexOf(division) : 0;
+
+  if (direction === "up") {
+    if (divIdx < RANK_DIVISIONS.length - 1) {
+      return { rank_tier: tier, rank_division: RANK_DIVISIONS[divIdx + 1] };
+    }
+    const nextTier = RANK_TIERS[tierIdx + 1];
+    return { rank_tier: nextTier, rank_division: nextTier === "supersonic_legend" ? null : "I" };
+  } else {
+    if (divIdx > 0) {
+      return { rank_tier: tier, rank_division: RANK_DIVISIONS[divIdx - 1] };
+    }
+    const prevTier = RANK_TIERS[tierIdx - 1];
+    return { rank_tier: prevTier, rank_division: prevTier === "unranked" ? null : "IV" };
+  }
+}
 
 interface PlayerStat {
   name: string;
@@ -25,6 +92,8 @@ interface PlayerStat {
   saves: number;
   shots: number;
   is_mvp: boolean;
+  mmr?: number | null;
+  mmr_change?: number | null;
 }
 
 const LogGame = () => {
@@ -41,6 +110,9 @@ const LogGame = () => {
   const [saving, setSaving] = useState(false);
   const [rlName, setRlName] = useState<string | null>(null);
   const [step, setStep] = useState<"upload" | "review">("upload");
+  const [currentRank, setCurrentRank] = useState<{ rank_tier: RankTier; rank_division: RankDivision | null } | null>(null);
+  const [mmr, setMmr] = useState<number | null>(null);
+  const [mmrChange, setMmrChange] = useState<number | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -58,6 +130,18 @@ const LogGame = () => {
         });
     }
   }, [user, authLoading, navigate]);
+
+  useEffect(() => {
+    if (!user || gameType !== "competitive") { setCurrentRank(null); return; }
+    supabase
+      .from("ranks")
+      .select("rank_tier, rank_division")
+      .eq("user_id", user.id)
+      .eq("game_mode", gameMode)
+      .eq("game_type", "competitive")
+      .single()
+      .then(({ data }) => setCurrentRank(data ?? null));
+  }, [user, gameMode, gameType]);
 
   const handleParsed = (
     data: { game_mode: GameMode; game_type: GameType; players: PlayerStat[]; result?: "win" | "loss"; division_change?: "up" | "down" | "none" },
@@ -90,6 +174,17 @@ const LogGame = () => {
     // Use AI-detected division change if available
     if (data.division_change) {
       setDivisionChange(data.division_change);
+    }
+
+    // Extract user's MMR from their player row
+    if (rlName) {
+      const userPlayer = data.players.find(
+        (p) => p.name.toLowerCase() === rlName.toLowerCase()
+      );
+      if (userPlayer) {
+        setMmr(userPlayer.mmr ?? null);
+        setMmrChange(userPlayer.mmr_change ?? null);
+      }
     }
   };
 
@@ -184,6 +279,40 @@ const LogGame = () => {
         .insert(gamePlayers);
 
       if (playersErr) throw playersErr;
+
+      // Auto-update profile rank and MMR if this is a competitive game
+      if (gameType === "competitive") {
+        const rankUpdate: { rank_tier?: RankTier; rank_division?: RankDivision | null; mmr?: number | null } = {};
+
+        if (divisionChange === "up" || divisionChange === "down") {
+          const { data: storedRank } = await supabase
+            .from("ranks")
+            .select("rank_tier, rank_division")
+            .eq("user_id", user.id)
+            .eq("game_mode", gameMode)
+            .eq("game_type", "competitive")
+            .single();
+
+          if (storedRank) {
+            const newRank = shiftRank(storedRank.rank_tier, storedRank.rank_division, divisionChange);
+            rankUpdate.rank_tier = newRank.rank_tier;
+            rankUpdate.rank_division = newRank.rank_division;
+          }
+        }
+
+        if (mmr !== null) {
+          rankUpdate.mmr = mmr;
+        }
+
+        if (Object.keys(rankUpdate).length > 0) {
+          await supabase
+            .from("ranks")
+            .update(rankUpdate)
+            .eq("user_id", user.id)
+            .eq("game_mode", gameMode)
+            .eq("game_type", "competitive");
+        }
+      }
 
       toast({ title: "Game saved!", description: "Your game has been logged successfully." });
       navigate("/dashboard");
@@ -297,9 +426,55 @@ const LogGame = () => {
                           <SelectItem value="down">Division Down ↓</SelectItem>
                         </SelectContent>
                       </Select>
+                      {currentRank && (
+                        <p className="text-xs text-muted-foreground">
+                          {divisionChange === "none" || !divisionChange
+                            ? formatRank(currentRank.rank_tier, currentRank.rank_division)
+                            : (() => {
+                                const next = shiftRank(currentRank.rank_tier, currentRank.rank_division, divisionChange as "up" | "down");
+                                return (
+                                  <>
+                                    <span>{formatRank(currentRank.rank_tier, currentRank.rank_division)}</span>
+                                    <span className={divisionChange === "up" ? " text-green-500" : " text-red-500"}>
+                                      {" → "}{formatRank(next.rank_tier, next.rank_division)}
+                                    </span>
+                                  </>
+                                );
+                              })()
+                          }
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
+
+                {gameType === "competitive" && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>MMR (after game)</Label>
+                      <Input
+                        type="number"
+                        placeholder="e.g. 847"
+                        value={mmr ?? ""}
+                        onChange={(e) => setMmr(e.target.value === "" ? null : Number(e.target.value))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>MMR Change</Label>
+                      <Input
+                        type="number"
+                        placeholder="e.g. +12 or -8"
+                        value={mmrChange ?? ""}
+                        onChange={(e) => setMmrChange(e.target.value === "" ? null : Number(e.target.value))}
+                      />
+                      {mmrChange !== null && (
+                        <p className={`text-xs ${mmrChange >= 0 ? "text-green-500" : "text-red-500"}`}>
+                          {mmrChange >= 0 ? `+${mmrChange}` : mmrChange}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 

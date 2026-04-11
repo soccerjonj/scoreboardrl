@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Vite Dev Server",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 8080
+    },
+    {
+      "name": "Supabase Functions",
+      "runtimeExecutable": "supabase",
+      "runtimeArgs": ["functions", "serve"],
+      "port": 54321
+    }
+  ]
+}
