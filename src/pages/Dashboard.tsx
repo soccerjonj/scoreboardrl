@@ -1,7 +1,8 @@
 import { useAuth } from "@/contexts/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useEffect } from "react";
+import { Plus } from "lucide-react";
 
 const Dashboard = () => {
   const { user, loading, signOut } = useAuth();
@@ -41,8 +42,16 @@ const Dashboard = () => {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-8">
-        <h1 className="text-3xl font-display font-bold mb-6">Dashboard</h1>
-        <p className="text-muted-foreground">Welcome to ScoreboardRL! Your stats dashboard is coming soon.</p>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-3xl font-display font-bold">Dashboard</h1>
+          <Link to="/log-game">
+            <Button variant="hero" className="gap-2">
+              <Plus className="w-4 h-4" />
+              Log Game
+            </Button>
+          </Link>
+        </div>
+        <p className="text-muted-foreground">Your stats dashboard is coming soon. Start by logging your first game!</p>
       </main>
     </div>
   );
