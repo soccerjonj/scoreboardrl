@@ -15,6 +15,54 @@ import type { Database } from "@/integrations/supabase/types";
 
 type GameMode = Database["public"]["Enums"]["game_mode"];
 type GameType = Database["public"]["Enums"]["game_type"];
+type RankTier = Database["public"]["Enums"]["rank_tier"];
+type RankDivision = Database["public"]["Enums"]["rank_division"];
+
+const RANK_TIERS: RankTier[] = [
+  "unranked",
+  "bronze_1", "bronze_2", "bronze_3",
+  "silver_1", "silver_2", "silver_3",
+  "gold_1", "gold_2", "gold_3",
+  "platinum_1", "platinum_2", "platinum_3",
+  "diamond_1", "diamond_2", "diamond_3",
+  "champion_1", "champion_2", "champion_3",
+  "grand_champion_1", "grand_champion_2", "grand_champion_3",
+  "supersonic_legend",
+];
+const RANK_DIVISIONS: RankDivision[] = ["I", "II", "III", "IV"];
+
+function shiftRank(
+  tier: RankTier,
+  division: RankDivision | null,
+  direction: "up" | "down"
+): { rank_tier: RankTier; rank_division: RankDivision | null } {
+  const tierIdx = RANK_TIERS.indexOf(tier);
+
+  if (tier === "supersonic_legend") {
+    if (direction === "down") return { rank_tier: "grand_champion_3", rank_division: "IV" };
+    return { rank_tier: tier, rank_division: null };
+  }
+  if (tier === "unranked") {
+    if (direction === "up") return { rank_tier: "bronze_1", rank_division: "I" };
+    return { rank_tier: tier, rank_division: null };
+  }
+
+  const divIdx = division ? RANK_DIVISIONS.indexOf(division) : 0;
+
+  if (direction === "up") {
+    if (divIdx < RANK_DIVISIONS.length - 1) {
+      return { rank_tier: tier, rank_division: RANK_DIVISIONS[divIdx + 1] };
+    }
+    const nextTier = RANK_TIERS[tierIdx + 1];
+    return { rank_tier: nextTier, rank_division: nextTier === "supersonic_legend" ? null : "I" };
+  } else {
+    if (divIdx > 0) {
+      return { rank_tier: tier, rank_division: RANK_DIVISIONS[divIdx - 1] };
+    }
+    const prevTier = RANK_TIERS[tierIdx - 1];
+    return { rank_tier: prevTier, rank_division: prevTier === "unranked" ? null : "IV" };
+  }
+}
 
 interface PlayerStat {
   name: string;
@@ -184,6 +232,27 @@ const LogGame = () => {
         .insert(gamePlayers);
 
       if (playersErr) throw playersErr;
+
+      // Auto-update profile rank if a division change was recorded
+      if (gameType === "competitive" && (divisionChange === "up" || divisionChange === "down")) {
+        const { data: currentRank } = await supabase
+          .from("ranks")
+          .select("rank_tier, rank_division")
+          .eq("user_id", user.id)
+          .eq("game_mode", gameMode)
+          .eq("game_type", "competitive")
+          .single();
+
+        if (currentRank) {
+          const newRank = shiftRank(currentRank.rank_tier, currentRank.rank_division, divisionChange);
+          await supabase
+            .from("ranks")
+            .update({ rank_tier: newRank.rank_tier, rank_division: newRank.rank_division })
+            .eq("user_id", user.id)
+            .eq("game_mode", gameMode)
+            .eq("game_type", "competitive");
+        }
+      }
 
       toast({ title: "Game saved!", description: "Your game has been logged successfully." });
       navigate("/dashboard");
