@@ -341,8 +341,8 @@ const LogGame = () => {
             </Button>
           </>
         )}
-      </main>
-    </div>
+      </div>
+    </AppLayout>
   );
 };
 
