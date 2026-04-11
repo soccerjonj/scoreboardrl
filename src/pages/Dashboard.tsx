@@ -317,7 +317,7 @@ const Dashboard = () => {
           supabase
             .from("games")
             .select(
-              "id, played_at, game_mode, game_type, result, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp)",
+              "id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, score, goals, assists, saves, shots, is_mvp, submission_status, submitted_by, created_at, game_id)",
             )
             .eq("created_by", user.id)
             .order("played_at", { ascending: true }),
@@ -432,19 +432,13 @@ const Dashboard = () => {
       }
 
       const totalGoals = players.reduce((sum, player) => sum + safeNumber(player.goals), 0);
-      const hasTeamData = players.length > 0 && players.every((player) => player.team);
 
       const userScore = safeNumber(userRow.score);
       const userGoals = safeNumber(userRow.goals);
       const userAssists = safeNumber(userRow.assists);
       const userSaves = safeNumber(userRow.saves);
       const userShots = safeNumber(userRow.shots);
-      const userGoalsAgainst =
-        hasTeamData && userRow.team
-          ? players
-              .filter((player) => player.team !== userRow.team)
-              .reduce((sum, player) => sum + safeNumber(player.goals), 0)
-          : Math.max(0, totalGoals - userGoals);
+      const userGoalsAgainst = Math.max(0, totalGoals - userGoals);
 
       userTotals.games += 1;
       userTotals.points += userScore;
@@ -467,12 +461,7 @@ const Dashboard = () => {
           const teammateAssists = safeNumber(teammateRow.assists);
           const teammateSaves = safeNumber(teammateRow.saves);
           const teammateShots = safeNumber(teammateRow.shots);
-          const teammateGoalsAgainst =
-            hasTeamData && teammateRow.team
-              ? players
-                  .filter((player) => player.team !== teammateRow.team)
-                  .reduce((sum, player) => sum + safeNumber(player.goals), 0)
-              : Math.max(0, totalGoals - teammateGoals);
+          const teammateGoalsAgainst = Math.max(0, totalGoals - teammateGoals);
 
           teammateTotals.games += 1;
           teammateTotals.points += teammateScore;
