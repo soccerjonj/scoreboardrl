@@ -34,6 +34,29 @@ const ScoreboardUploader = ({ userRlName, onParsed }: ScoreboardUploaderProps) =
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
+  const parseScoreboard = async (base64: string, file: File) => {
+    setParsing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("parse-scoreboard", {
+        body: { image_base64: base64.split(",")[1], user_rl_name: userRlName },
+      });
+
+      if (error) throw error;
+      if (data.error) throw new Error(data.error);
+
+      onParsed(data, file);
+      toast({ title: "Scoreboard parsed!", description: `Found ${data.players.length} players in a ${data.game_mode} ${data.game_type} game.` });
+    } catch (err: any) {
+      toast({
+        title: "Failed to parse scoreboard",
+        description: err.message || "Try again or enter stats manually.",
+        variant: "destructive",
+      });
+    } finally {
+      setParsing(false);
+    }
+  };
+
   const handleFile = (file: File) => {
     if (!file.type.startsWith("image/")) {
       toast({ title: "Invalid file", description: "Please upload an image.", variant: "destructive" });
@@ -41,7 +64,12 @@ const ScoreboardUploader = ({ userRlName, onParsed }: ScoreboardUploaderProps) =
     }
     setSelectedFile(file);
     const reader = new FileReader();
-    reader.onload = (e) => setPreview(e.target?.result as string);
+    reader.onload = (e) => {
+      const dataUrl = e.target?.result as string;
+      setPreview(dataUrl);
+      // Auto-start parsing immediately
+      parseScoreboard(dataUrl, file);
+    };
     reader.readAsDataURL(file);
   };
 
@@ -53,36 +81,9 @@ const ScoreboardUploader = ({ userRlName, onParsed }: ScoreboardUploaderProps) =
   const clearImage = () => {
     setPreview(null);
     setSelectedFile(null);
+    setParsing(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
     if (cameraInputRef.current) cameraInputRef.current.value = "";
-  };
-
-  const parseScoreboard = async () => {
-    if (!preview || !selectedFile) return;
-    setParsing(true);
-
-    try {
-      // Convert to base64 (strip the data URL prefix)
-      const base64 = preview.split(",")[1];
-
-      const { data, error } = await supabase.functions.invoke("parse-scoreboard", {
-        body: { image_base64: base64, user_rl_name: userRlName },
-      });
-
-      if (error) throw error;
-      if (data.error) throw new Error(data.error);
-
-      onParsed(data, selectedFile);
-      toast({ title: "Scoreboard parsed!", description: `Found ${data.players.length} players in a ${data.game_mode} ${data.game_type} game.` });
-    } catch (err: any) {
-      toast({
-        title: "Failed to parse scoreboard",
-        description: err.message || "Try again or enter stats manually.",
-        variant: "destructive",
-      });
-    } finally {
-      setParsing(false);
-    }
   };
 
   return (
@@ -97,7 +98,6 @@ const ScoreboardUploader = ({ userRlName, onParsed }: ScoreboardUploaderProps) =
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            {/* Camera capture for mobile */}
             <Button
               type="button"
               variant="hero"
@@ -139,29 +139,41 @@ const ScoreboardUploader = ({ userRlName, onParsed }: ScoreboardUploaderProps) =
         <div className="space-y-4">
           <div className="relative rounded-xl overflow-hidden border border-border/50">
             <img src={preview} alt="Scoreboard" className="w-full object-contain max-h-80" />
-            <button
-              onClick={clearImage}
-              className="absolute top-2 right-2 bg-background/80 backdrop-blur-sm rounded-full p-1.5 hover:bg-destructive transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-
-          <Button
-            onClick={parseScoreboard}
-            disabled={parsing}
-            variant="hero"
-            className="w-full gap-2"
-          >
-            {parsing ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Analyzing scoreboard...
-              </>
-            ) : (
-              "Parse Scoreboard with AI"
+            
+            {/* Scanning overlay animation */}
+            {parsing && (
+              <div className="absolute inset-0 pointer-events-none">
+                {/* Dark overlay */}
+                <div className="absolute inset-0 bg-background/40 backdrop-blur-[1px]" />
+                
+                {/* Scanning line */}
+                <div className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-primary to-transparent animate-[scan_2s_ease-in-out_infinite] shadow-[0_0_15px_hsl(var(--primary)),0_0_30px_hsl(var(--primary)/0.5)]" />
+                
+                {/* Corner brackets */}
+                <div className="absolute top-3 left-3 w-6 h-6 border-t-2 border-l-2 border-primary rounded-tl-sm animate-pulse" />
+                <div className="absolute top-3 right-3 w-6 h-6 border-t-2 border-r-2 border-primary rounded-tr-sm animate-pulse" />
+                <div className="absolute bottom-3 left-3 w-6 h-6 border-b-2 border-l-2 border-primary rounded-bl-sm animate-pulse" />
+                <div className="absolute bottom-3 right-3 w-6 h-6 border-b-2 border-r-2 border-primary rounded-br-sm animate-pulse" />
+                
+                {/* Status text */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                  <span className="text-sm font-medium text-primary bg-background/70 px-3 py-1 rounded-full">
+                    Analyzing scoreboard...
+                  </span>
+                </div>
+              </div>
             )}
-          </Button>
+            
+            {!parsing && (
+              <button
+                onClick={clearImage}
+                className="absolute top-2 right-2 bg-background/80 backdrop-blur-sm rounded-full p-1.5 hover:bg-destructive transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>
