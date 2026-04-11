@@ -78,11 +78,13 @@ DIVISION CHANGE DETECTION:
    - If no division change info is visible → division_change = "none"
 
 MMR DETECTION (competitive games only):
-9. To the LEFT of each player's name there are two numbers stacked vertically:
-   - The top number is the player's MMR AFTER the match (a 3-5 digit integer, e.g. 847).
-   - The bottom number is the MMR CHANGE for that match — shown with a + or - sign and usually colored green (gain) or red (loss), e.g. +12 or -8.
-   - Extract both for every player. Use a negative integer for losses (e.g. -8, not 8).
-   - If MMR values are not visible (casual game or obscured), set mmr and mmr_change to null.
+9. Each player row has two numbers arranged HORIZONTALLY to the LEFT of the player's avatar/name:
+   - The number immediately left of the avatar is the player's CURRENT MMR after the match (a 3-5 digit integer, e.g. 785).
+   - Further left of that is the MMR CHANGE for this match — shown as +X (green) or -X (red), e.g. +9 or -13.
+   - The order from left to right is: [mmr_change] [mmr] [avatar] [player name] [stats...]
+   - Extract both for every player. Store mmr_change as a signed integer (negative for losses, e.g. -13).
+   - If a player has no MMR change shown (e.g. tournament or placement), set mmr_change to null.
+   - If MMR values are not visible at all (casual game or obscured), set both mmr and mmr_change to null.
 
 10. Read EVERY digit carefully. Score is usually 3-4 digits. Goals, assists, saves, shots are usually 0-10.
 11. The scoreboard may be from PC, PlayStation, Xbox, or Switch — layouts vary slightly but stats are always in the same order.
