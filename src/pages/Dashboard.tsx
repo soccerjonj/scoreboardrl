@@ -432,19 +432,13 @@ const Dashboard = () => {
       }
 
       const totalGoals = players.reduce((sum, player) => sum + safeNumber(player.goals), 0);
-      const hasTeamData = players.length > 0 && players.every((player) => player.team);
 
       const userScore = safeNumber(userRow.score);
       const userGoals = safeNumber(userRow.goals);
       const userAssists = safeNumber(userRow.assists);
       const userSaves = safeNumber(userRow.saves);
       const userShots = safeNumber(userRow.shots);
-      const userGoalsAgainst =
-        hasTeamData && userRow.team
-          ? players
-              .filter((player) => player.team !== userRow.team)
-              .reduce((sum, player) => sum + safeNumber(player.goals), 0)
-          : Math.max(0, totalGoals - userGoals);
+      const userGoalsAgainst = Math.max(0, totalGoals - userGoals);
 
       userTotals.games += 1;
       userTotals.points += userScore;
@@ -467,12 +461,7 @@ const Dashboard = () => {
           const teammateAssists = safeNumber(teammateRow.assists);
           const teammateSaves = safeNumber(teammateRow.saves);
           const teammateShots = safeNumber(teammateRow.shots);
-          const teammateGoalsAgainst =
-            hasTeamData && teammateRow.team
-              ? players
-                  .filter((player) => player.team !== teammateRow.team)
-                  .reduce((sum, player) => sum + safeNumber(player.goals), 0)
-              : Math.max(0, totalGoals - teammateGoals);
+          const teammateGoalsAgainst = Math.max(0, totalGoals - teammateGoals);
 
           teammateTotals.games += 1;
           teammateTotals.points += teammateScore;
