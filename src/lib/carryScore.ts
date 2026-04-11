@@ -80,10 +80,15 @@ export function calculateCarryScores(players: PlayerForCarry[]): CarryResult[] {
         ? Math.min(Math.max((p.score - teamAvgScore) / teamAvgScore, -1), 2)
         : 0;
 
-      // 4. Hidden contribution residual — score unexplained by visible stats
-      const residualCarryIndex = teamAvgHidden > 0
-        ? Math.min(hiddenContribs[i] / teamAvgHidden, 3)
-        : hiddenContribs[i] > 0 ? 1 : 0;
+      // 4. Hidden contribution residual — score unexplained by visible stats.
+      //    Combines two signals:
+      //    - ratioToAvg:  are you doing more hidden work than your teammates?
+      //    - hiddenFrac:  what proportion of YOUR score is hidden work?
+      //    Both must be high to score well here, so a goal-padded score with
+      //    little hidden work doesn't inflate this pillar.
+      const ratioToAvg      = teamAvgHidden > 0 ? hiddenContribs[i] / teamAvgHidden : (hiddenContribs[i] > 0 ? 1 : 0);
+      const hiddenFrac      = p.score > 0 ? hiddenContribs[i] / p.score : 0;
+      const residualCarryIndex = Math.min(ratioToAvg * (1 + hiddenFrac * 2), 3);
 
       // 5. Involvement rate — were you constantly in the action?
       const involvement    = p.goals + p.assists + p.shots + p.saves;
@@ -103,11 +108,16 @@ export function calculateCarryScores(players: PlayerForCarry[]): CarryResult[] {
         residualCarryIndex * 0.15 +
         involvementRate    * 0.10;
 
-      // Two-way superstar bonus: above-average in goals, assists, AND saves
+      // Superstar bonus: count how many of the 5 tracked stats are above team
+      // average. Each adds +0.1 to the multiplier (max ×1.5 for all 5).
+      // Using all stats avoids double-counting any single one — goals/assists
+      // are in offense, saves in defense, shots and score are the independent signals.
       const pillarsAboveAvg = [
-        p.goals   > teamGoals   / teamSize,
-        p.assists > teamAssists / teamSize,
+        p.goals   > teamGoals            / teamSize,
+        p.assists > teamAssists          / teamSize,
         p.saves   > teamAvgSaves,
+        p.shots   > teamPlayers.reduce((s, tp) => s + tp.shots, 0) / teamSize,
+        p.score   > teamAvgScore,
       ].filter(Boolean).length;
       raw *= 1.0 + pillarsAboveAvg * 0.1;
 
