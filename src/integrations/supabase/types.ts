@@ -55,7 +55,6 @@ export type Database = {
           shots: number
           submission_status: Database["public"]["Enums"]["stat_submission_status"]
           submitted_by: string | null
-          team: Database["public"]["Enums"]["team_color"] | null
           user_id: string | null
         }
         Insert: {
@@ -71,7 +70,6 @@ export type Database = {
           shots?: number
           submission_status?: Database["public"]["Enums"]["stat_submission_status"]
           submitted_by?: string | null
-          team?: Database["public"]["Enums"]["team_color"] | null
           user_id?: string | null
         }
         Update: {
@@ -87,7 +85,6 @@ export type Database = {
           shots?: number
           submission_status?: Database["public"]["Enums"]["stat_submission_status"]
           submitted_by?: string | null
-          team?: Database["public"]["Enums"]["team_color"] | null
           user_id?: string | null
         }
         Relationships: [
@@ -239,7 +236,6 @@ export type Database = {
         | "grand_champion_3"
         | "supersonic_legend"
       stat_submission_status: "pending" | "approved" | "rejected"
-      team_color: "blue" | "orange"
     }
     CompositeTypes: {
       [_ in never]: never
