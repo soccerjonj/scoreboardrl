@@ -160,7 +160,6 @@ const LogGame = () => {
         return {
           game_id: game.id,
           player_name: p.name,
-          team: p.team,
           score: p.score,
           goals: p.goals,
           assists: p.assists,
