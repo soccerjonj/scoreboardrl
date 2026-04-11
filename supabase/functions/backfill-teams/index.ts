@@ -92,6 +92,9 @@ serve(async (req) => {
   }
 
   try {
+    const { limit: reqLimit } = await req.json().catch(() => ({ limit: 3 }));
+    const batchLimit = Math.min(reqLimit || 3, 5);
+
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -112,9 +115,9 @@ serve(async (req) => {
     // Filter to games where at least one player has no team
     const needsTeam = (games || []).filter((g: any) =>
       g.game_players?.some((p: any) => p.team === null)
-    );
+    ).slice(0, batchLimit);
 
-    console.log(`Found ${needsTeam.length} games needing team backfill`);
+    console.log(`Processing ${needsTeam.length} games this batch`);
 
     const results: any[] = [];
 
