@@ -126,8 +126,15 @@ serve(async (req) => {
           results.push({ game_id: game.id, status: "skip", reason: "screenshot fetch failed" });
           continue;
         }
-        const imgBuf = await imgRes.arrayBuffer();
-        const base64 = btoa(String.fromCharCode(...new Uint8Array(imgBuf)));
+        const imgBuf = new Uint8Array(await imgRes.arrayBuffer());
+        // Chunk the encoding to avoid stack overflow
+        let base64 = "";
+        const chunkSize = 8192;
+        for (let i = 0; i < imgBuf.length; i += chunkSize) {
+          const chunk = imgBuf.subarray(i, Math.min(i + chunkSize, imgBuf.length));
+          base64 += String.fromCharCode(...chunk);
+        }
+        base64 = btoa(base64);
 
         // Ask AI for just team assignments
         const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
