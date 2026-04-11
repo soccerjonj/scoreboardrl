@@ -60,7 +60,7 @@ const LogGame = () => {
   }, [user, authLoading, navigate]);
 
   const handleParsed = (
-    data: { game_mode: GameMode; game_type: GameType; players: PlayerStat[] },
+    data: { game_mode: GameMode; game_type: GameType; players: PlayerStat[]; result?: "win" | "loss"; division_change?: "up" | "down" | "none" },
     file: File
   ) => {
     setGameMode(data.game_mode);
@@ -69,13 +69,14 @@ const LogGame = () => {
     setImageFile(file);
     setStep("review");
 
-    // Try to determine result from user's team
-    if (rlName) {
+    // Use AI-detected result if available, otherwise fall back to goal comparison
+    if (data.result) {
+      setResult(data.result);
+    } else if (rlName) {
       const userPlayer = data.players.find(
         (p) => p.name.toLowerCase() === rlName.toLowerCase()
       );
       if (userPlayer) {
-        // MVP is always on winning team; or check if user's team has more total goals
         const userTeamGoals = data.players
           .filter((p) => p.team === userPlayer.team)
           .reduce((sum, p) => sum + p.goals, 0);
@@ -84,6 +85,11 @@ const LogGame = () => {
           .reduce((sum, p) => sum + p.goals, 0);
         setResult(userTeamGoals > otherTeamGoals ? "win" : "loss");
       }
+    }
+
+    // Use AI-detected division change if available
+    if (data.division_change) {
+      setDivisionChange(data.division_change);
     }
   };
 

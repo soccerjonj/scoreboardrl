@@ -10,6 +10,8 @@ const corsHeaders = {
 const ScoreboardSchema = z.object({
   game_mode: z.enum(["1v1", "2v2", "3v3"]),
   game_type: z.enum(["competitive", "casual"]),
+  result: z.enum(["win", "loss"]).optional(),
+  division_change: z.enum(["up", "down", "none"]).optional(),
   players: z.array(
     z.object({
       name: z.string(),
@@ -44,7 +46,7 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    const systemPrompt = `You are a Rocket League scoreboard parser. You will receive a photo of a post-match scoreboard from Rocket League. Your job is to extract all player stats accurately.
+    const systemPrompt = `You are a Rocket League scoreboard parser. You will receive a photo of a post-match scoreboard from Rocket League. Your job is to extract all player stats AND match metadata accurately.
 
 CRITICAL RULES:
 1. Player names in brackets like [XYSD] are CLUB TAGS, NOT part of the username. Strip them entirely. For example, if you see "[RLCS] PlayerName", the username is "PlayerName" only.
@@ -52,17 +54,37 @@ CRITICAL RULES:
 3. Each player row shows: Name, Score, Goals, Assists, Saves, Shots.
 4. The MVP has a special icon/indicator next to their name (usually a star or crown).
 5. Determine game_mode by counting players per team: 1 per team = "1v1", 2 = "2v2", 3 = "3v3".
-6. Determine game_type: If you see rank icons/emblems or division info at the bottom, it's "competitive". If you see "UNRANKED" or no rank info, it's "casual".
-7. Read EVERY digit carefully. Score is usually 3-4 digits. Goals, assists, saves, shots are usually 0-10.
-8. The scoreboard may be from PC, PlayStation, Xbox, or Switch — layouts vary slightly but stats are always in the same order.
-9. If platform icons appear next to names (PC monitor, PlayStation logo, Xbox logo, Switch logo), ignore them — they are not part of the name.
 
-${user_rl_name ? `The user's Rocket League account name is "${user_rl_name}". Use this to identify which player is the user.` : ""}
+GAME TYPE DETECTION - THIS IS CRITICAL:
+6. Look at the BOTTOM of the scoreboard screen carefully for rank/division information.
+   - If you see ANY rank emblem, rank name (Bronze, Silver, Gold, Platinum, Diamond, Champion, Grand Champion, Supersonic Legend), MMR numbers, division text (Div I, Div II, etc.), or a "DIVISION UP" / "DIVISION DOWN" banner, the match is "competitive".
+   - If the bottom shows "UNRANKED" text, it is STILL "competitive" — the player just hasn't completed placement matches yet.
+   - The match is "casual" ONLY if there is absolutely NO rank information, NO division info, and NO MMR displayed at the bottom. Casual matches typically show nothing or just XP/rewards at the bottom.
+   - When in doubt, default to "competitive" — most Rocket League matches are competitive.
+
+WIN/LOSS DETECTION:
+7. ${user_rl_name ? `The user's Rocket League account name is "${user_rl_name}". Find which team this player is on.` : "If you cannot identify the user, skip result detection."}
+   - The WINNING team's score column header or area often shows a higher total, or a "WINNER" / crown indicator.
+   - Compare total goals: the team with more goals won.
+   - ${user_rl_name ? `Set "result" to "win" if "${user_rl_name}"'s team has more goals, "loss" if fewer.` : ""}
+
+DIVISION CHANGE DETECTION:
+8. Look at the very bottom of the screen for division change indicators:
+   - "DIVISION UP" or an upward arrow/green indicator → division_change = "up"
+   - "DIVISION DOWN" or a downward arrow/red indicator → division_change = "down"  
+   - If the bottom shows "UNRANKED" or just a rank with no up/down indicator → division_change = "none"
+   - If no division change info is visible → division_change = "none"
+
+9. Read EVERY digit carefully. Score is usually 3-4 digits. Goals, assists, saves, shots are usually 0-10.
+10. The scoreboard may be from PC, PlayStation, Xbox, or Switch — layouts vary slightly but stats are always in the same order.
+11. If platform icons appear next to names (PC monitor, PlayStation logo, Xbox logo, Switch logo), ignore them — they are not part of the name.
 
 Return ONLY a valid JSON object with this exact structure:
 {
   "game_mode": "1v1" | "2v2" | "3v3",
   "game_type": "competitive" | "casual",
+  ${user_rl_name ? `"result": "win" | "loss",` : ""}
+  "division_change": "up" | "down" | "none",
   "players": [
     {
       "name": "PlayerName",
@@ -77,7 +99,7 @@ Return ONLY a valid JSON object with this exact structure:
   ]
 }
 
-Double-check every number before responding. Accuracy is critical.`;
+Double-check every number and the game_type before responding. Most matches ARE competitive. Accuracy is critical.`;
 
     const response = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
@@ -96,7 +118,7 @@ Double-check every number before responding. Accuracy is critical.`;
               content: [
                 {
                   type: "text",
-                  text: "Parse this Rocket League scoreboard screenshot. Extract all player stats accurately. Remember: text in [brackets] is a club tag, NOT part of the username.",
+                  text: "Parse this Rocket League scoreboard screenshot. Extract all player stats accurately. Also determine: 1) Is this competitive or casual? Look at the bottom for rank/division info. 2) Did the user win or lose? 3) Did they rank up or down? Remember: text in [brackets] is a club tag, NOT part of the username.",
                 },
                 {
                   type: "image_url",
