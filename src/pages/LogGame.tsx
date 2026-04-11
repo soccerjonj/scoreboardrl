@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Save, Loader2 } from "lucide-react";
+import { CarryMeter } from "@/components/game/CarryMeter";
 import ScoreboardUploader from "@/components/game/ScoreboardUploader";
 import PlayerStatsEditor from "@/components/game/PlayerStatsEditor";
 import { calculateCarryScores } from "@/lib/carryScore";
@@ -496,6 +497,27 @@ const LogGame = () => {
                   onChange={setPlayers}
                   userRlName={rlName}
                 />
+
+                {/* Carry score preview */}
+                {gameMode !== "1v1" && players.length > 0 && (() => {
+                  const carries = calculateCarryScores(
+                    players.map(p => ({ name: p.name, team: p.team, score: p.score, goals: p.goals, assists: p.assists, saves: p.saves, shots: p.shots }))
+                  ).filter(c => c.carry_score > 0);
+                  if (carries.length === 0) return null;
+                  return (
+                    <div className="mt-6 pt-4 border-t border-border/40">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Carry Scores</p>
+                      <div className="space-y-2">
+                        {carries.map(c => (
+                          <div key={c.name} className="flex items-center justify-between">
+                            <span className="text-sm font-medium">{c.name}</span>
+                            <CarryMeter score={c.carry_score} size="sm" />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
 

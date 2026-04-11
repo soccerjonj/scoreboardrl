@@ -398,8 +398,11 @@ const Dashboard = () => {
                               <p className="text-xs text-muted-foreground">
                                 {userRow.goals}G {userRow.assists}A {userRow.saves}S
                               </p>
-                              {userCarry > 0 && (
-                                <CarryMeter score={userCarry} size="sm" className="mt-1 justify-end" />
+                          {userCarry > 0 && (
+                                <div className="flex items-center gap-1.5 mt-1 justify-end">
+                                  <span className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Carry</span>
+                                  <CarryMeter score={userCarry} size="sm" />
+                                </div>
                               )}
                             </div>
                           )}
