@@ -134,6 +134,8 @@ serve(async (req) => {
 
       if (gamesErr) throw gamesErr;
 
+      console.log(`Recalculate: found ${(games || []).length} games`);
+
       const results: any[] = [];
       const normName = (n: string) => n?.trim().toLowerCase() ?? "";
 
