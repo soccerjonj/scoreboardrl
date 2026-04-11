@@ -101,35 +101,73 @@ Return ONLY a valid JSON object with this exact structure:
 
 Double-check every number and the game_type before responding. Most matches ARE competitive. Accuracy is critical.`;
 
-    const response = await fetch(
-      "https://ai.gateway.lovable.dev/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-pro",
-          messages: [
-            { role: "system", content: systemPrompt },
+    const requestBody = JSON.stringify({
+      model: "google/gemini-2.5-pro",
+      messages: [
+        { role: "system", content: systemPrompt },
+        {
+          role: "user",
+          content: [
             {
-              role: "user",
-              content: [
-                {
-                  type: "text",
-                  text: "Parse this Rocket League scoreboard screenshot. Extract all player stats accurately. Also determine: 1) Is this competitive or casual? Look at the bottom for rank/division info. 2) Did the user win or lose? 3) Did they rank up or down? Remember: text in [brackets] is a club tag, NOT part of the username.",
-                },
-                {
-                  type: "image_url",
-                  image_url: { url: `data:image/jpeg;base64,${image_base64}` },
-                },
-              ],
+              type: "text",
+              text: "Parse this Rocket League scoreboard screenshot. Extract all player stats accurately. Also determine: 1) Is this competitive or casual? Look at the bottom for rank/division info. 2) Did the user win or lose? 3) Did they rank up or down? Remember: text in [brackets] is a club tag, NOT part of the username.",
+            },
+            {
+              type: "image_url",
+              image_url: { url: `data:image/jpeg;base64,${image_base64}` },
             },
           ],
-        }),
+        },
+      ],
+    });
+
+    const MAX_RETRIES = 3;
+    let response: Response | null = null;
+    let lastError: string = "";
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      const res = await fetch(
+        "https://ai.gateway.lovable.dev/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: requestBody,
+        }
+      );
+
+      if (res.status === 429) {
+        return new Response(
+          JSON.stringify({ error: "Rate limited. Please try again in a moment." }),
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
-    );
+      if (res.status === 402) {
+        return new Response(
+          JSON.stringify({ error: "AI credits exhausted. Please add funds." }),
+          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (!res.ok) {
+        lastError = `AI gateway error: ${res.status}`;
+        console.error(`Attempt ${attempt}: ${lastError}`);
+        if (attempt < MAX_RETRIES) {
+          await new Promise(r => setTimeout(r, 1000 * attempt));
+          continue;
+        }
+        break;
+      }
+
+      response = res;
+      break;
+    }
+
+    if (!response) {
+      throw new Error(lastError || "AI gateway failed after retries");
+    }
 
     if (!response.ok) {
       if (response.status === 429) {
