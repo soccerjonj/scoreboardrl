@@ -44,6 +44,7 @@ export type Database = {
       game_players: {
         Row: {
           assists: number
+          carry_score: number | null
           created_at: string
           game_id: string
           goals: number
@@ -55,10 +56,12 @@ export type Database = {
           shots: number
           submission_status: Database["public"]["Enums"]["stat_submission_status"]
           submitted_by: string | null
+          team: string | null
           user_id: string | null
         }
         Insert: {
           assists?: number
+          carry_score?: number | null
           created_at?: string
           game_id: string
           goals?: number
@@ -70,10 +73,12 @@ export type Database = {
           shots?: number
           submission_status?: Database["public"]["Enums"]["stat_submission_status"]
           submitted_by?: string | null
+          team?: string | null
           user_id?: string | null
         }
         Update: {
           assists?: number
+          carry_score?: number | null
           created_at?: string
           game_id?: string
           goals?: number
@@ -85,6 +90,7 @@ export type Database = {
           shots?: number
           submission_status?: Database["public"]["Enums"]["stat_submission_status"]
           submitted_by?: string | null
+          team?: string | null
           user_id?: string | null
         }
         Relationships: [
