@@ -22,6 +22,8 @@ const ScoreboardSchema = z.object({
       saves: z.number(),
       shots: z.number(),
       is_mvp: z.boolean(),
+      mmr: z.number().nullable().optional(),
+      mmr_change: z.number().nullable().optional(),
     })
   ),
 });
@@ -71,13 +73,20 @@ WIN/LOSS DETECTION:
 DIVISION CHANGE DETECTION:
 8. Look at the very bottom of the screen for division change indicators:
    - "DIVISION UP" or an upward arrow/green indicator → division_change = "up"
-   - "DIVISION DOWN" or a downward arrow/red indicator → division_change = "down"  
+   - "DIVISION DOWN" or a downward arrow/red indicator → division_change = "down"
    - If the bottom shows "UNRANKED" or just a rank with no up/down indicator → division_change = "none"
    - If no division change info is visible → division_change = "none"
 
-9. Read EVERY digit carefully. Score is usually 3-4 digits. Goals, assists, saves, shots are usually 0-10.
-10. The scoreboard may be from PC, PlayStation, Xbox, or Switch — layouts vary slightly but stats are always in the same order.
-11. If platform icons appear next to names (PC monitor, PlayStation logo, Xbox logo, Switch logo), ignore them — they are not part of the name.
+MMR DETECTION (competitive games only):
+9. To the LEFT of each player's name there are two numbers stacked vertically:
+   - The top number is the player's MMR AFTER the match (a 3-5 digit integer, e.g. 847).
+   - The bottom number is the MMR CHANGE for that match — shown with a + or - sign and usually colored green (gain) or red (loss), e.g. +12 or -8.
+   - Extract both for every player. Use a negative integer for losses (e.g. -8, not 8).
+   - If MMR values are not visible (casual game or obscured), set mmr and mmr_change to null.
+
+10. Read EVERY digit carefully. Score is usually 3-4 digits. Goals, assists, saves, shots are usually 0-10.
+11. The scoreboard may be from PC, PlayStation, Xbox, or Switch — layouts vary slightly but stats are always in the same order.
+12. If platform icons appear next to names (PC monitor, PlayStation logo, Xbox logo, Switch logo), ignore them — they are not part of the name.
 
 Return ONLY a valid JSON object with this exact structure:
 {
@@ -94,7 +103,9 @@ Return ONLY a valid JSON object with this exact structure:
       "assists": 1,
       "saves": 3,
       "shots": 5,
-      "is_mvp": true
+      "is_mvp": true,
+      "mmr": 847,
+      "mmr_change": 12
     }
   ]
 }
@@ -110,7 +121,7 @@ Double-check every number and the game_type before responding. Most matches ARE 
           content: [
             {
               type: "text",
-              text: "Parse this Rocket League scoreboard screenshot. Extract all player stats accurately. Also determine: 1) Is this competitive or casual? Look at the bottom for rank/division info. 2) Did the user win or lose? 3) Did they rank up or down? Remember: text in [brackets] is a club tag, NOT part of the username.",
+              text: "Parse this Rocket League scoreboard screenshot. Extract all player stats accurately. Also determine: 1) Is this competitive or casual? Look at the bottom for rank/division info. 2) Did the user win or lose? 3) Did they rank up or down? 4) For each player, read the MMR value and MMR change shown to the LEFT of their name. Remember: text in [brackets] is a club tag, NOT part of the username.",
             },
             {
               type: "image_url",

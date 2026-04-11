@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Save, Loader2 } from "lucide-react";
 import ScoreboardUploader from "@/components/game/ScoreboardUploader";
@@ -91,6 +92,8 @@ interface PlayerStat {
   saves: number;
   shots: number;
   is_mvp: boolean;
+  mmr?: number | null;
+  mmr_change?: number | null;
 }
 
 const LogGame = () => {
@@ -108,6 +111,8 @@ const LogGame = () => {
   const [rlName, setRlName] = useState<string | null>(null);
   const [step, setStep] = useState<"upload" | "review">("upload");
   const [currentRank, setCurrentRank] = useState<{ rank_tier: RankTier; rank_division: RankDivision | null } | null>(null);
+  const [mmr, setMmr] = useState<number | null>(null);
+  const [mmrChange, setMmrChange] = useState<number | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -169,6 +174,17 @@ const LogGame = () => {
     // Use AI-detected division change if available
     if (data.division_change) {
       setDivisionChange(data.division_change);
+    }
+
+    // Extract user's MMR from their player row
+    if (rlName) {
+      const userPlayer = data.players.find(
+        (p) => p.name.toLowerCase() === rlName.toLowerCase()
+      );
+      if (userPlayer) {
+        setMmr(userPlayer.mmr ?? null);
+        setMmrChange(userPlayer.mmr_change ?? null);
+      }
     }
   };
 
@@ -264,21 +280,34 @@ const LogGame = () => {
 
       if (playersErr) throw playersErr;
 
-      // Auto-update profile rank if a division change was recorded
-      if (gameType === "competitive" && (divisionChange === "up" || divisionChange === "down")) {
-        const { data: currentRank } = await supabase
-          .from("ranks")
-          .select("rank_tier, rank_division")
-          .eq("user_id", user.id)
-          .eq("game_mode", gameMode)
-          .eq("game_type", "competitive")
-          .single();
+      // Auto-update profile rank and MMR if this is a competitive game
+      if (gameType === "competitive") {
+        const rankUpdate: { rank_tier?: RankTier; rank_division?: RankDivision | null; mmr?: number | null } = {};
 
-        if (currentRank) {
-          const newRank = shiftRank(currentRank.rank_tier, currentRank.rank_division, divisionChange);
+        if (divisionChange === "up" || divisionChange === "down") {
+          const { data: storedRank } = await supabase
+            .from("ranks")
+            .select("rank_tier, rank_division")
+            .eq("user_id", user.id)
+            .eq("game_mode", gameMode)
+            .eq("game_type", "competitive")
+            .single();
+
+          if (storedRank) {
+            const newRank = shiftRank(storedRank.rank_tier, storedRank.rank_division, divisionChange);
+            rankUpdate.rank_tier = newRank.rank_tier;
+            rankUpdate.rank_division = newRank.rank_division;
+          }
+        }
+
+        if (mmr !== null) {
+          rankUpdate.mmr = mmr;
+        }
+
+        if (Object.keys(rankUpdate).length > 0) {
           await supabase
             .from("ranks")
-            .update({ rank_tier: newRank.rank_tier, rank_division: newRank.rank_division })
+            .update(rankUpdate)
             .eq("user_id", user.id)
             .eq("game_mode", gameMode)
             .eq("game_type", "competitive");
@@ -418,6 +447,34 @@ const LogGame = () => {
                     </div>
                   )}
                 </div>
+
+                {gameType === "competitive" && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>MMR (after game)</Label>
+                      <Input
+                        type="number"
+                        placeholder="e.g. 847"
+                        value={mmr ?? ""}
+                        onChange={(e) => setMmr(e.target.value === "" ? null : Number(e.target.value))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>MMR Change</Label>
+                      <Input
+                        type="number"
+                        placeholder="e.g. +12 or -8"
+                        value={mmrChange ?? ""}
+                        onChange={(e) => setMmrChange(e.target.value === "" ? null : Number(e.target.value))}
+                      />
+                      {mmrChange !== null && (
+                        <p className={`text-xs ${mmrChange >= 0 ? "text-green-500" : "text-red-500"}`}>
+                          {mmrChange >= 0 ? `+${mmrChange}` : mmrChange}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
