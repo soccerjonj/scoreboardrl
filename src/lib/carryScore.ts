@@ -46,7 +46,7 @@ export function calculateCarryScores(players: PlayerForCarry[]): CarryResult[] {
     const teamAvgSaves       = teamSaves / teamSize;
     const teamAvgScore       = teamScore / teamSize;
     const teamAvgInvolvement = teamPlayers.reduce((s, p) => s + p.goals + p.assists + p.shots + p.saves, 0) / teamSize;
-    const teamShotWaste      = teamShots > 0 ? (teamShots - teamGoals) / teamShots : 0;
+    // teamShotWaste was used for the enabler bonus (now removed)
     const teamOffenseWeight  = teamGoals * 3 + teamAssists * 2;
 
     // Hidden contribution: score not explained by visible stats
@@ -68,41 +68,40 @@ export function calculateCarryScores(players: PlayerForCarry[]): CarryResult[] {
         ? (p.goals * 3 + p.assists * 2) / teamOffenseWeight
         : 0;
 
-      // 2. Enabler bonus — assists weighted by how badly teammates converted
-      const maxEnablerRaw = Math.max(...teamPlayers.map((tp) => tp.assists)) * (1 + teamShotWaste);
-      const enablerBonus = maxEnablerRaw > 0
-        ? (p.assists * (1 + teamShotWaste)) / maxEnablerRaw
-        : 0;
-
-      // 3. Defensive load — overloaded defender × clutch saver
-      const savesRatio  = teamAvgSaves > 0 ? p.saves / teamAvgSaves : (p.saves > 0 ? 2 : 0);
+      // 2. Defensive load — overloaded defender × clutch saver
+      const savesRatio   = teamAvgSaves > 0 ? p.saves / teamAvgSaves : (p.saves > 0 ? 2 : 0);
       const clutchFactor = (p.saves + goalsAgainst) > 0 ? p.saves / (p.saves + goalsAgainst) : 0;
       const defensiveLoad = Math.min(savesRatio * clutchFactor, 3);
 
-      // 4. Score premium — how far above team average your score is
+      // 3. Score premium — how far above team average your in-game score is.
+      //    Weighted heavily because the game engine captures clears, demos,
+      //    centers, and other invisible contributions that stats don't show.
       const scorePremium = teamAvgScore > 0
         ? Math.min(Math.max((p.score - teamAvgScore) / teamAvgScore, -1), 2)
         : 0;
 
-      // 5. Hidden contribution residual — invisible work the game engine saw
+      // 4. Hidden contribution residual — score unexplained by visible stats
       const residualCarryIndex = teamAvgHidden > 0
         ? Math.min(hiddenContribs[i] / teamAvgHidden, 3)
         : hiddenContribs[i] > 0 ? 1 : 0;
 
-      // 6. Involvement rate — were you constantly in the action?
+      // 5. Involvement rate — were you constantly in the action?
       const involvement    = p.goals + p.assists + p.shots + p.saves;
       const involvementRate = teamAvgInvolvement > 0
         ? Math.min(involvement / teamAvgInvolvement, 3)
         : involvement > 0 ? 1 : 0;
 
-      // Weighted sum (all pillars 0–1 scale before multipliers)
+      // Weighted sum.
+      // Note: no separate enabler bonus — assists are already in offensive share,
+      // so a separate assists pillar would double-count them and unfairly penalise
+      // scorers who happen to have 0 assists.
+      // Score premium raised to 0.25 — it's the most holistic single signal.
       let raw =
-        offensive          * 0.20 +
-        enablerBonus       * 0.15 +
-        defensiveLoad      * 0.20 +
-        scorePremium       * 0.15 +
+        offensive          * 0.25 +
+        defensiveLoad      * 0.25 +
+        scorePremium       * 0.25 +
         residualCarryIndex * 0.15 +
-        involvementRate    * 0.15;
+        involvementRate    * 0.10;
 
       // Two-way superstar bonus: above-average in goals, assists, AND saves
       const pillarsAboveAvg = [
@@ -131,11 +130,15 @@ export function calculateCarryScores(players: PlayerForCarry[]): CarryResult[] {
     const totalRaw    = rawCarries.reduce((s, r) => s + r, 0);
 
     // How far above "fair share" was the top player?
+    // Power curve (exponent 0.6) so a genuine 62/38 split scores ~68 rather
+    // than a linear 25 — marginal edges stay low, real dominance scores high.
     const fairShare  = 1 / teamSize;
     const topShare   = totalRaw > 0 ? topRaw / totalRaw : fairShare;
     const excess     = Math.max(topShare - fairShare, 0);
-    const maxExcess  = 1 - fairShare; // theoretical max if one player did everything
-    const carryScore = maxExcess > 0 ? Math.max(Math.round((excess / maxExcess) * 100), 1) : 1;
+    const maxExcess  = 1 - fairShare;
+    const carryScore = maxExcess > 0
+      ? Math.max(Math.round(Math.pow(excess / maxExcess, 0.6) * 100), 1)
+      : 1;
 
     const winner = results.find((r) => r.name === teamPlayers[maxIdx].name);
     if (winner) winner.carry_score = carryScore;
