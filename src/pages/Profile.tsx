@@ -101,7 +101,7 @@ const Profile = () => {
     try {
       const { data: requests, error } = await supabase
         .from("friend_requests")
-        .select("id, sender_id, receiver_id, status, created_at")
+        .select("id, sender_id, receiver_id, status, created_at, updated_at")
         .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
         .in("status", ["pending", "accepted"]);
 
