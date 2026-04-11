@@ -115,8 +115,15 @@ serve(async (req) => {
   }
 
   try {
-    const { limit: reqLimit, recalculate } = await req.json().catch(() => ({ limit: 3, recalculate: false }));
-    const batchLimit = Math.min(reqLimit || 3, 50);
+    let reqLimit = 3;
+    let recalculate = false;
+    try {
+      const body = await req.json();
+      console.log("Body received:", JSON.stringify(body));
+      reqLimit = body.limit || 3;
+      recalculate = !!body.recalculate;
+    } catch { /* no body */ }
+    const batchLimit = Math.min(reqLimit, 50);
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
