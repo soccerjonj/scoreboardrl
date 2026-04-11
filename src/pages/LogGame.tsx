@@ -31,6 +31,24 @@ const RANK_TIERS: RankTier[] = [
 ];
 const RANK_DIVISIONS: RankDivision[] = ["I", "II", "III", "IV"];
 
+const TIER_LABELS: Record<RankTier, string> = {
+  unranked: "Unranked",
+  bronze_1: "Bronze I", bronze_2: "Bronze II", bronze_3: "Bronze III",
+  silver_1: "Silver I", silver_2: "Silver II", silver_3: "Silver III",
+  gold_1: "Gold I", gold_2: "Gold II", gold_3: "Gold III",
+  platinum_1: "Platinum I", platinum_2: "Platinum II", platinum_3: "Platinum III",
+  diamond_1: "Diamond I", diamond_2: "Diamond II", diamond_3: "Diamond III",
+  champion_1: "Champion I", champion_2: "Champion II", champion_3: "Champion III",
+  grand_champion_1: "Grand Champ I", grand_champion_2: "Grand Champ II", grand_champion_3: "Grand Champ III",
+  supersonic_legend: "Supersonic Legend",
+};
+
+function formatRank(tier: RankTier, division: RankDivision | null): string {
+  const base = TIER_LABELS[tier] ?? tier;
+  if (!division || tier === "unranked" || tier === "supersonic_legend") return base;
+  return `${base} Div ${division}`;
+}
+
 function shiftRank(
   tier: RankTier,
   division: RankDivision | null,
@@ -89,6 +107,7 @@ const LogGame = () => {
   const [saving, setSaving] = useState(false);
   const [rlName, setRlName] = useState<string | null>(null);
   const [step, setStep] = useState<"upload" | "review">("upload");
+  const [currentRank, setCurrentRank] = useState<{ rank_tier: RankTier; rank_division: RankDivision | null } | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -106,6 +125,18 @@ const LogGame = () => {
         });
     }
   }, [user, authLoading, navigate]);
+
+  useEffect(() => {
+    if (!user || gameType !== "competitive") { setCurrentRank(null); return; }
+    supabase
+      .from("ranks")
+      .select("rank_tier, rank_division")
+      .eq("user_id", user.id)
+      .eq("game_mode", gameMode)
+      .eq("game_type", "competitive")
+      .single()
+      .then(({ data }) => setCurrentRank(data ?? null));
+  }, [user, gameMode, gameType]);
 
   const handleParsed = (
     data: { game_mode: GameMode; game_type: GameType; players: PlayerStat[]; result?: "win" | "loss"; division_change?: "up" | "down" | "none" },
@@ -366,6 +397,24 @@ const LogGame = () => {
                           <SelectItem value="down">Division Down ↓</SelectItem>
                         </SelectContent>
                       </Select>
+                      {currentRank && (
+                        <p className="text-xs text-muted-foreground">
+                          {divisionChange === "none" || !divisionChange
+                            ? formatRank(currentRank.rank_tier, currentRank.rank_division)
+                            : (() => {
+                                const next = shiftRank(currentRank.rank_tier, currentRank.rank_division, divisionChange as "up" | "down");
+                                return (
+                                  <>
+                                    <span>{formatRank(currentRank.rank_tier, currentRank.rank_division)}</span>
+                                    <span className={divisionChange === "up" ? " text-green-500" : " text-red-500"}>
+                                      {" → "}{formatRank(next.rank_tier, next.rank_division)}
+                                    </span>
+                                  </>
+                                );
+                              })()
+                          }
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
