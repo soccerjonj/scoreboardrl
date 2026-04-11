@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Save, Loader2 } from "lucide-react";
 import ScoreboardUploader from "@/components/game/ScoreboardUploader";
 import PlayerStatsEditor from "@/components/game/PlayerStatsEditor";
+import { calculateCarryScores } from "@/lib/carryScore";
 import type { Database } from "@/integrations/supabase/types";
 
 type GameMode = Database["public"]["Enums"]["game_mode"];
@@ -253,6 +254,10 @@ const LogGame = () => {
         }
       });
 
+      // Calculate carry scores before insert
+      const carryResults = calculateCarryScores(players);
+      const carryMap = new Map(carryResults.map((r) => [r.name.toLowerCase(), r.carry_score]));
+
       // Insert game players
       const gamePlayers = players.map((p) => {
         const matchedUserId = nameToUserId.get(p.name.toLowerCase());
@@ -262,12 +267,14 @@ const LogGame = () => {
         return {
           game_id: game.id,
           player_name: p.name,
+          team: p.team,
           score: p.score,
           goals: p.goals,
           assists: p.assists,
           saves: p.saves,
           shots: p.shots,
           is_mvp: p.is_mvp,
+          carry_score: carryMap.get(p.name.toLowerCase()) ?? 0,
           user_id: matchedUserId || null,
           submitted_by: user.id,
           submission_status: (isCurrentUser || isFriend ? "approved" : matchedUserId ? "pending" : "approved") as "approved" | "pending",
