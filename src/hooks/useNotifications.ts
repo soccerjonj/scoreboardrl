@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Database } from "@/integrations/supabase/types";
@@ -10,6 +10,10 @@ export function useNotifications() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount]     = useState(0);
   const [loading, setLoading]             = useState(true);
+  // Use a stable unique channel name per hook instance to avoid the
+  // "cannot add callbacks after subscribe()" error when multiple components
+  // call this hook simultaneously (BottomNav, TopNav, Notifications page).
+  const channelName = useRef(`notifications:${user?.id ?? "anon"}:${Math.random().toString(36).slice(2)}`);
 
   const fetchNotifications = useCallback(async () => {
     if (!user) return;
@@ -29,9 +33,11 @@ export function useNotifications() {
     if (!user) return;
     fetchNotifications();
 
-    // Real-time subscription — new notifications pop the badge immediately
+    // Real-time subscription — new notifications pop the badge immediately.
+    // Each hook instance gets a unique channel name so multiple subscribers
+    // don't conflict with each other.
     const channel = supabase
-      .channel(`notifications:${user.id}`)
+      .channel(channelName.current)
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` },
