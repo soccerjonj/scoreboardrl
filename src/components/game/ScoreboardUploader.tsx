@@ -38,14 +38,43 @@ const ScoreboardUploader = ({ userRlName, onParsed }: ScoreboardUploaderProps) =
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  const parseScoreboard = async (base64: string, file: File) => {
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const MAX = 1920;
+        let { width, height } = img;
+        if (width > MAX || height > MAX) {
+          if (width > height) {
+            height = Math.round((height * MAX) / width);
+            width = MAX;
+          } else {
+            width = Math.round((width * MAX) / height);
+            height = MAX;
+          }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d")!;
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", 0.82));
+      };
+      img.onerror = reject;
+      img.src = url;
+    });
+  };
+
+  const parseScoreboard = async (base64: string) => {
     setParsing(true);
     try {
       const { data, error } = await supabase.functions.invoke("parse-scoreboard", {
         body: {
           image_base64: base64.split(",")[1],
           user_rl_name: userRlName,
-          mime_type: file.type || "image/jpeg",
+          mime_type: "image/jpeg",
         },
       });
 
@@ -65,20 +94,19 @@ const ScoreboardUploader = ({ userRlName, onParsed }: ScoreboardUploaderProps) =
     }
   };
 
-  const handleFile = (file: File) => {
+  const handleFile = async (file: File) => {
     if (!file.type.startsWith("image/")) {
       toast({ title: "Invalid file", description: "Please upload an image.", variant: "destructive" });
       return;
     }
     setSelectedFile(file);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const dataUrl = e.target?.result as string;
-      setPreview(dataUrl);
-      // Auto-start parsing immediately
-      parseScoreboard(dataUrl, file);
-    };
-    reader.readAsDataURL(file);
+    try {
+      const compressed = await compressImage(file);
+      setPreview(compressed);
+      parseScoreboard(compressed);
+    } catch {
+      toast({ title: "Failed to process image", description: "Please try again.", variant: "destructive" });
+    }
   };
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
