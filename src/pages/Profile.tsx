@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, LogOut } from "lucide-react";
+import { Loader2, Save, LogOut, Pencil, Check, X as XIcon } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 import AppLayout from "@/components/layout/AppLayout";
 
@@ -20,7 +20,7 @@ type RankDivision = Database["public"]["Enums"]["rank_division"];
 type RankInput = { rank_tier: RankTier; rank_division: RankDivision | null; mmr: number | null };
 
 const gameModes: GameMode[] = ["1v1", "2v2", "3v3"];
-const gameModeLabels: Record<GameMode, string> = { "1v1": "1v1 Duel", "2v2": "2v2 Doubles", "3v3": "3v3 Standard" };
+const gameModeLabels: Record<GameMode, string> = { "1v1": "1v1", "2v2": "2v2", "3v3": "3v3" };
 
 const rankTierOptions: { value: RankTier; label: string }[] = [
   { value: "unranked", label: "Unranked" },
@@ -31,15 +31,30 @@ const rankTierOptions: { value: RankTier; label: string }[] = [
   { value: "diamond_1", label: "Diamond I" }, { value: "diamond_2", label: "Diamond II" }, { value: "diamond_3", label: "Diamond III" },
   { value: "champion_1", label: "Champion I" }, { value: "champion_2", label: "Champion II" }, { value: "champion_3", label: "Champion III" },
   { value: "grand_champion_1", label: "Grand Champ I" }, { value: "grand_champion_2", label: "Grand Champ II" }, { value: "grand_champion_3", label: "Grand Champ III" },
-  { value: "supersonic_legend", label: "Supersonic Legend" },
+  { value: "supersonic_legend", label: "SSL" },
 ];
 
 const rankDivisionOptions: { value: RankDivision; label: string }[] = [
   { value: "I", label: "Div I" }, { value: "II", label: "Div II" }, { value: "III", label: "Div III" }, { value: "IV", label: "Div IV" },
 ];
 
+const RANK_COLORS: Partial<Record<string, string>> = {
+  unranked: "text-muted-foreground",
+  bronze_1: "text-amber-700", bronze_2: "text-amber-700", bronze_3: "text-amber-700",
+  silver_1: "text-slate-400", silver_2: "text-slate-400", silver_3: "text-slate-400",
+  gold_1: "text-yellow-400", gold_2: "text-yellow-400", gold_3: "text-yellow-400",
+  platinum_1: "text-cyan-400", platinum_2: "text-cyan-400", platinum_3: "text-cyan-400",
+  diamond_1: "text-blue-400", diamond_2: "text-blue-400", diamond_3: "text-blue-400",
+  champion_1: "text-purple-400", champion_2: "text-purple-400", champion_3: "text-purple-400",
+  grand_champion_1: "text-red-400", grand_champion_2: "text-red-400", grand_champion_3: "text-red-400",
+  supersonic_legend: "text-primary",
+};
+
 const createEmptyRanks = (): Record<GameMode, RankInput> =>
   gameModes.reduce((acc, mode) => { acc[mode] = { rank_tier: "unranked", rank_division: null, mmr: null }; return acc; }, {} as Record<GameMode, RankInput>);
+
+const getRankLabel = (tier: RankTier) =>
+  rankTierOptions.find((o) => o.value === tier)?.label ?? tier;
 
 const Profile = () => {
   const { user, loading: authLoading, signOut } = useAuth();
@@ -50,6 +65,10 @@ const Profile = () => {
   const [saving, setSaving] = useState(false);
   const [rlAccountName, setRlAccountName] = useState("");
   const [ranks, setRanks] = useState<Record<GameMode, RankInput>>(createEmptyRanks());
+  // Which mode is currently being edited inline (mobile)
+  const [editingMode, setEditingMode] = useState<GameMode | null>(null);
+  // Temp edit state
+  const [editDraft, setEditDraft] = useState<RankInput | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) { navigate("/auth"); return; }
@@ -75,12 +94,18 @@ const Profile = () => {
     }
   }, [authLoading, user, navigate, toast]);
 
-  const handleTierChange = (mode: GameMode, tier: RankTier) => {
-    setRanks((prev) => ({ ...prev, [mode]: { ...prev[mode], rank_tier: tier, rank_division: tier === "unranked" ? null : prev[mode].rank_division ?? "I" } }));
+  const startEdit = (mode: GameMode) => {
+    setEditingMode(mode);
+    setEditDraft({ ...ranks[mode] });
   };
 
-  const updateRank = (mode: GameMode, updates: Partial<RankInput>) => {
-    setRanks((prev) => ({ ...prev, [mode]: { ...prev[mode], ...updates } }));
+  const cancelEdit = () => { setEditingMode(null); setEditDraft(null); };
+
+  const confirmEdit = () => {
+    if (!editingMode || !editDraft) return;
+    setRanks((prev) => ({ ...prev, [editingMode]: editDraft }));
+    setEditingMode(null);
+    setEditDraft(null);
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -91,7 +116,9 @@ const Profile = () => {
       const trimmedName = rlAccountName.trim();
       const rankPayload = gameModes.map((mode) => ({
         user_id: user.id, game_mode: mode, game_type: "competitive" as GameType,
-        rank_tier: ranks[mode].rank_tier, rank_division: ranks[mode].rank_tier === "unranked" ? null : ranks[mode].rank_division ?? "I", mmr: ranks[mode].mmr ?? null,
+        rank_tier: ranks[mode].rank_tier,
+        rank_division: ranks[mode].rank_tier === "unranked" ? null : ranks[mode].rank_division ?? "I",
+        mmr: ranks[mode].mmr ?? null,
       }));
 
       const [profileRes, ranksRes] = await Promise.all([
@@ -100,7 +127,7 @@ const Profile = () => {
       ]);
       if (profileRes.error) throw profileRes.error;
       if (ranksRes.error) throw ranksRes.error;
-      toast({ title: "Profile saved", description: "Your account name and ranks have been updated." });
+      toast({ title: "Profile saved" });
     } catch (err: any) {
       toast({ title: "Failed to save", description: err.message, variant: "destructive" });
     } finally { setSaving(false); }
@@ -114,66 +141,120 @@ const Profile = () => {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="space-y-5">
         <div>
           <h1 className="text-2xl font-display font-bold">Profile</h1>
           <p className="text-sm text-muted-foreground">{user.email}</p>
         </div>
 
-        <form className="space-y-6" onSubmit={handleSave}>
+        <form className="space-y-5" onSubmit={handleSave}>
           {/* Account Name */}
           <Card className="border-border/50 bg-card/80">
             <CardHeader className="pb-2">
-              <CardTitle className="text-base font-display">Rocket League Account</CardTitle>
+              <CardTitle className="text-base font-display">Rocket League Username</CardTitle>
               <CardDescription className="text-xs">Your in-game name for scoreboard matching</CardDescription>
             </CardHeader>
             <CardContent>
-              <Input placeholder="e.g. RocketAce23" value={rlAccountName} onChange={(e) => setRlAccountName(e.target.value)} />
+              <Input placeholder="e.g. Jstn" value={rlAccountName} onChange={(e) => setRlAccountName(e.target.value)} />
             </CardContent>
           </Card>
 
-          {/* Ranks */}
+          {/* Ranks — compact summary cards, tap to edit */}
           <Card className="border-border/50 bg-card/80">
             <CardHeader className="pb-2">
               <CardTitle className="text-base font-display">Competitive Ranks</CardTitle>
-              <CardDescription className="text-xs">Set your current rank for each playlist</CardDescription>
+              <CardDescription className="text-xs">Tap a mode to edit its rank</CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-3">
-                {gameModes.map((mode) => {
-                  const rank = ranks[mode];
-                  return (
-                    <div key={mode} className="rounded-lg border border-border/60 bg-background/60 p-4 space-y-3">
-                      <p className="font-display font-bold text-sm">{gameModeLabels[mode]}</p>
+            <CardContent className="space-y-2">
+              {gameModes.map((mode) => {
+                const rank = ranks[mode];
+                const isEditing = editingMode === mode;
+                const colorClass = RANK_COLORS[rank.rank_tier] ?? "text-foreground";
 
-                      <div className="space-y-1">
-                        <Label className="text-xs">Rank</Label>
-                        <Select value={rank.rank_tier} onValueChange={(v) => handleTierChange(mode, v as RankTier)}>
-                          <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                          <SelectContent>{rankTierOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
-                        </Select>
+                return (
+                  <div key={mode} className="rounded-lg border border-border/50 bg-background/60 overflow-hidden">
+                    {/* Summary row — always visible */}
+                    <div className="flex items-center justify-between px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <span className="font-display font-bold text-sm w-8">{gameModeLabels[mode]}</span>
+                        <div>
+                          <span className={`font-semibold text-sm ${colorClass}`}>
+                            {getRankLabel(rank.rank_tier)}
+                            {rank.rank_division && rank.rank_tier !== "unranked" && rank.rank_tier !== "supersonic_legend"
+                              ? ` ${rank.rank_division}`
+                              : ""}
+                          </span>
+                          {rank.mmr != null && (
+                            <span className="ml-2 text-xs text-muted-foreground font-mono">{rank.mmr} MMR</span>
+                          )}
+                        </div>
                       </div>
-
-                      <div className="space-y-1">
-                        <Label className="text-xs">Division</Label>
-                        <Select value={rank.rank_division ?? ""} onValueChange={(v) => updateRank(mode, { rank_division: v as RankDivision })} disabled={rank.rank_tier === "unranked"}>
-                          <SelectTrigger className="h-9"><SelectValue placeholder={rank.rank_tier === "unranked" ? "N/A" : "Division"} /></SelectTrigger>
-                          <SelectContent>{rankDivisionOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-1">
-                        <Label className="text-xs">MMR</Label>
-                        <Input type="number" min={0} placeholder="e.g. 950" className="h-9" value={rank.mmr ?? ""} onChange={(e) => {
-                          const v = e.target.value;
-                          if (v === "") { updateRank(mode, { mmr: null }); return; }
-                          const n = Number(v); if (!Number.isNaN(n)) updateRank(mode, { mmr: n });
-                        }} />
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => isEditing ? cancelEdit() : startEdit(mode)}
+                        className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                      >
+                        {isEditing ? <XIcon className="w-4 h-4" /> : <Pencil className="w-4 h-4" />}
+                      </button>
                     </div>
-                  );
-                })}
-              </div>
+
+                    {/* Inline edit panel — slides open when editing */}
+                    {isEditing && editDraft && (
+                      <div className="border-t border-border/50 bg-muted/20 px-4 py-3 space-y-3">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs">Rank</Label>
+                            <Select
+                              value={editDraft.rank_tier}
+                              onValueChange={(v) => setEditDraft((prev) => prev ? {
+                                ...prev,
+                                rank_tier: v as RankTier,
+                                rank_division: v === "unranked" ? null : prev.rank_division ?? "I",
+                              } : prev)}
+                            >
+                              <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                              <SelectContent>{rankTierOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-1">
+                            <Label className="text-xs">Division</Label>
+                            <Select
+                              value={editDraft.rank_division ?? ""}
+                              onValueChange={(v) => setEditDraft((prev) => prev ? { ...prev, rank_division: v as RankDivision } : prev)}
+                              disabled={editDraft.rank_tier === "unranked" || editDraft.rank_tier === "supersonic_legend"}
+                            >
+                              <SelectTrigger className="h-9 text-xs">
+                                <SelectValue placeholder={editDraft.rank_tier === "unranked" ? "N/A" : "Div"} />
+                              </SelectTrigger>
+                              <SelectContent>{rankDivisionOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-xs">MMR (optional)</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            placeholder="e.g. 950"
+                            className="h-9 text-xs"
+                            value={editDraft.mmr ?? ""}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              setEditDraft((prev) => prev ? { ...prev, mmr: v === "" ? null : Number(v) } : prev);
+                            }}
+                          />
+                        </div>
+
+                        <Button type="button" size="sm" variant="hero" className="w-full gap-1.5" onClick={confirmEdit}>
+                          <Check className="w-3.5 h-3.5" /> Apply
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </CardContent>
           </Card>
 
@@ -182,7 +263,7 @@ const Profile = () => {
           </Button>
         </form>
 
-        {/* Sign Out (mobile) */}
+        {/* Sign Out (mobile only) */}
         <div className="md:hidden">
           <Button variant="outline" className="w-full gap-2 text-muted-foreground" onClick={() => signOut()}>
             <LogOut className="w-4 h-4" />
