@@ -120,8 +120,11 @@ const Profile = () => {
     const load = async () => {
       setLoading(true);
       try {
+        // Select only the base columns that are guaranteed to exist.
+        // bio and favorite_car are fetched separately so a missing migration
+        // doesn't crash the whole profile load.
         const [profileRes, ranksRes] = await Promise.all([
-          supabase.from("profiles").select("rl_account_name, avatar_url, bio, favorite_car").eq("user_id", user.id).single(),
+          supabase.from("profiles").select("rl_account_name, avatar_url").eq("user_id", user.id).single(),
           supabase.from("ranks").select("game_mode, rank_tier, rank_division, mmr").eq("user_id", user.id).eq("game_type", "competitive"),
         ]);
         if (profileRes.error) throw profileRes.error;
@@ -132,13 +135,6 @@ const Profile = () => {
         setRlNameWasSet(Boolean(loadedName));
         setAvatarUrl(profileRes.data?.avatar_url ?? null);
 
-        // Bio — prefer Supabase, fall back to localStorage
-        const dbBio = profileRes.data?.bio ?? "";
-        const lsBio = localStorage.getItem(`profile_bio_${user.id}`) ?? "";
-        setBio(dbBio || lsBio);
-
-        setFavoriteCar(profileRes.data?.favorite_car ?? null);
-
         const next = createEmptyRanks();
         (ranksRes.data || []).forEach((r) => {
           next[r.game_mode] = { rank_tier: r.rank_tier ?? "unranked", rank_division: r.rank_division ?? null, mmr: r.mmr ?? null };
@@ -146,6 +142,23 @@ const Profile = () => {
         setRanks(next);
 
         if (!profileRes.data?.rl_account_name) setIsEditing(true);
+
+        // Try to load bio + favorite_car (may not exist if migration hasn't run)
+        try {
+          const { data: extData } = await supabase
+            .from("profiles")
+            .select("bio, favorite_car")
+            .eq("user_id", user.id)
+            .single();
+          const dbBio = extData?.bio ?? "";
+          const lsBio = localStorage.getItem(`profile_bio_${user.id}`) ?? "";
+          setBio(dbBio || lsBio);
+          setFavoriteCar(extData?.favorite_car ?? null);
+        } catch {
+          // Columns don't exist yet — use localStorage for bio
+          const lsBio = localStorage.getItem(`profile_bio_${user.id}`) ?? "";
+          setBio(lsBio);
+        }
       } catch (err: any) {
         toast({ title: "Failed to load profile", description: err.message, variant: "destructive" });
       } finally { setLoading(false); }
@@ -305,16 +318,25 @@ const Profile = () => {
         mmr: draftRanks[mode].mmr ?? null,
       }));
 
+      // Always save base fields; try extended fields separately
       const [profileRes, ranksRes] = await Promise.all([
         supabase.from("profiles").update({
           rl_account_name: trimmedName || null,
-          bio: draftBio || null,
-          favorite_car: draftFavoriteCar,
         }).eq("user_id", user.id),
         supabase.from("ranks").upsert(rankPayload, { onConflict: "user_id,game_mode,game_type" }),
       ]);
       if (profileRes.error) throw profileRes.error;
       if (ranksRes.error)   throw ranksRes.error;
+
+      // Try saving bio + favorite_car (requires migration to have been run)
+      try {
+        await supabase.from("profiles").update({
+          bio: draftBio || null,
+          favorite_car: draftFavoriteCar,
+        }).eq("user_id", user.id);
+      } catch {
+        // Columns not yet migrated — bio is already in localStorage
+      }
 
       setRlAccountName(trimmedName);
       setRlNameWasSet(Boolean(trimmedName));
