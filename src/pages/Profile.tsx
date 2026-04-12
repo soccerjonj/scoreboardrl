@@ -15,6 +15,7 @@ import {
 import type { Database } from "@/integrations/supabase/types";
 import AppLayout from "@/components/layout/AppLayout";
 import { CARS, CarBadge, CarPicker } from "@/components/profile/CarSilhouette";
+import { getRankIcon } from "@/lib/rankIcons";
 
 type GameMode     = Database["public"]["Enums"]["game_mode"];
 type GameType     = Database["public"]["Enums"]["game_type"];
@@ -448,10 +449,17 @@ const Profile = () => {
                 return (
                   <div key={mode} className="flex items-center justify-between py-2 px-3 rounded-lg bg-background/60">
                     <span className="font-display font-bold text-sm text-muted-foreground w-8">{gameModeLabels[mode]}</span>
-                    <span className={`font-semibold text-sm flex-1 ml-3 ${colorClass}`}>
-                      {getRankLabel(rank.rank_tier)}
-                      {rank.rank_division && rank.rank_tier !== "unranked" && rank.rank_tier !== "supersonic_legend" ? ` ${rank.rank_division}` : ""}
-                    </span>
+                    <div className="flex items-center gap-2 flex-1 ml-2">
+                      <img
+                        src={getRankIcon(rank.rank_tier)}
+                        alt={getRankLabel(rank.rank_tier)}
+                        className="w-8 h-8 object-contain"
+                      />
+                      <span className={`font-semibold text-sm ${colorClass}`}>
+                        {getRankLabel(rank.rank_tier)}
+                        {rank.rank_division && rank.rank_tier !== "unranked" && rank.rank_tier !== "supersonic_legend" ? ` ${rank.rank_division}` : ""}
+                      </span>
+                    </div>
                     {rank.mmr != null && (
                       <span className="text-xs text-muted-foreground font-mono">{rank.mmr} MMR</span>
                     )}
@@ -650,6 +658,7 @@ const Profile = () => {
                   <div className="flex items-center justify-between px-4 py-3">
                     <div className="flex items-center gap-3">
                       <span className="font-display font-bold text-sm w-8">{gameModeLabels[mode]}</span>
+                      <img src={getRankIcon(rank.rank_tier)} alt={getRankLabel(rank.rank_tier)} className="w-7 h-7 object-contain" />
                       <div>
                         <span className={`font-semibold text-sm ${colorClass}`}>
                           {getRankLabel(rank.rank_tier)}
