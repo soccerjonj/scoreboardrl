@@ -9,11 +9,12 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import {
-  AlertTriangle, Camera, Check, Heart, Loader2,
-  Lock, LogOut, Pencil, Save, User, X as XIcon,
+  AlertTriangle, Camera, Check, Loader2,
+  Lock, LogOut, Pencil, Save, Star, Trophy, User, X as XIcon,
 } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 import AppLayout from "@/components/layout/AppLayout";
+import { CARS, CarSilhouette, CarPicker } from "@/components/profile/CarSilhouette";
 
 type GameMode     = Database["public"]["Enums"]["game_mode"];
 type GameType     = Database["public"]["Enums"]["game_type"];
@@ -21,7 +22,19 @@ type RankTier     = Database["public"]["Enums"]["rank_tier"];
 type RankDivision = Database["public"]["Enums"]["rank_division"];
 
 type RankInput = { rank_tier: RankTier; rank_division: RankDivision | null; mmr: number | null };
-type FavoriteTeammate = { userId: string; count: number; name: string } | null;
+
+type ProfileStats = {
+  totalGames: number;
+  wins: number;
+  losses: number;
+  recentForm: Array<"W" | "L">;
+  bestScore: number;
+  bestGoals: number;
+  bestAssists: number;
+  bestSaves: number;
+  bestCarryScore: number;
+  topTeammates: Array<{ userId: string; name: string; games: number; wins: number }>;
+};
 
 const gameModes: GameMode[] = ["1v1", "2v2", "3v3"];
 const gameModeLabels: Record<GameMode, string> = { "1v1": "1v1", "2v2": "2v2", "3v3": "3v3" };
@@ -61,6 +74,8 @@ const createEmptyRanks = (): Record<GameMode, RankInput> =>
 const getRankLabel = (tier: RankTier) =>
   rankTierOptions.find((o) => o.value === tier)?.label ?? tier;
 
+const safeNum = (v: number | null | undefined) => (typeof v === "number" && !Number.isNaN(v) ? v : 0);
+
 const Profile = () => {
   const { user, loading: authLoading, signOut } = useAuth();
   const navigate = useNavigate();
@@ -70,43 +85,43 @@ const Profile = () => {
   // ── UI mode ──────────────────────────────────────────────────────────────
   const [isEditing, setIsEditing] = useState(false);
 
-  // ── Data ─────────────────────────────────────────────────────────────────
-  const [loading, setLoading]               = useState(true);
-  const [saving, setSaving]                 = useState(false);
+  // ── Profile data ─────────────────────────────────────────────────────────
+  const [loading, setLoading]                 = useState(true);
+  const [saving, setSaving]                   = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [avatarUrl, setAvatarUrl]           = useState<string | null>(null);
-  const [rlAccountName, setRlAccountName]   = useState("");
-  const [rlNameWasSet, setRlNameWasSet]     = useState(false);
-  const [rlNameLocked, setRlNameLocked]     = useState(false);
-  const [bio, setBio]                       = useState("");
-  const [ranks, setRanks]                   = useState<Record<GameMode, RankInput>>(createEmptyRanks());
-  const [favoriteTeammate, setFavoriteTeammate] = useState<FavoriteTeammate>(null);
-  const [loadingTeammate, setLoadingTeammate]   = useState(false);
+  const [avatarUrl, setAvatarUrl]             = useState<string | null>(null);
+  const [rlAccountName, setRlAccountName]     = useState("");
+  const [rlNameWasSet, setRlNameWasSet]       = useState(false);
+  const [rlNameLocked, setRlNameLocked]       = useState(false);
+  const [bio, setBio]                         = useState("");
+  const [favoriteCar, setFavoriteCar]         = useState<string | null>(null);
+  const [ranks, setRanks]                     = useState<Record<GameMode, RankInput>>(createEmptyRanks());
+  const [profileStats, setProfileStats]       = useState<ProfileStats | null>(null);
+  const [loadingStats, setLoadingStats]       = useState(false);
 
   // Edit-mode draft state
-  const [draftRlName, setDraftRlName]   = useState("");
-  const [draftBio, setDraftBio]         = useState("");
-  const [draftRanks, setDraftRanks]     = useState<Record<GameMode, RankInput>>(createEmptyRanks());
-  const [editingRlName, setEditingRlName] = useState(false);
-  const [rlNameDraft, setRlNameDraft]   = useState("");
-  const [editingMode, setEditingMode]   = useState<GameMode | null>(null);
-  const [editDraft, setEditDraft]       = useState<RankInput | null>(null);
+  const [draftRlName, setDraftRlName]         = useState("");
+  const [draftBio, setDraftBio]               = useState("");
+  const [draftFavoriteCar, setDraftFavoriteCar] = useState<string | null>(null);
+  const [draftRanks, setDraftRanks]           = useState<Record<GameMode, RankInput>>(createEmptyRanks());
+  const [editingRlName, setEditingRlName]     = useState(false);
+  const [rlNameDraft, setRlNameDraft]         = useState("");
+  const [editingMode, setEditingMode]         = useState<GameMode | null>(null);
+  const [editDraft, setEditDraft]             = useState<RankInput | null>(null);
 
-  // ── Load ─────────────────────────────────────────────────────────────────
+  // ── Load profile ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (!authLoading && !user) { navigate("/auth"); return; }
     if (!user) return;
 
     const locked = localStorage.getItem(`rl_name_locked_${user.id}`) === "true";
     setRlNameLocked(locked);
-    const savedBio = localStorage.getItem(`profile_bio_${user.id}`) ?? "";
-    setBio(savedBio);
 
     const load = async () => {
       setLoading(true);
       try {
         const [profileRes, ranksRes] = await Promise.all([
-          supabase.from("profiles").select("rl_account_name, avatar_url").eq("user_id", user.id).single(),
+          supabase.from("profiles").select("rl_account_name, avatar_url, bio, favorite_car").eq("user_id", user.id).single(),
           supabase.from("ranks").select("game_mode, rank_tier, rank_division, mmr").eq("user_id", user.id).eq("game_type", "competitive"),
         ]);
         if (profileRes.error) throw profileRes.error;
@@ -117,13 +132,19 @@ const Profile = () => {
         setRlNameWasSet(Boolean(loadedName));
         setAvatarUrl(profileRes.data?.avatar_url ?? null);
 
+        // Bio — prefer Supabase, fall back to localStorage
+        const dbBio = profileRes.data?.bio ?? "";
+        const lsBio = localStorage.getItem(`profile_bio_${user.id}`) ?? "";
+        setBio(dbBio || lsBio);
+
+        setFavoriteCar(profileRes.data?.favorite_car ?? null);
+
         const next = createEmptyRanks();
         (ranksRes.data || []).forEach((r) => {
           next[r.game_mode] = { rank_tier: r.rank_tier ?? "unranked", rank_division: r.rank_division ?? null, mmr: r.mmr ?? null };
         });
         setRanks(next);
 
-        // If RL name not set yet, drop straight into edit mode
         if (!profileRes.data?.rl_account_name) setIsEditing(true);
       } catch (err: any) {
         toast({ title: "Failed to load profile", description: err.message, variant: "destructive" });
@@ -131,40 +152,89 @@ const Profile = () => {
     };
     load();
 
-    // Favorite teammate
-    const loadTeammate = async () => {
-      setLoadingTeammate(true);
+    // Load game stats (win/loss, form, records, teammates)
+    const loadStats = async () => {
+      setLoadingStats(true);
       try {
-        const { data: myRows } = await supabase.from("game_players").select("game_id").eq("user_id", user.id);
-        const gameIds = (myRows || []).map((r) => r.game_id);
-        if (gameIds.length > 0) {
-          const { data: allPlayers } = await supabase
-            .from("game_players")
-            .select("game_id, user_id, player_name")
-            .in("game_id", gameIds)
-            .neq("user_id", user.id)
-            .not("user_id", "is", null);
+        // Get all game_players rows for this user
+        const { data: myPlayerRows } = await supabase
+          .from("game_players")
+          .select("game_id, score, goals, assists, saves, carry_score")
+          .eq("user_id", user.id);
 
-          const counts = new Map<string, { count: number; name: string }>();
-          (allPlayers || []).forEach((p) => {
-            if (!p.user_id) return;
-            const prev = counts.get(p.user_id);
-            counts.set(p.user_id, { count: (prev?.count ?? 0) + 1, name: p.player_name });
-          });
-          let best: FavoriteTeammate = null;
-          counts.forEach((v, userId) => { if (!best || v.count > best.count) best = { userId, count: v.count, name: v.name }; });
-          setFavoriteTeammate(best);
+        if (!myPlayerRows || myPlayerRows.length === 0) {
+          setProfileStats(null);
+          return;
         }
-      } catch { /* non-critical */ } finally { setLoadingTeammate(false); }
+
+        const gameIds = myPlayerRows.map((r) => r.game_id);
+
+        // Compute personal records from player rows
+        const records = myPlayerRows.reduce(
+          (best, row) => ({
+            bestScore:      Math.max(best.bestScore,      safeNum(row.score)),
+            bestGoals:      Math.max(best.bestGoals,      safeNum(row.goals)),
+            bestAssists:    Math.max(best.bestAssists,    safeNum(row.assists)),
+            bestSaves:      Math.max(best.bestSaves,      safeNum(row.saves)),
+            bestCarryScore: Math.max(best.bestCarryScore, safeNum(row.carry_score)),
+          }),
+          { bestScore: 0, bestGoals: 0, bestAssists: 0, bestSaves: 0, bestCarryScore: 0 }
+        );
+
+        // Fetch game results + all players in those games
+        const { data: gamesData } = await supabase
+          .from("games")
+          .select("id, result, played_at, game_players(user_id, player_name)")
+          .in("id", gameIds)
+          .order("played_at", { ascending: false });
+
+        if (!gamesData) return;
+
+        const totalGames = gamesData.length;
+        const wins = gamesData.filter((g) => g.result === "win").length;
+        const recentForm: Array<"W" | "L"> = gamesData
+          .slice(0, 5)
+          .map((g) => (g.result === "win" ? "W" : "L"));
+
+        // Compute top teammates (other users who appear most often in same games)
+        const teammateMap = new Map<string, { name: string; games: number; wins: number }>();
+        gamesData.forEach((game) => {
+          const isWin = game.result === "win";
+          (game.game_players || []).forEach((p) => {
+            if (!p.user_id || p.user_id === user.id) return;
+            const prev = teammateMap.get(p.user_id);
+            teammateMap.set(p.user_id, {
+              name: p.player_name,
+              games: (prev?.games ?? 0) + 1,
+              wins:  (prev?.wins  ?? 0) + (isWin ? 1 : 0),
+            });
+          });
+        });
+
+        const topTeammates = Array.from(teammateMap.entries())
+          .map(([userId, d]) => ({ userId, ...d }))
+          .sort((a, b) => b.games - a.games)
+          .slice(0, 3);
+
+        setProfileStats({
+          totalGames,
+          wins,
+          losses: totalGames - wins,
+          recentForm,
+          ...records,
+          topTeammates,
+        });
+      } catch { /* non-critical */ } finally { setLoadingStats(false); }
     };
-    loadTeammate();
+    loadStats();
   }, [authLoading, user, navigate, toast]);
 
-  // ── Enter edit mode ───────────────────────────────────────────────────────
+  // ── Enter / cancel edit mode ──────────────────────────────────────────────
   const enterEditMode = () => {
     setDraftRlName(rlAccountName);
     setDraftBio(bio);
-    setDraftRanks(JSON.parse(JSON.stringify(ranks))); // deep copy
+    setDraftFavoriteCar(favoriteCar);
+    setDraftRanks(JSON.parse(JSON.stringify(ranks)));
     setEditingRlName(false);
     setEditingMode(null);
     setIsEditing(true);
@@ -199,13 +269,13 @@ const Profile = () => {
     }
   };
 
-  // ── RL name edit (within edit mode) ──────────────────────────────────────
+  // ── RL name confirm ───────────────────────────────────────────────────────
   const confirmRlNameEdit = () => {
     setDraftRlName(rlNameDraft.trim());
     setEditingRlName(false);
   };
 
-  // ── Rank edit (within edit mode) ─────────────────────────────────────────
+  // ── Rank confirm ──────────────────────────────────────────────────────────
   const confirmRankEdit = () => {
     if (!editingMode || !editDraft) return;
     setDraftRanks((prev) => ({ ...prev, [editingMode]: editDraft }));
@@ -217,13 +287,14 @@ const Profile = () => {
   const handleSave = async () => {
     if (!user) return;
     setSaving(true);
-    localStorage.setItem(`profile_bio_${user.id}`, draftBio);
 
-    // Lock RL name if it was changed from a previously-set value
     if (rlNameWasSet && draftRlName !== rlAccountName) {
       localStorage.setItem(`rl_name_locked_${user.id}`, "true");
       setRlNameLocked(true);
     }
+
+    // Mirror bio to localStorage as fallback
+    localStorage.setItem(`profile_bio_${user.id}`, draftBio);
 
     try {
       const trimmedName = draftRlName.trim();
@@ -235,16 +306,20 @@ const Profile = () => {
       }));
 
       const [profileRes, ranksRes] = await Promise.all([
-        supabase.from("profiles").update({ rl_account_name: trimmedName || null }).eq("user_id", user.id),
+        supabase.from("profiles").update({
+          rl_account_name: trimmedName || null,
+          bio: draftBio || null,
+          favorite_car: draftFavoriteCar,
+        }).eq("user_id", user.id),
         supabase.from("ranks").upsert(rankPayload, { onConflict: "user_id,game_mode,game_type" }),
       ]);
       if (profileRes.error) throw profileRes.error;
       if (ranksRes.error)   throw ranksRes.error;
 
-      // Commit drafts to live state
       setRlAccountName(trimmedName);
       setRlNameWasSet(Boolean(trimmedName));
       setBio(draftBio);
+      setFavoriteCar(draftFavoriteCar);
       setRanks(draftRanks);
       setIsEditing(false);
       toast({ title: "Profile saved" });
@@ -260,33 +335,82 @@ const Profile = () => {
   if (!user) return null;
 
   const rlNameMode: 0 | 1 | 2 = !rlNameWasSet ? 0 : rlNameLocked ? 2 : 1;
+  const winRate = profileStats && profileStats.totalGames > 0
+    ? Math.round((profileStats.wins / profileStats.totalGames) * 100)
+    : null;
+  const favoriteCarObj = favoriteCar ? CARS.find((c) => c.name === favoriteCar) ?? null : null;
 
   // ── VIEW MODE ─────────────────────────────────────────────────────────────
   if (!isEditing) {
     return (
       <AppLayout>
-        <div className="space-y-5">
-          {/* Profile card */}
+        <div className="space-y-4">
+
+          {/* ── Profile card ── */}
           <Card className="border-border/50 bg-card/80 overflow-hidden">
-            {/* Top banner */}
             <div className="h-20 bg-gradient-to-br from-primary/20 via-secondary/10 to-transparent" />
             <CardContent className="pt-0 pb-5 px-5">
-              {/* Avatar + name */}
-              <div className="flex items-end gap-4 -mt-10 mb-4">
+              {/* Avatar + name row */}
+              <div className="flex items-end gap-4 -mt-10 mb-3">
                 <div className="w-20 h-20 rounded-full border-4 border-card bg-muted/40 overflow-hidden shrink-0">
                   {avatarUrl
                     ? <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
                     : <div className="w-full h-full flex items-center justify-center"><User className="w-9 h-9 text-muted-foreground/60" /></div>
                   }
                 </div>
-                <div className="pb-1 min-w-0">
+                <div className="pb-1 min-w-0 flex-1">
                   <h2 className="font-display font-bold text-xl truncate">{rlAccountName || "—"}</h2>
                   <p className="text-xs text-muted-foreground truncate">{user.email}</p>
                 </div>
               </div>
 
               {/* Bio */}
-              {bio && <p className="text-sm text-muted-foreground mb-4">{bio}</p>}
+              {bio && <p className="text-sm text-muted-foreground mb-3">{bio}</p>}
+
+              {/* W/L record */}
+              {profileStats && profileStats.totalGames > 0 && (
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rl-green/10 border border-rl-green/20">
+                    <span className="text-xs font-bold text-rl-green">W</span>
+                    <span className="text-sm font-display font-bold text-rl-green">{profileStats.wins}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rl-red/10 border border-rl-red/20">
+                    <span className="text-xs font-bold text-rl-red">L</span>
+                    <span className="text-sm font-display font-bold text-rl-red">{profileStats.losses}</span>
+                  </div>
+                  {winRate !== null && (
+                    <span className="text-xs text-muted-foreground font-mono">{winRate}% win rate</span>
+                  )}
+                </div>
+              )}
+
+              {/* Recent form strip */}
+              {profileStats && profileStats.recentForm.length > 0 && (
+                <div className="flex items-center gap-1.5 mb-4">
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider mr-0.5">Recent</span>
+                  {profileStats.recentForm.map((result, i) => (
+                    <div
+                      key={i}
+                      className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold ${
+                        result === "W" ? "bg-rl-green/20 text-rl-green border border-rl-green/30" : "bg-rl-red/20 text-rl-red border border-rl-red/30"
+                      }`}
+                    >
+                      {result}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Favorite car */}
+              {favoriteCarObj && (
+                <div className="flex items-center gap-3 mb-4 px-3 py-2 rounded-lg bg-background/60 border border-border/30">
+                  <CarSilhouette car={favoriteCarObj} size={64} active />
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Favorite Car</p>
+                    <p className="font-semibold text-sm">{favoriteCarObj.name}</p>
+                  </div>
+                </div>
+              )}
 
               {/* Edit button */}
               <Button variant="outline" size="sm" className="gap-1.5" onClick={enterEditMode}>
@@ -295,7 +419,7 @@ const Profile = () => {
             </CardContent>
           </Card>
 
-          {/* Ranks */}
+          {/* ── Ranks ── */}
           <Card className="border-border/50 bg-card/80">
             <CardContent className="pt-4 pb-3 space-y-1">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Competitive Ranks</p>
@@ -307,8 +431,7 @@ const Profile = () => {
                     <span className="font-display font-bold text-sm text-muted-foreground w-8">{gameModeLabels[mode]}</span>
                     <span className={`font-semibold text-sm flex-1 ml-3 ${colorClass}`}>
                       {getRankLabel(rank.rank_tier)}
-                      {rank.rank_division && rank.rank_tier !== "unranked" && rank.rank_tier !== "supersonic_legend"
-                        ? ` ${rank.rank_division}` : ""}
+                      {rank.rank_division && rank.rank_tier !== "unranked" && rank.rank_tier !== "supersonic_legend" ? ` ${rank.rank_division}` : ""}
                     </span>
                     {rank.mmr != null && (
                       <span className="text-xs text-muted-foreground font-mono">{rank.mmr} MMR</span>
@@ -319,33 +442,65 @@ const Profile = () => {
             </CardContent>
           </Card>
 
-          {/* Favorite teammate */}
-          {(loadingTeammate || favoriteTeammate) && (
+          {/* ── Personal records ── */}
+          {profileStats && profileStats.totalGames > 0 && (
             <Card className="border-border/50 bg-card/80">
-              <CardContent className="pt-4 pb-4">
+              <CardContent className="pt-4 pb-3">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
-                  <Heart className="w-3.5 h-3.5 text-rose-400" /> Favorite Teammate
+                  <Trophy className="w-3.5 h-3.5 text-yellow-400" /> Personal Records
                 </p>
-                {loadingTeammate ? (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="w-4 h-4 animate-spin" /> Crunching games…
-                  </div>
-                ) : favoriteTeammate ? (
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-muted/60 flex items-center justify-center">
-                      <User className="w-4 h-4 text-muted-foreground" />
+                <div className="grid grid-cols-5 gap-2">
+                  {[
+                    { label: "Score",  value: profileStats.bestScore },
+                    { label: "Goals",  value: profileStats.bestGoals },
+                    { label: "Assists",value: profileStats.bestAssists },
+                    { label: "Saves",  value: profileStats.bestSaves },
+                    { label: "Carry",  value: profileStats.bestCarryScore > 0 ? profileStats.bestCarryScore : null },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="flex flex-col items-center gap-0.5 py-2 px-1 rounded-lg bg-background/60">
+                      <span className="font-display font-bold text-lg leading-none">
+                        {value !== null ? value : <span className="text-muted-foreground text-sm">—</span>}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground leading-none">{label}</span>
                     </div>
-                    <div>
-                      <p className="font-semibold text-sm">{favoriteTeammate.name}</p>
-                      <p className="text-xs text-muted-foreground">{favoriteTeammate.count} games together</p>
-                    </div>
-                  </div>
-                ) : null}
+                  ))}
+                </div>
               </CardContent>
             </Card>
           )}
 
-          {/* Sign Out — mobile only */}
+          {/* ── Most played with ── */}
+          {!loadingStats && profileStats && profileStats.topTeammates.length > 0 && (
+            <Card className="border-border/50 bg-card/80">
+              <CardContent className="pt-4 pb-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
+                  <Star className="w-3.5 h-3.5 text-rose-400" /> Most Played With
+                </p>
+                <div className="space-y-2">
+                  {profileStats.topTeammates.map((tm, i) => {
+                    const tmWinRate = tm.games > 0 ? Math.round((tm.wins / tm.games) * 100) : 0;
+                    return (
+                      <div key={tm.userId} className="flex items-center gap-3 py-1.5 px-3 rounded-lg bg-background/60">
+                        <span className="text-xs font-bold text-muted-foreground w-4">#{i + 1}</span>
+                        <div className="w-7 h-7 rounded-full bg-muted/60 flex items-center justify-center shrink-0">
+                          <User className="w-3.5 h-3.5 text-muted-foreground" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-sm truncate">{tm.name}</p>
+                          <p className="text-[10px] text-muted-foreground">{tm.games} games together</p>
+                        </div>
+                        <div className={`text-xs font-mono font-bold px-2 py-0.5 rounded-full ${tmWinRate >= 50 ? "text-rl-green bg-rl-green/10" : "text-rl-red bg-rl-red/10"}`}>
+                          {tmWinRate}%
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Sign Out */}
           <div className="md:hidden">
             <Button variant="outline" className="w-full gap-2 text-muted-foreground" onClick={() => signOut()}>
               <LogOut className="w-4 h-4" /> Sign Out
@@ -453,6 +608,15 @@ const Profile = () => {
           <p className="text-right text-xs text-muted-foreground">{draftBio.length}/{BIO_MAX}</p>
         </div>
 
+        {/* Favorite Car */}
+        <div className="space-y-2">
+          <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Favorite Car</Label>
+          {draftFavoriteCar && (
+            <p className="text-xs text-muted-foreground">Tap your car again to deselect.</p>
+          )}
+          <CarPicker value={draftFavoriteCar} onChange={setDraftFavoriteCar} />
+        </div>
+
         {/* Ranks */}
         <div className="space-y-1.5">
           <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Competitive Ranks</Label>
@@ -532,7 +696,7 @@ const Profile = () => {
           </Button>
         </div>
 
-        {/* Sign Out — mobile only */}
+        {/* Sign Out */}
         <div className="md:hidden">
           <Button variant="outline" className="w-full gap-2 text-muted-foreground" onClick={() => signOut()}>
             <LogOut className="w-4 h-4" /> Sign Out
