@@ -764,7 +764,7 @@ const LogGame = () => {
             {/* Save button — hidden while conflict card is shown */}
             {!conflictGame && (
               <Button
-                onClick={handleSave}
+                onClick={() => handleSave()}
                 disabled={saving}
                 variant="hero"
                 size="lg"
