@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
-import { Loader2 } from "lucide-react";
+import { Loader2, BarChart2, LineChart as LineChartIcon } from "lucide-react";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -50,17 +50,21 @@ type ChartDatum = {
 
 type SummaryStats = {
   games: number;
+  wins: number;
+  winRate: number | null;
   pointsPerGame: number | null;
   goalsPerGame: number | null;
   assistsPerGame: number | null;
   savesPerGame: number | null;
   shotsPerGame: number | null;
   mvpRate: number | null;
-  goalsAgainstPerGame: number | null;
+  teamGoalsForPerGame: number | null;
+  teamGoalsAgainstPerGame: number | null;
   avgCarryScore: number | null;
 };
 
 type TimeRange = "7d" | "30d" | "all";
+type ViewMode = "summary" | "charts";
 
 const gameModes: Array<{ value: GameMode | "all"; label: string }> = [
   { value: "all", label: "All modes" },
@@ -99,40 +103,134 @@ const matchesTarget = (player: GamePlayerRow, target: PlayerMatchTarget) => {
 const findPlayer = (players: GamePlayerRow[] | null | undefined, target: PlayerMatchTarget) =>
   players?.find((p) => matchesTarget(p, target)) ?? null;
 
-const buildSummary = (t: { games: number; points: number; goals: number; assists: number; saves: number; shots: number; mvp: number; goalsAgainst: number; carryTotal: number; carryGames: number }): SummaryStats => {
-  if (!t.games) return { games: 0, pointsPerGame: null, goalsPerGame: null, assistsPerGame: null, savesPerGame: null, shotsPerGame: null, mvpRate: null, goalsAgainstPerGame: null, avgCarryScore: null };
+const buildSummary = (t: {
+  games: number; wins: number; points: number; goals: number; assists: number;
+  saves: number; shots: number; mvp: number; teamGoalsFor: number;
+  teamGoalsAgainst: number; carryTotal: number; carryGames: number;
+}): SummaryStats => {
+  if (!t.games) return {
+    games: 0, wins: 0, winRate: null, pointsPerGame: null, goalsPerGame: null,
+    assistsPerGame: null, savesPerGame: null, shotsPerGame: null, mvpRate: null,
+    teamGoalsForPerGame: null, teamGoalsAgainstPerGame: null, avgCarryScore: null,
+  };
   return {
     games: t.games,
+    wins: t.wins,
+    winRate: (t.wins / t.games) * 100,
     pointsPerGame: t.points / t.games,
     goalsPerGame: t.goals / t.games,
     assistsPerGame: t.assists / t.games,
     savesPerGame: t.saves / t.games,
     shotsPerGame: t.shots / t.games,
     mvpRate: (t.mvp / t.games) * 100,
-    goalsAgainstPerGame: t.goalsAgainst / t.games,
+    teamGoalsForPerGame: t.teamGoalsFor / t.games,
+    teamGoalsAgainstPerGame: t.teamGoalsAgainst / t.games,
     avgCarryScore: t.carryGames > 0 ? t.carryTotal / t.carryGames : null,
   };
 };
 
-const StatCard = ({ title, value, teammateValue, teammateLabel, formatter }: {
-  title: string;
-  value: number | null;
-  teammateValue?: number | null;
-  teammateLabel?: string;
+// ─── Summary view components ─────────────────────────────────────────────────
+
+type StatRowDef = {
+  key: keyof SummaryStats;
+  label: string;
   formatter: (v: number | null) => string;
-}) => (
-  <Card className="border-border/50 bg-card/80">
-    <CardContent className="pt-4 pb-3">
-      <p className="text-xs text-muted-foreground mb-1">{title}</p>
-      <p className="font-display font-bold text-xl">{formatter(value)}</p>
-      {teammateLabel && teammateValue !== undefined && (
-        <p className="text-xs text-muted-foreground mt-1">
-          {teammateLabel}: <span className="text-secondary font-mono">{formatter(teammateValue)}</span>
-        </p>
-      )}
-    </CardContent>
-  </Card>
+  highlight?: "higher" | "lower"; // which side "wins"
+};
+
+const STAT_ROWS: StatRowDef[] = [
+  { key: "winRate",               label: "Win Rate",          formatter: formatPercent,                    highlight: "higher" },
+  { key: "pointsPerGame",         label: "Avg Score",         formatter: (v) => formatAverage(v, 1),      highlight: "higher" },
+  { key: "goalsPerGame",          label: "Avg Goals",         formatter: (v) => formatAverage(v, 2),      highlight: "higher" },
+  { key: "assistsPerGame",        label: "Avg Assists",       formatter: (v) => formatAverage(v, 2),      highlight: "higher" },
+  { key: "savesPerGame",          label: "Avg Saves",         formatter: (v) => formatAverage(v, 2),      highlight: "higher" },
+  { key: "shotsPerGame",          label: "Avg Shots",         formatter: (v) => formatAverage(v, 2),      highlight: "higher" },
+  { key: "mvpRate",               label: "MVP Rate",          formatter: formatPercent,                    highlight: "higher" },
+  { key: "teamGoalsForPerGame",   label: "Team Goals For",    formatter: (v) => formatAverage(v, 2),      highlight: "higher" },
+  { key: "teamGoalsAgainstPerGame", label: "Team Goals Against", formatter: (v) => formatAverage(v, 2),   highlight: "lower"  },
+  { key: "avgCarryScore",         label: "Avg Carry Score",   formatter: (v) => formatAverage(v, 1),      highlight: "higher" },
+];
+
+/** Solo summary: clean card grid */
+const SoloSummaryGrid = ({ summary }: { summary: SummaryStats }) => (
+  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+    {STAT_ROWS.map((row) => {
+      const val = summary[row.key] as number | null;
+      return (
+        <Card key={row.key} className="border-border/50 bg-card/80">
+          <CardContent className="pt-4 pb-3">
+            <p className="text-xs text-muted-foreground mb-1">{row.label}</p>
+            <p className="font-display font-bold text-2xl">{row.formatter(val)}</p>
+          </CardContent>
+        </Card>
+      );
+    })}
+  </div>
 );
+
+/** Comparison table: You vs Teammate */
+const ComparisonTable = ({
+  userSummary,
+  teammateSummary,
+  teammateName,
+}: {
+  userSummary: SummaryStats;
+  teammateSummary: SummaryStats;
+  teammateName: string;
+}) => {
+  return (
+    <Card className="border-border/50 bg-card/80 overflow-hidden">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base font-display">Head-to-Head Stats</CardTitle>
+        <CardDescription className="text-xs">
+          {userSummary.games} shared game{userSummary.games !== 1 ? "s" : ""} with {teammateName}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="p-0">
+        {/* Header row */}
+        <div className="grid grid-cols-3 px-4 py-2 bg-muted/40 text-xs font-semibold text-muted-foreground border-b border-border/30">
+          <span className="text-primary">You</span>
+          <span className="text-center">Stat</span>
+          <span className="text-right text-secondary">{teammateName}</span>
+        </div>
+        {/* Stat rows */}
+        {STAT_ROWS.map((row, i) => {
+          const uVal = userSummary[row.key] as number | null;
+          const tVal = teammateSummary[row.key] as number | null;
+
+          let uWins = false, tWins = false;
+          if (uVal !== null && tVal !== null && row.highlight) {
+            if (row.highlight === "higher") { uWins = uVal > tVal; tWins = tVal > uVal; }
+            else { uWins = uVal < tVal; tWins = tVal < uVal; }
+          }
+
+          return (
+            <div
+              key={row.key}
+              className={`grid grid-cols-3 px-4 py-2.5 text-sm border-b border-border/20 last:border-0 ${i % 2 === 0 ? "" : "bg-muted/10"}`}
+            >
+              <span className={`font-mono font-bold ${uWins ? "text-rl-green" : tWins ? "text-muted-foreground" : ""}`}>
+                {row.formatter(uVal)}
+              </span>
+              <span className="text-center text-xs text-muted-foreground">{row.label}</span>
+              <span className={`text-right font-mono font-bold ${tWins ? "text-rl-green" : uWins ? "text-muted-foreground" : ""}`}>
+                {row.formatter(tVal)}
+              </span>
+            </div>
+          );
+        })}
+        {/* Games row */}
+        <div className="grid grid-cols-3 px-4 py-2.5 text-sm bg-muted/20 rounded-b-lg">
+          <span className="font-mono font-bold text-muted-foreground">{userSummary.games}</span>
+          <span className="text-center text-xs text-muted-foreground">Games</span>
+          <span className="text-right font-mono font-bold text-muted-foreground">{teammateSummary.games}</span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+// ─── Chart components ─────────────────────────────────────────────────────────
 
 const StatChart = ({ title, description, data, userKey, teammateKey, teammateLabel, yAxisFormatter, yAxisDomain }: {
   title: string;
@@ -149,7 +247,6 @@ const StatChart = ({ title, description, data, userKey, teammateKey, teammateLab
     ...(teammateKey && teammateLabel ? { [teammateKey]: { label: teammateLabel, color: "hsl(var(--rl-orange))" } } : {}),
   };
   const hasTeammate = Boolean(teammateKey && teammateLabel);
-
   const tickInterval = data.length <= 10 ? 0 : data.length <= 20 ? 1 : data.length <= 40 ? 2 : Math.floor(data.length / 10);
 
   return (
@@ -175,6 +272,8 @@ const StatChart = ({ title, description, data, userKey, teammateKey, teammateLab
   );
 };
 
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 const Stats = () => {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
@@ -188,6 +287,7 @@ const Stats = () => {
   const [selectedType, setSelectedType] = useState<GameType | "all">("all");
   const [selectedFriendId, setSelectedFriendId] = useState<string>("all");
   const [timeRange, setTimeRange] = useState<TimeRange>("all");
+  const [viewMode, setViewMode] = useState<ViewMode>("summary");
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/auth");
@@ -207,7 +307,6 @@ const Stats = () => {
         if (profileRes.error) throw profileRes.error;
         if (friendsRes.error) throw friendsRes.error;
 
-        // Step 1: get all game IDs where user is a player
         const { data: playerGameRows } = await supabase
           .from("game_players")
           .select("game_id")
@@ -216,21 +315,18 @@ const Stats = () => {
         const linkedGameIds = (playerGameRows || []).map((r) => r.game_id);
         const allIds = Array.from(new Set(linkedGameIds));
 
-        // Step 2: fetch games created by user OR where user appears as player
         let gamesRes;
         if (allIds.length > 0) {
           gamesRes = await supabase
             .from("games")
             .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, carry_score, submission_status, submitted_by, created_at, game_id)")
             .or(`created_by.eq.${user.id},id.in.(${allIds.join(",")})`)
-
             .order("played_at", { ascending: true });
         } else {
           gamesRes = await supabase
             .from("games")
             .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, carry_score, submission_status, submitted_by, created_at, game_id)")
             .eq("created_by", user.id)
-
             .order("played_at", { ascending: true });
         }
 
@@ -280,14 +376,13 @@ const Stats = () => {
   }, [filteredGames, timeRange]);
 
   const { chartData, userSummary, teammateSummary } = useMemo(() => {
-    const ut = { games: 0, points: 0, goals: 0, assists: 0, saves: 0, shots: 0, mvp: 0, goalsAgainst: 0, carryTotal: 0, carryGames: 0 };
-    const tt = { games: 0, points: 0, goals: 0, assists: 0, saves: 0, shots: 0, mvp: 0, goalsAgainst: 0, carryTotal: 0, carryGames: 0 };
+    const ut = { games: 0, wins: 0, points: 0, goals: 0, assists: 0, saves: 0, shots: 0, mvp: 0, teamGoalsFor: 0, teamGoalsAgainst: 0, carryTotal: 0, carryGames: 0 };
+    const tt = { games: 0, wins: 0, points: 0, goals: 0, assists: 0, saves: 0, shots: 0, mvp: 0, teamGoalsFor: 0, teamGoalsAgainst: 0, carryTotal: 0, carryGames: 0 };
     const data: ChartDatum[] = [];
 
     const perGame = rangeFilteredGames.length < 20;
 
     if (perGame) {
-      // Mode A: per-game data points
       let uGames = 0, uMvp = 0, tGames = 0, tMvp = 0;
 
       rangeFilteredGames.forEach((game, idx) => {
@@ -295,18 +390,21 @@ const Stats = () => {
         const userRow = findPlayer(players, userTarget);
         if (!userRow) return;
 
-        const gameNum = idx + 1;
-        const totalGoals = players.reduce((s, p) => s + safeNumber(p.goals), 0);
-        const uScore   = safeNumber(userRow.score);
-        const uGoals   = safeNumber(userRow.goals);
-        const uAssists = safeNumber(userRow.assists);
-        const uSaves   = safeNumber(userRow.saves);
-        const uShots   = safeNumber(userRow.shots);
-        const uCarry   = safeNumber(userRow.carry_score);
+        const gameNum   = idx + 1;
+        const userTeam  = userRow.team;
+        const teamFor   = players.filter((p) => p.team === userTeam).reduce((s, p) => s + safeNumber(p.goals), 0);
+        const teamAgainst = players.filter((p) => p.team !== userTeam).reduce((s, p) => s + safeNumber(p.goals), 0);
+        const uScore    = safeNumber(userRow.score);
+        const uGoals    = safeNumber(userRow.goals);
+        const uAssists  = safeNumber(userRow.assists);
+        const uSaves    = safeNumber(userRow.saves);
+        const uShots    = safeNumber(userRow.shots);
+        const uCarry    = safeNumber(userRow.carry_score);
 
         ut.games++; ut.points += uScore; ut.goals += uGoals; ut.assists += uAssists;
         ut.saves += uSaves; ut.shots += uShots;
-        ut.goalsAgainst += Math.max(0, totalGoals - uGoals);
+        ut.teamGoalsFor += teamFor; ut.teamGoalsAgainst += teamAgainst;
+        if (game.result === "win") ut.wins++;
         if (userRow.is_mvp) ut.mvp++;
         if (uCarry > 0) { ut.carryTotal += uCarry; ut.carryGames++; }
         uGames++; if (userRow.is_mvp) uMvp++;
@@ -317,7 +415,12 @@ const Stats = () => {
           if (teammateRow) {
             const tScore = safeNumber(teammateRow.score), tGoals = safeNumber(teammateRow.goals), tAssists = safeNumber(teammateRow.assists), tSaves = safeNumber(teammateRow.saves), tShots = safeNumber(teammateRow.shots);
             const tCarry = safeNumber(teammateRow.carry_score);
-            tt.games++; tt.points += tScore; tt.goals += tGoals; tt.assists += tAssists; tt.saves += tSaves; tt.shots += tShots; tt.goalsAgainst += Math.max(0, totalGoals - tGoals);
+            const tTeam  = teammateRow.team;
+            const tFor   = players.filter((p) => p.team === tTeam).reduce((s, p) => s + safeNumber(p.goals), 0);
+            const tAgainst = players.filter((p) => p.team !== tTeam).reduce((s, p) => s + safeNumber(p.goals), 0);
+            tt.games++; tt.points += tScore; tt.goals += tGoals; tt.assists += tAssists; tt.saves += tSaves; tt.shots += tShots;
+            tt.teamGoalsFor += tFor; tt.teamGoalsAgainst += tAgainst;
+            if (game.result === "win") tt.wins++;
             if (teammateRow.is_mvp) tt.mvp++;
             if (tCarry > 0) { tt.carryTotal += tCarry; tt.carryGames++; }
             tGames++; if (teammateRow.is_mvp) tMvp++;
@@ -339,24 +442,19 @@ const Stats = () => {
         });
       });
     } else {
-      // Mode B: date-grouped data points
-      // Group games by date string
       const dateMap = new Map<string, { games: GameWithPlayers[]; dateKey: string }>();
       rangeFilteredGames.forEach((game) => {
         const dateKey = format(new Date(game.played_at), "yyyy-MM-dd");
-        if (!dateMap.has(dateKey)) {
-          dateMap.set(dateKey, { games: [], dateKey });
-        }
+        if (!dateMap.has(dateKey)) dateMap.set(dateKey, { games: [], dateKey });
         dateMap.get(dateKey)!.games.push(game);
       });
 
       let uGames = 0, uMvp = 0, tGames = 0, tMvp = 0;
 
       Array.from(dateMap.entries()).forEach(([dateKey, { games: dayGames }]) => {
-        const date = new Date(dateKey);
+        const date  = new Date(dateKey);
         const count = dayGames.length;
 
-        // Accumulate per-date user stats
         let dayUScore = 0, dayUGoals = 0, dayUAssists = 0, dayUSaves = 0, dayUShots = 0, dayUCarry = 0, dayUMvp = 0;
         let dayUValid = 0;
         let dayTScore = 0, dayTGoals = 0, dayTAssists = 0, dayTSaves = 0, dayTShots = 0, dayTMvp = 0;
@@ -367,17 +465,20 @@ const Stats = () => {
           const userRow = findPlayer(players, userTarget);
           if (!userRow) return;
 
-          const totalGoals = players.reduce((s, p) => s + safeNumber(p.goals), 0);
-          const uScore   = safeNumber(userRow.score);
-          const uGoals   = safeNumber(userRow.goals);
-          const uAssists = safeNumber(userRow.assists);
-          const uSaves   = safeNumber(userRow.saves);
-          const uShots   = safeNumber(userRow.shots);
-          const uCarry   = safeNumber(userRow.carry_score);
+          const userTeam   = userRow.team;
+          const teamFor    = players.filter((p) => p.team === userTeam).reduce((s, p) => s + safeNumber(p.goals), 0);
+          const teamAgainst = players.filter((p) => p.team !== userTeam).reduce((s, p) => s + safeNumber(p.goals), 0);
+          const uScore     = safeNumber(userRow.score);
+          const uGoals     = safeNumber(userRow.goals);
+          const uAssists   = safeNumber(userRow.assists);
+          const uSaves     = safeNumber(userRow.saves);
+          const uShots     = safeNumber(userRow.shots);
+          const uCarry     = safeNumber(userRow.carry_score);
 
           ut.games++; ut.points += uScore; ut.goals += uGoals; ut.assists += uAssists;
           ut.saves += uSaves; ut.shots += uShots;
-          ut.goalsAgainst += Math.max(0, totalGoals - uGoals);
+          ut.teamGoalsFor += teamFor; ut.teamGoalsAgainst += teamAgainst;
+          if (game.result === "win") ut.wins++;
           if (userRow.is_mvp) ut.mvp++;
           if (uCarry > 0) { ut.carryTotal += uCarry; ut.carryGames++; }
           uGames++; if (userRow.is_mvp) uMvp++;
@@ -392,7 +493,12 @@ const Stats = () => {
             if (teammateRow) {
               const tScore = safeNumber(teammateRow.score), tGoals = safeNumber(teammateRow.goals), tAssists = safeNumber(teammateRow.assists), tSaves = safeNumber(teammateRow.saves), tShots = safeNumber(teammateRow.shots);
               const tCarry = safeNumber(teammateRow.carry_score);
-              tt.games++; tt.points += tScore; tt.goals += tGoals; tt.assists += tAssists; tt.saves += tSaves; tt.shots += tShots; tt.goalsAgainst += Math.max(0, totalGoals - tGoals);
+              const tTeam  = teammateRow.team;
+              const tFor   = players.filter((p) => p.team === tTeam).reduce((s, p) => s + safeNumber(p.goals), 0);
+              const tAgainst = players.filter((p) => p.team !== tTeam).reduce((s, p) => s + safeNumber(p.goals), 0);
+              tt.games++; tt.points += tScore; tt.goals += tGoals; tt.assists += tAssists; tt.saves += tSaves; tt.shots += tShots;
+              tt.teamGoalsFor += tFor; tt.teamGoalsAgainst += tAgainst;
+              if (game.result === "win") tt.wins++;
               if (teammateRow.is_mvp) tt.mvp++;
               if (tCarry > 0) { tt.carryTotal += tCarry; tt.carryGames++; }
               tGames++; if (teammateRow.is_mvp) tMvp++;
@@ -406,7 +512,6 @@ const Stats = () => {
         });
 
         if (dayUValid === 0) return;
-
         const hasTeammateData = dayTValid > 0;
 
         data.push({
@@ -439,10 +544,9 @@ const Stats = () => {
     { id: "saves",      title: "Saves per Game",   description: "Defensive stops.",           userKey: "saves"      as const, teammateKey: "teammateSaves"    as const },
     { id: "shots",      title: "Shots per Game",   description: "Shot volume.",               userKey: "shots"      as const, teammateKey: "teammateShots"    as const },
     { id: "mvpRate",    title: "MVP Rate",          description: "Cumulative MVP %.",          userKey: "mvpRate"    as const, teammateKey: "teammateMvpRate"  as const, yAxisFormatter: (v: number) => `${Math.round(v)}%`, yAxisDomain: [0, 100] as [number, number] },
-    { id: "carryScore", title: "Carry Score",       description: "How much you carried each game (0 = didn't carry).", userKey: "carryScore" as const, yAxisDomain: [0, 100] as [number, number] },
+    { id: "carryScore", title: "Carry Score",       description: "How much you carried each game.", userKey: "carryScore" as const, yAxisDomain: [0, 100] as [number, number] },
   ];
 
-  // Best carry performances (top 5 games where user was the carrier)
   const bestCarryGames = useMemo(() =>
     rangeFilteredGames
       .map((game) => {
@@ -502,26 +606,46 @@ const Stats = () => {
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <Badge variant="outline">{userSummary.games} games</Badge>
-          {selectedFriend && <Badge variant="outline">vs {selectedFriend.label}</Badge>}
-        </div>
-
-        {/* Time range pills */}
-        <div className="flex gap-2">
-          {timeRangePills.map((pill) => (
+        {/* Time range + View mode pills */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex gap-2">
+            {timeRangePills.map((pill) => (
+              <button
+                key={pill.value}
+                onClick={() => setTimeRange(pill.value)}
+                className={`text-xs px-3 py-1 rounded-full font-medium transition-colors ${
+                  timeRange === pill.value
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                }`}
+              >
+                {pill.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-1 bg-muted rounded-full p-1">
             <button
-              key={pill.value}
-              onClick={() => setTimeRange(pill.value)}
-              className={`text-xs px-3 py-1 rounded-full font-medium transition-colors ${
-                timeRange === pill.value
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground hover:bg-muted/80"
+              onClick={() => setViewMode("summary")}
+              className={`flex items-center gap-1.5 text-xs px-3 py-1 rounded-full font-medium transition-colors ${
+                viewMode === "summary" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
               }`}
             >
-              {pill.label}
+              <BarChart2 className="w-3 h-3" /> Summary
             </button>
-          ))}
+            <button
+              onClick={() => setViewMode("charts")}
+              className={`flex items-center gap-1.5 text-xs px-3 py-1 rounded-full font-medium transition-colors ${
+                viewMode === "charts" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
+              }`}
+            >
+              <LineChartIcon className="w-3 h-3" /> Charts
+            </button>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <Badge variant="outline">{userSummary.games} game{userSummary.games !== 1 ? "s" : ""}</Badge>
+          {selectedFriend && <Badge variant="outline">with {selectedFriend.label}</Badge>}
         </div>
 
         {userSummary.games === 0 ? (
@@ -530,25 +654,60 @@ const Stats = () => {
               <p className="text-muted-foreground">No games match the current filters.</p>
             </CardContent>
           </Card>
-        ) : (
-          <>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <StatCard title="Pts/Game"      value={userSummary.pointsPerGame}      teammateValue={teammateSummary?.pointsPerGame}      teammateLabel={selectedFriend?.label} formatter={(v) => formatAverage(v, 0)} />
-              <StatCard title="Goals/Game"    value={userSummary.goalsPerGame}        teammateValue={teammateSummary?.goalsPerGame}        teammateLabel={selectedFriend?.label} formatter={(v) => formatAverage(v, 2)} />
-              <StatCard title="Assists/Game"  value={userSummary.assistsPerGame}      teammateValue={teammateSummary?.assistsPerGame}      teammateLabel={selectedFriend?.label} formatter={(v) => formatAverage(v, 2)} />
-              <StatCard title="Saves/Game"    value={userSummary.savesPerGame}        teammateValue={teammateSummary?.savesPerGame}        teammateLabel={selectedFriend?.label} formatter={(v) => formatAverage(v, 2)} />
-              <StatCard title="Shots/Game"    value={userSummary.shotsPerGame}        teammateValue={teammateSummary?.shotsPerGame}        teammateLabel={selectedFriend?.label} formatter={(v) => formatAverage(v, 2)} />
-              <StatCard title="MVP Rate"      value={userSummary.mvpRate}             teammateValue={teammateSummary?.mvpRate}             teammateLabel={selectedFriend?.label} formatter={formatPercent} />
-              <StatCard title="Goals Against" value={userSummary.goalsAgainstPerGame} teammateValue={teammateSummary?.goalsAgainstPerGame} teammateLabel={selectedFriend?.label} formatter={(v) => formatAverage(v, 2)} />
-              <StatCard
-                title="Avg Carry Score"
-                value={userSummary.avgCarryScore}
-                teammateValue={teammateSummary?.avgCarryScore}
-                teammateLabel={selectedFriend?.label}
-                formatter={(v) => formatAverage(v, 1)}
+        ) : viewMode === "summary" ? (
+          /* ── Summary view ── */
+          <div className="space-y-4">
+            {selectedFriend && teammateSummary ? (
+              <ComparisonTable
+                userSummary={userSummary}
+                teammateSummary={teammateSummary}
+                teammateName={selectedFriend.label}
               />
-            </div>
+            ) : (
+              <SoloSummaryGrid summary={userSummary} />
+            )}
 
+            {/* Best Carry Performances */}
+            {bestCarryGames.length > 0 && (
+              <Card className="border-border/50 bg-card/80">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-display">Best Carry Performances</CardTitle>
+                  <CardDescription className="text-xs">Your top carry games in the current filter</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {bestCarryGames.map(({ game, carryScore }) => {
+                    const userRow = findPlayer(game.game_players || [], userTarget);
+                    const isWin   = game.result === "win";
+                    return (
+                      <div key={game.id} className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/30">
+                        <div className="flex items-center gap-3">
+                          <span className={`w-1.5 h-6 rounded-full flex-shrink-0 ${isWin ? "bg-rl-green" : "bg-rl-red"}`} />
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-display font-bold">{isWin ? "WIN" : "LOSS"}</span>
+                              <Badge variant="outline" className="text-[9px] px-1 py-0">{game.game_mode}</Badge>
+                            </div>
+                            <p className="text-[10px] text-muted-foreground">{format(new Date(game.played_at), "MMM d, yyyy")}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          {userRow && (
+                            <p className="text-xs text-muted-foreground font-mono hidden sm:block">
+                              {userRow.goals}G {userRow.assists}A {userRow.saves}S · {userRow.score}pts
+                            </p>
+                          )}
+                          <CarryMeter score={carryScore} size="md" />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        ) : (
+          /* ── Charts view ── */
+          <div className="space-y-4">
             <div className="grid gap-4 lg:grid-cols-2">
               {chartDefinitions.map((c) => (
                 <StatChart
@@ -574,8 +733,8 @@ const Stats = () => {
                 </CardHeader>
                 <CardContent className="space-y-2">
                   {bestCarryGames.map(({ game, carryScore }) => {
-                    const userRow  = findPlayer(game.game_players || [], userTarget);
-                    const isWin    = game.result === "win";
+                    const userRow = findPlayer(game.game_players || [], userTarget);
+                    const isWin   = game.result === "win";
                     return (
                       <div key={game.id} className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/30">
                         <div className="flex items-center gap-3">
@@ -585,9 +744,7 @@ const Stats = () => {
                               <span className="text-xs font-display font-bold">{isWin ? "WIN" : "LOSS"}</span>
                               <Badge variant="outline" className="text-[9px] px-1 py-0">{game.game_mode}</Badge>
                             </div>
-                            <p className="text-[10px] text-muted-foreground">
-                              {format(new Date(game.played_at), "MMM d, yyyy")}
-                            </p>
+                            <p className="text-[10px] text-muted-foreground">{format(new Date(game.played_at), "MMM d, yyyy")}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-4">
@@ -604,7 +761,7 @@ const Stats = () => {
                 </CardContent>
               </Card>
             )}
-          </>
+          </div>
         )}
       </div>
     </AppLayout>
