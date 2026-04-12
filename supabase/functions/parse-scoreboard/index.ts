@@ -34,7 +34,7 @@ serve(async (req) => {
   }
 
   try {
-    const { image_base64, user_rl_name } = await req.json();
+    const { image_base64, user_rl_name, mime_type } = await req.json();
 
     if (!image_base64) {
       return new Response(
@@ -123,7 +123,7 @@ Double-check every number and the game_type before responding. Most matches ARE 
             },
             {
               inline_data: {
-                mime_type: "image/jpeg",
+                mime_type: mime_type || "image/jpeg",
                 data: image_base64,
               },
             },
@@ -158,7 +158,8 @@ Double-check every number and the game_type before responding. Most matches ARE 
       }
 
       if (!res.ok) {
-        lastError = `Gemini API error: ${res.status}`;
+        const errBody = await res.text();
+        lastError = `Gemini API error: ${res.status} — ${errBody}`;
         console.error(`Attempt ${attempt}: ${lastError}`);
         if (attempt < MAX_RETRIES) {
           await new Promise(r => setTimeout(r, 1000 * attempt));
