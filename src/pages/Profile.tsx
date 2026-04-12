@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 import AppLayout from "@/components/layout/AppLayout";
-import { CARS, CarSilhouette, CarPicker } from "@/components/profile/CarSilhouette";
+import { CARS, CarBadge, CarPicker } from "@/components/profile/CarSilhouette";
 
 type GameMode     = Database["public"]["Enums"]["game_mode"];
 type GameType     = Database["public"]["Enums"]["game_type"];
@@ -425,12 +425,9 @@ const Profile = () => {
 
               {/* Favorite car */}
               {favoriteCarObj && (
-                <div className="flex items-center gap-3 mb-4 px-3 py-2 rounded-lg bg-background/60 border border-border/30">
-                  <CarSilhouette car={favoriteCarObj} size={64} active />
-                  <div>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Favorite Car</p>
-                    <p className="font-semibold text-sm">{favoriteCarObj.name}</p>
-                  </div>
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Favorite Car</span>
+                  <CarBadge car={favoriteCarObj} />
                 </div>
               )}
 
