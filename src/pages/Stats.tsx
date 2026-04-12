@@ -60,6 +60,8 @@ type SummaryStats = {
   avgCarryScore: number | null;
 };
 
+type TimeRange = "7d" | "30d" | "all";
+
 const gameModes: Array<{ value: GameMode | "all"; label: string }> = [
   { value: "all", label: "All modes" },
   { value: "1v1", label: "1v1" },
@@ -148,6 +150,8 @@ const StatChart = ({ title, description, data, userKey, teammateKey, teammateLab
   };
   const hasTeammate = Boolean(teammateKey && teammateLabel);
 
+  const tickInterval = data.length <= 10 ? 0 : data.length <= 20 ? 1 : data.length <= 40 ? 2 : Math.floor(data.length / 10);
+
   return (
     <Card className="border-border/50 bg-card/80">
       <CardHeader className="pb-2">
@@ -158,7 +162,7 @@ const StatChart = ({ title, description, data, userKey, teammateKey, teammateLab
         <ChartContainer config={chartConfig} className="h-52 w-full">
           <LineChart data={data} margin={{ left: 6, right: 12, top: 8, bottom: 0 }}>
             <CartesianGrid vertical={false} strokeDasharray="4 4" />
-            <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} minTickGap={20} />
+            <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} interval={tickInterval} />
             <YAxis tickLine={false} axisLine={false} width={40} tickFormatter={yAxisFormatter} domain={yAxisDomain} />
             <ChartTooltip content={<ChartTooltipContent labelFormatter={(_, payload) => payload?.[0]?.payload?.fullLabel ?? ""} />} />
             <Line type="monotone" dataKey={userKey} stroke={`var(--color-${String(userKey)})`} strokeWidth={2.5} dot={false} />
@@ -183,6 +187,7 @@ const Stats = () => {
   const [selectedMode, setSelectedMode] = useState<GameMode | "all">("all");
   const [selectedType, setSelectedType] = useState<GameType | "all">("all");
   const [selectedFriendId, setSelectedFriendId] = useState<string>("all");
+  const [timeRange, setTimeRange] = useState<TimeRange>("all");
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/auth");
@@ -218,14 +223,14 @@ const Stats = () => {
             .from("games")
             .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, carry_score, submission_status, submitted_by, created_at, game_id)")
             .or(`created_by.eq.${user.id},id.in.(${allIds.join(",")})`)
-            
+
             .order("played_at", { ascending: true });
         } else {
           gamesRes = await supabase
             .from("games")
             .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, carry_score, submission_status, submitted_by, created_at, game_id)")
             .eq("created_by", user.id)
-            
+
             .order("played_at", { ascending: true });
         }
 
@@ -267,62 +272,165 @@ const Stats = () => {
     .filter((g) => !teammateTarget || Boolean(findPlayer(g.game_players, teammateTarget))),
   [games, selectedMode, selectedType, teammateTarget]);
 
+  const rangeFilteredGames = useMemo(() => {
+    if (timeRange === "all") return filteredGames;
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - (timeRange === "7d" ? 7 : 30));
+    return filteredGames.filter((g) => new Date(g.played_at) >= cutoff);
+  }, [filteredGames, timeRange]);
+
   const { chartData, userSummary, teammateSummary } = useMemo(() => {
     const ut = { games: 0, points: 0, goals: 0, assists: 0, saves: 0, shots: 0, mvp: 0, goalsAgainst: 0, carryTotal: 0, carryGames: 0 };
     const tt = { games: 0, points: 0, goals: 0, assists: 0, saves: 0, shots: 0, mvp: 0, goalsAgainst: 0, carryTotal: 0, carryGames: 0 };
     const data: ChartDatum[] = [];
-    let uGames = 0, uMvp = 0, tGames = 0, tMvp = 0;
 
-    filteredGames.forEach((game) => {
-      const players = game.game_players || [];
-      const userRow = findPlayer(players, userTarget);
-      if (!userRow) return;
+    const perGame = rangeFilteredGames.length < 20;
 
-      const totalGoals  = players.reduce((s, p) => s + safeNumber(p.goals), 0);
-      const uScore      = safeNumber(userRow.score);
-      const uGoals      = safeNumber(userRow.goals);
-      const uAssists    = safeNumber(userRow.assists);
-      const uSaves      = safeNumber(userRow.saves);
-      const uShots      = safeNumber(userRow.shots);
-      const uCarry      = safeNumber(userRow.carry_score);
+    if (perGame) {
+      // Mode A: per-game data points
+      let uGames = 0, uMvp = 0, tGames = 0, tMvp = 0;
 
-      ut.games++; ut.points += uScore; ut.goals += uGoals; ut.assists += uAssists;
-      ut.saves += uSaves; ut.shots += uShots;
-      ut.goalsAgainst += Math.max(0, totalGoals - uGoals);
-      if (userRow.is_mvp) ut.mvp++;
-      if (uCarry > 0) { ut.carryTotal += uCarry; ut.carryGames++; }
-      uGames++; if (userRow.is_mvp) uMvp++;
+      rangeFilteredGames.forEach((game, idx) => {
+        const players = game.game_players || [];
+        const userRow = findPlayer(players, userTarget);
+        if (!userRow) return;
 
-      let teammateRow: GamePlayerRow | null = null;
-      if (teammateTarget) {
-        teammateRow = findPlayer(players, teammateTarget);
-        if (teammateRow) {
-          const tScore = safeNumber(teammateRow.score), tGoals = safeNumber(teammateRow.goals), tAssists = safeNumber(teammateRow.assists), tSaves = safeNumber(teammateRow.saves), tShots = safeNumber(teammateRow.shots);
-          const tCarry = safeNumber(teammateRow.carry_score);
-          tt.games++; tt.points += tScore; tt.goals += tGoals; tt.assists += tAssists; tt.saves += tSaves; tt.shots += tShots; tt.goalsAgainst += Math.max(0, totalGoals - tGoals);
-          if (teammateRow.is_mvp) tt.mvp++;
-          if (tCarry > 0) { tt.carryTotal += tCarry; tt.carryGames++; }
-          tGames++; if (teammateRow.is_mvp) tMvp++;
+        const gameNum = idx + 1;
+        const totalGoals = players.reduce((s, p) => s + safeNumber(p.goals), 0);
+        const uScore   = safeNumber(userRow.score);
+        const uGoals   = safeNumber(userRow.goals);
+        const uAssists = safeNumber(userRow.assists);
+        const uSaves   = safeNumber(userRow.saves);
+        const uShots   = safeNumber(userRow.shots);
+        const uCarry   = safeNumber(userRow.carry_score);
+
+        ut.games++; ut.points += uScore; ut.goals += uGoals; ut.assists += uAssists;
+        ut.saves += uSaves; ut.shots += uShots;
+        ut.goalsAgainst += Math.max(0, totalGoals - uGoals);
+        if (userRow.is_mvp) ut.mvp++;
+        if (uCarry > 0) { ut.carryTotal += uCarry; ut.carryGames++; }
+        uGames++; if (userRow.is_mvp) uMvp++;
+
+        let teammateRow: GamePlayerRow | null = null;
+        if (teammateTarget) {
+          teammateRow = findPlayer(players, teammateTarget);
+          if (teammateRow) {
+            const tScore = safeNumber(teammateRow.score), tGoals = safeNumber(teammateRow.goals), tAssists = safeNumber(teammateRow.assists), tSaves = safeNumber(teammateRow.saves), tShots = safeNumber(teammateRow.shots);
+            const tCarry = safeNumber(teammateRow.carry_score);
+            tt.games++; tt.points += tScore; tt.goals += tGoals; tt.assists += tAssists; tt.saves += tSaves; tt.shots += tShots; tt.goalsAgainst += Math.max(0, totalGoals - tGoals);
+            if (teammateRow.is_mvp) tt.mvp++;
+            if (tCarry > 0) { tt.carryTotal += tCarry; tt.carryGames++; }
+            tGames++; if (teammateRow.is_mvp) tMvp++;
+          }
         }
-      }
 
-      data.push({
-        label:     format(new Date(game.played_at), "MMM d"),
-        fullLabel: format(new Date(game.played_at), "MMM d, yyyy"),
-        points: uScore, goals: uGoals, assists: uAssists, saves: uSaves, shots: uShots,
-        mvpRate:    uGames ? (uMvp / uGames) * 100 : 0,
-        carryScore: uCarry,
-        teammatePoints:    teammateRow ? safeNumber(teammateRow.score)   : null,
-        teammateGoals:     teammateRow ? safeNumber(teammateRow.goals)   : null,
-        teammateAssists:   teammateRow ? safeNumber(teammateRow.assists) : null,
-        teammateSaves:     teammateRow ? safeNumber(teammateRow.saves)   : null,
-        teammateShots:     teammateRow ? safeNumber(teammateRow.shots)   : null,
-        teammateMvpRate:   teammateRow ? (tGames ? (tMvp / tGames) * 100 : 0) : null,
+        data.push({
+          label:     `#${gameNum}`,
+          fullLabel: `Game ${gameNum} · ${format(new Date(game.played_at), "MMM d, yyyy")}`,
+          points: uScore, goals: uGoals, assists: uAssists, saves: uSaves, shots: uShots,
+          mvpRate:    uGames ? (uMvp / uGames) * 100 : 0,
+          carryScore: uCarry,
+          teammatePoints:    teammateRow ? safeNumber(teammateRow.score)   : null,
+          teammateGoals:     teammateRow ? safeNumber(teammateRow.goals)   : null,
+          teammateAssists:   teammateRow ? safeNumber(teammateRow.assists) : null,
+          teammateSaves:     teammateRow ? safeNumber(teammateRow.saves)   : null,
+          teammateShots:     teammateRow ? safeNumber(teammateRow.shots)   : null,
+          teammateMvpRate:   teammateRow ? (tGames ? (tMvp / tGames) * 100 : 0) : null,
+        });
       });
-    });
+    } else {
+      // Mode B: date-grouped data points
+      // Group games by date string
+      const dateMap = new Map<string, { games: GameWithPlayers[]; dateKey: string }>();
+      rangeFilteredGames.forEach((game) => {
+        const dateKey = format(new Date(game.played_at), "yyyy-MM-dd");
+        if (!dateMap.has(dateKey)) {
+          dateMap.set(dateKey, { games: [], dateKey });
+        }
+        dateMap.get(dateKey)!.games.push(game);
+      });
+
+      let uGames = 0, uMvp = 0, tGames = 0, tMvp = 0;
+
+      Array.from(dateMap.entries()).forEach(([dateKey, { games: dayGames }]) => {
+        const date = new Date(dateKey);
+        const count = dayGames.length;
+
+        // Accumulate per-date user stats
+        let dayUScore = 0, dayUGoals = 0, dayUAssists = 0, dayUSaves = 0, dayUShots = 0, dayUCarry = 0, dayUMvp = 0;
+        let dayUValid = 0;
+        let dayTScore = 0, dayTGoals = 0, dayTAssists = 0, dayTSaves = 0, dayTShots = 0, dayTMvp = 0;
+        let dayTValid = 0;
+
+        dayGames.forEach((game) => {
+          const players = game.game_players || [];
+          const userRow = findPlayer(players, userTarget);
+          if (!userRow) return;
+
+          const totalGoals = players.reduce((s, p) => s + safeNumber(p.goals), 0);
+          const uScore   = safeNumber(userRow.score);
+          const uGoals   = safeNumber(userRow.goals);
+          const uAssists = safeNumber(userRow.assists);
+          const uSaves   = safeNumber(userRow.saves);
+          const uShots   = safeNumber(userRow.shots);
+          const uCarry   = safeNumber(userRow.carry_score);
+
+          ut.games++; ut.points += uScore; ut.goals += uGoals; ut.assists += uAssists;
+          ut.saves += uSaves; ut.shots += uShots;
+          ut.goalsAgainst += Math.max(0, totalGoals - uGoals);
+          if (userRow.is_mvp) ut.mvp++;
+          if (uCarry > 0) { ut.carryTotal += uCarry; ut.carryGames++; }
+          uGames++; if (userRow.is_mvp) uMvp++;
+
+          dayUScore += uScore; dayUGoals += uGoals; dayUAssists += uAssists;
+          dayUSaves += uSaves; dayUShots += uShots; dayUCarry += uCarry;
+          if (userRow.is_mvp) dayUMvp++;
+          dayUValid++;
+
+          if (teammateTarget) {
+            const teammateRow = findPlayer(players, teammateTarget);
+            if (teammateRow) {
+              const tScore = safeNumber(teammateRow.score), tGoals = safeNumber(teammateRow.goals), tAssists = safeNumber(teammateRow.assists), tSaves = safeNumber(teammateRow.saves), tShots = safeNumber(teammateRow.shots);
+              const tCarry = safeNumber(teammateRow.carry_score);
+              tt.games++; tt.points += tScore; tt.goals += tGoals; tt.assists += tAssists; tt.saves += tSaves; tt.shots += tShots; tt.goalsAgainst += Math.max(0, totalGoals - tGoals);
+              if (teammateRow.is_mvp) tt.mvp++;
+              if (tCarry > 0) { tt.carryTotal += tCarry; tt.carryGames++; }
+              tGames++; if (teammateRow.is_mvp) tMvp++;
+
+              dayTScore += tScore; dayTGoals += tGoals; dayTAssists += tAssists;
+              dayTSaves += tSaves; dayTShots += tShots;
+              if (teammateRow.is_mvp) dayTMvp++;
+              dayTValid++;
+            }
+          }
+        });
+
+        if (dayUValid === 0) return;
+
+        const hasTeammateData = dayTValid > 0;
+
+        data.push({
+          label:     format(date, "MMM d"),
+          fullLabel: format(date, "MMM d, yyyy") + (count > 1 ? ` (${count} games)` : ""),
+          points:    dayUScore   / dayUValid,
+          goals:     dayUGoals   / dayUValid,
+          assists:   dayUAssists / dayUValid,
+          saves:     dayUSaves   / dayUValid,
+          shots:     dayUShots   / dayUValid,
+          carryScore: dayUCarry  / dayUValid,
+          mvpRate:   uGames ? (uMvp / uGames) * 100 : 0,
+          teammatePoints:    hasTeammateData ? dayTScore   / dayTValid : null,
+          teammateGoals:     hasTeammateData ? dayTGoals   / dayTValid : null,
+          teammateAssists:   hasTeammateData ? dayTAssists / dayTValid : null,
+          teammateSaves:     hasTeammateData ? dayTSaves   / dayTValid : null,
+          teammateShots:     hasTeammateData ? dayTShots   / dayTValid : null,
+          teammateMvpRate:   hasTeammateData ? (tGames ? (tMvp / tGames) * 100 : 0) : null,
+        });
+      });
+    }
 
     return { chartData: data, userSummary: buildSummary(ut), teammateSummary: teammateTarget ? buildSummary(tt) : null };
-  }, [filteredGames, teammateTarget, userTarget]);
+  }, [rangeFilteredGames, teammateTarget, userTarget]);
 
   const chartDefinitions = [
     { id: "points",     title: "Points per Game",  description: "Score output by match.",     userKey: "points"     as const, teammateKey: "teammatePoints"   as const },
@@ -336,7 +444,7 @@ const Stats = () => {
 
   // Best carry performances (top 5 games where user was the carrier)
   const bestCarryGames = useMemo(() =>
-    filteredGames
+    rangeFilteredGames
       .map((game) => {
         const userRow = findPlayer(game.game_players || [], userTarget);
         return { game, carryScore: safeNumber(userRow?.carry_score) };
@@ -344,13 +452,19 @@ const Stats = () => {
       .filter((g) => g.carryScore > 0)
       .sort((a, b) => b.carryScore - a.carryScore)
       .slice(0, 5),
-  [filteredGames, userTarget]);
+  [rangeFilteredGames, userTarget]);
 
   if (authLoading || loading) {
     return <AppLayout><div className="flex items-center justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div></AppLayout>;
   }
 
   if (!user) return null;
+
+  const timeRangePills: Array<{ value: TimeRange; label: string }> = [
+    { value: "7d", label: "7D" },
+    { value: "30d", label: "30D" },
+    { value: "all", label: "All time" },
+  ];
 
   return (
     <AppLayout>
@@ -391,6 +505,23 @@ const Stats = () => {
         <div className="flex flex-wrap gap-2">
           <Badge variant="outline">{userSummary.games} games</Badge>
           {selectedFriend && <Badge variant="outline">vs {selectedFriend.label}</Badge>}
+        </div>
+
+        {/* Time range pills */}
+        <div className="flex gap-2">
+          {timeRangePills.map((pill) => (
+            <button
+              key={pill.value}
+              onClick={() => setTimeRange(pill.value)}
+              className={`text-xs px-3 py-1 rounded-full font-medium transition-colors ${
+                timeRange === pill.value
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80"
+              }`}
+            >
+              {pill.label}
+            </button>
+          ))}
         </div>
 
         {userSummary.games === 0 ? (
