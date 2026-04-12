@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Search, UserPlus, X } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 import AppLayout from "@/components/layout/AppLayout";
+import { cn } from "@/lib/utils";
 
 type FriendRequest = Database["public"]["Tables"]["friend_requests"]["Row"];
 type FriendProfile = { user_id: string; username: string; rl_account_name: string | null };
@@ -39,7 +40,7 @@ const Friends = () => {
     try {
       const { data: requests, error } = await supabase
         .from("friend_requests")
-        .select("id, sender_id, receiver_id, status, created_at, updated_at")
+        .select("id, sender_id, receiver_id, status, created_at, updated_at, sender_auto_approve, receiver_auto_approve")
         .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
         .in("status", ["pending", "accepted"]);
       if (error) throw error;
@@ -135,6 +136,21 @@ const Friends = () => {
         if (error) throw error;
       }
       toast({ title: "Friend removed" });
+      await refresh();
+    } catch (err: any) {
+      toast({ title: "Failed", description: err.message, variant: "destructive" });
+    } finally { setActionId(null); }
+  };
+
+  const handleToggleAutoApprove = async (req: FriendRequest) => {
+    if (!user) return;
+    setActionId(req.id);
+    try {
+      const isSender = req.sender_id === user.id;
+      const currentVal = isSender ? req.sender_auto_approve : req.receiver_auto_approve;
+      const updateCol = isSender ? { sender_auto_approve: !currentVal } : { receiver_auto_approve: !currentVal };
+      const { error } = await supabase.from("friend_requests").update(updateCol).eq("id", req.id);
+      if (error) throw error;
       await refresh();
     } catch (err: any) {
       toast({ title: "Failed", description: err.message, variant: "destructive" });
@@ -291,13 +307,30 @@ const Friends = () => {
               accepted.map((req) => {
                 const otherId = req.sender_id === user.id ? req.receiver_id : req.sender_id;
                 const p = profileMap.get(otherId);
+                const isSender = req.sender_id === user.id;
+                const autoApprove = isSender ? req.sender_auto_approve : req.receiver_auto_approve;
                 return (
                   <div key={req.id} className="flex items-center justify-between gap-2 rounded-lg border border-border/60 bg-background/60 p-3">
                     <div>
                       <p className="font-display text-sm font-semibold">{getDisplayName(p)}</p>
                       {p?.username && <p className="text-xs text-muted-foreground">@{p.username}</p>}
                     </div>
-                    <Button size="sm" variant="outline" disabled={actionId === req.id} onClick={() => handleRemove(req)}>Remove</Button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleToggleAutoApprove(req)}
+                        disabled={actionId === req.id}
+                        className={cn(
+                          "flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition-colors",
+                          autoApprove
+                            ? "bg-primary/10 text-primary border-primary/30"
+                            : "bg-muted text-muted-foreground border-border/50 hover:border-border"
+                        )}
+                      >
+                        <span className={cn("w-1.5 h-1.5 rounded-full", autoApprove ? "bg-primary" : "bg-muted-foreground/50")} />
+                        Auto-approve
+                      </button>
+                      <Button size="sm" variant="outline" disabled={actionId === req.id} onClick={() => handleRemove(req)}>Remove</Button>
+                    </div>
                   </div>
                 );
               })

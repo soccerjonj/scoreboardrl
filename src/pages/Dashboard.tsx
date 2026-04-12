@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { format } from "date-fns";
-import { Plus, Loader2, Trophy, Target, TrendingUp, ChevronRight, Zap, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Loader2, Trophy, Target, TrendingUp, ChevronRight, Zap, ChevronDown, ChevronUp, Pencil, Check, X as XIcon } from "lucide-react";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { CarryMeter } from "@/components/game/CarryMeter";
 import { calculateCarryScores } from "@/lib/carryScore";
 import AppLayout from "@/components/layout/AppLayout";
@@ -46,6 +47,8 @@ const Dashboard = () => {
   const [games, setGames]                 = useState<GameWithPlayers[]>([]);
   const [rlName, setRlName]               = useState<string | null>(null);
   const [expandedGameId, setExpandedGameId] = useState<string | null>(null);
+  const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
+  const [editValues, setEditValues] = useState<{ score: number; goals: number; assists: number; saves: number; shots: number }>({ score: 0, goals: 0, assists: 0, saves: 0, shots: 0 });
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/auth");
@@ -56,20 +59,44 @@ const Dashboard = () => {
     const load = async () => {
       setLoading(true);
       try {
-        const [profileRes, ranksRes, gamesRes] = await Promise.all([
+        const [profileRes, ranksRes] = await Promise.all([
           supabase.from("profiles").select("rl_account_name, username").eq("user_id", user.id).single(),
           supabase.from("ranks").select("game_mode, rank_tier, rank_division, mmr").eq("user_id", user.id).eq("game_type", "competitive"),
-          supabase
-            .from("games")
-            .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, carry_score, submission_status, submitted_by, created_at, game_id)")
-            .eq("created_by", user.id)
-            .order("played_at", { ascending: false })
-            .limit(20),
         ]);
 
         if (profileRes.error) throw profileRes.error;
         if (ranksRes.error)   throw ranksRes.error;
-        if (gamesRes.error)   throw gamesRes.error;
+
+        // Step 1: get all game IDs where user appears as a player
+        const { data: playerGameRows } = await supabase
+          .from("game_players")
+          .select("game_id")
+          .eq("user_id", user.id);
+
+        const linkedGameIds = (playerGameRows || []).map((r) => r.game_id);
+
+        // Step 2: fetch games created by user OR where user is a player
+        const allIds = Array.from(new Set([...linkedGameIds]));
+        let gamesRes;
+        if (allIds.length > 0) {
+          gamesRes = await supabase
+            .from("games")
+            .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, duplicate_of, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, carry_score, submission_status, submitted_by, created_at, game_id)")
+            .or(`created_by.eq.${user.id},id.in.(${allIds.join(",")})`)
+            .is("duplicate_of", null)
+            .order("played_at", { ascending: false })
+            .limit(20);
+        } else {
+          gamesRes = await supabase
+            .from("games")
+            .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, duplicate_of, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, carry_score, submission_status, submitted_by, created_at, game_id)")
+            .eq("created_by", user.id)
+            .is("duplicate_of", null)
+            .order("played_at", { ascending: false })
+            .limit(20);
+        }
+
+        if (gamesRes.error) throw gamesRes.error;
 
         setRlName(profileRes.data?.rl_account_name ?? null);
         setRanks((ranksRes.data || []) as RankData[]);
@@ -130,15 +157,35 @@ const Dashboard = () => {
       );
     }
 
-    // Refresh games so carry scores render immediately
-    const { data } = await supabase
-      .from("games")
-      .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, carry_score, submission_status, submitted_by, created_at, game_id)")
-      .eq("created_by", user.id)
-      .order("played_at", { ascending: false })
-      .limit(20);
+    // Refresh games so carry scores render immediately — use same OR logic as initial load
+    const { data: playerGameRows2 } = await supabase
+      .from("game_players")
+      .select("game_id")
+      .eq("user_id", user.id);
 
-    if (data) setGames(data as GameWithPlayers[]);
+    const linkedGameIds2 = (playerGameRows2 || []).map((r) => r.game_id);
+    const allIds2 = Array.from(new Set([...linkedGameIds2]));
+
+    let refreshRes;
+    if (allIds2.length > 0) {
+      refreshRes = await supabase
+        .from("games")
+        .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, duplicate_of, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, carry_score, submission_status, submitted_by, created_at, game_id)")
+        .or(`created_by.eq.${user.id},id.in.(${allIds2.join(",")})`)
+        .is("duplicate_of", null)
+        .order("played_at", { ascending: false })
+        .limit(20);
+    } else {
+      refreshRes = await supabase
+        .from("games")
+        .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, duplicate_of, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, carry_score, submission_status, submitted_by, created_at, game_id)")
+        .eq("created_by", user.id)
+        .is("duplicate_of", null)
+        .order("played_at", { ascending: false })
+        .limit(20);
+    }
+
+    if (refreshRes.data) setGames(refreshRes.data as GameWithPlayers[]);
   }, [user]);
 
   useEffect(() => {
@@ -146,6 +193,65 @@ const Dashboard = () => {
       backfillCarryScores(games);
     }
   }, [loading]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Inline stat editing ──────────────────────────────────────────────────────
+  const handleStatSave = async (game: GameWithPlayers, playerId: string) => {
+    if (!user) return;
+    try {
+      const { error } = await supabase
+        .from("game_players")
+        .update({
+          score:   editValues.score,
+          goals:   editValues.goals,
+          assists: editValues.assists,
+          saves:   editValues.saves,
+          shots:   editValues.shots,
+        })
+        .eq("id", playerId);
+      if (error) throw error;
+
+      // Recalculate carry scores with updated stats
+      const updatedPlayers = (game.game_players ?? []).map((p) =>
+        p.id === playerId ? { ...p, ...editValues } : p
+      );
+      const carryResults = calculateCarryScores(
+        updatedPlayers.map((p) => ({
+          name:    p.player_name,
+          team:    (p.team ?? "blue") as "blue" | "orange",
+          score:   p.score,
+          goals:   p.goals,
+          assists: p.assists,
+          saves:   p.saves,
+          shots:   p.shots,
+        }))
+      );
+      await Promise.all(
+        carryResults.map((r) => {
+          const row = updatedPlayers.find((p) => p.player_name.toLowerCase() === r.name.toLowerCase());
+          if (!row) return Promise.resolve();
+          return supabase.from("game_players").update({ carry_score: r.carry_score }).eq("id", row.id);
+        })
+      );
+
+      // Update local state
+      setGames((prev) =>
+        prev.map((g) =>
+          g.id !== game.id ? g : {
+            ...g,
+            game_players: updatedPlayers.map((p) => {
+              const cr = carryResults.find((r) => r.name.toLowerCase() === p.player_name.toLowerCase());
+              return cr ? { ...p, carry_score: cr.carry_score } : p;
+            }),
+          }
+        )
+      );
+
+      setEditingPlayerId(null);
+      toast({ title: "Stats updated" });
+    } catch (err: any) {
+      toast({ title: "Failed to update", description: err.message, variant: "destructive" });
+    }
+  };
 
   // ── Quick stats ─────────────────────────────────────────────────────────────
   const quickStats = useMemo(() => {
@@ -430,6 +536,7 @@ const Dashboard = () => {
                                 </p>
                                 {teamRows.map((p) => {
                                   const isUser = (userTarget.userId && p.user_id === userTarget.userId) || userTarget.names.includes(normalizeName(p.player_name));
+                                  const isEditing = isUser && editingPlayerId === p.id;
                                   return (
                                     <div key={p.id} className={`flex items-center justify-between py-1 px-2 rounded-md ${isUser ? "bg-primary/5" : ""}`}>
                                       <div className="flex items-center gap-2 min-w-0">
@@ -440,17 +547,69 @@ const Dashboard = () => {
                                           <span className="text-[9px] text-yellow-400 font-bold">MVP</span>
                                         )}
                                       </div>
-                                      <div className="flex items-center gap-3 flex-shrink-0">
-                                        <span className="text-xs text-muted-foreground font-mono">
-                                          {p.goals}G {p.assists}A {p.saves}S
-                                        </span>
-                                        <span className="text-xs font-mono font-bold w-12 text-right">{p.score}</span>
-                                        <div className="w-28 flex justify-end">
-                                          {(p.carry_score ?? 0) > 0
-                                            ? <CarryMeter score={p.carry_score!} size="sm" />
-                                            : <span className="text-[10px] text-muted-foreground/40 font-mono">—</span>
-                                          }
-                                        </div>
+                                      <div className="flex items-center gap-2 flex-shrink-0">
+                                        {isEditing ? (
+                                          <>
+                                            <div className="flex items-center gap-1">
+                                              {(["score", "goals", "assists", "saves", "shots"] as const).map((field) => (
+                                                <Input
+                                                  key={field}
+                                                  type="number"
+                                                  min={0}
+                                                  value={editValues[field]}
+                                                  onChange={(e) => setEditValues((prev) => ({ ...prev, [field]: Number(e.target.value) }))}
+                                                  className="h-6 w-12 text-xs px-1"
+                                                  title={field}
+                                                />
+                                              ))}
+                                            </div>
+                                            <button
+                                              onClick={() => handleStatSave(game, p.id)}
+                                              className="text-rl-green hover:text-rl-green/80 transition-colors p-0.5"
+                                              title="Save"
+                                            >
+                                              <Check className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button
+                                              onClick={() => setEditingPlayerId(null)}
+                                              className="text-muted-foreground hover:text-foreground transition-colors p-0.5"
+                                              title="Cancel"
+                                            >
+                                              <XIcon className="w-3.5 h-3.5" />
+                                            </button>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <span className="text-xs text-muted-foreground font-mono">
+                                              {p.goals}G {p.assists}A {p.saves}S
+                                            </span>
+                                            <span className="text-xs font-mono font-bold w-12 text-right">{p.score}</span>
+                                            <div className="w-28 flex justify-end">
+                                              {(p.carry_score ?? 0) > 0
+                                                ? <CarryMeter score={p.carry_score!} size="sm" />
+                                                : <span className="text-[10px] text-muted-foreground/40 font-mono">—</span>
+                                              }
+                                            </div>
+                                            {isUser && (
+                                              <button
+                                                onClick={() => {
+                                                  setEditingPlayerId(p.id);
+                                                  setEditValues({
+                                                    score:   p.score,
+                                                    goals:   p.goals,
+                                                    assists: p.assists,
+                                                    saves:   p.saves,
+                                                    shots:   p.shots,
+                                                  });
+                                                }}
+                                                className="text-muted-foreground hover:text-foreground transition-colors p-0.5 ml-1"
+                                                title="Edit stats"
+                                              >
+                                                <Pencil className="w-3 h-3" />
+                                              </button>
+                                            )}
+                                          </>
+                                        )}
                                       </div>
                                     </div>
                                   );

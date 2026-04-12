@@ -194,18 +194,42 @@ const Stats = () => {
     const load = async () => {
       setLoading(true);
       try {
-        const [profileRes, gamesRes, friendsRes] = await Promise.all([
+        const [profileRes, friendsRes] = await Promise.all([
           supabase.from("profiles").select("rl_account_name").eq("user_id", user.id).single(),
-          supabase.from("games")
-            .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, carry_score, submission_status, submitted_by, created_at, game_id)")
-            .eq("created_by", user.id)
-            .order("played_at", { ascending: true }),
           supabase.from("friend_requests").select("sender_id, receiver_id").eq("status", "accepted").or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`),
         ]);
 
         if (profileRes.error) throw profileRes.error;
-        if (gamesRes.error) throw gamesRes.error;
         if (friendsRes.error) throw friendsRes.error;
+
+        // Step 1: get all game IDs where user is a player
+        const { data: playerGameRows } = await supabase
+          .from("game_players")
+          .select("game_id")
+          .eq("user_id", user.id);
+
+        const linkedGameIds = (playerGameRows || []).map((r) => r.game_id);
+        const allIds = Array.from(new Set(linkedGameIds));
+
+        // Step 2: fetch games created by user OR where user appears as player
+        let gamesRes;
+        if (allIds.length > 0) {
+          gamesRes = await supabase
+            .from("games")
+            .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, carry_score, submission_status, submitted_by, created_at, game_id)")
+            .or(`created_by.eq.${user.id},id.in.(${allIds.join(",")})`)
+            .is("duplicate_of", null)
+            .order("played_at", { ascending: true });
+        } else {
+          gamesRes = await supabase
+            .from("games")
+            .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, carry_score, submission_status, submitted_by, created_at, game_id)")
+            .eq("created_by", user.id)
+            .is("duplicate_of", null)
+            .order("played_at", { ascending: true });
+        }
+
+        if (gamesRes.error) throw gamesRes.error;
 
         const friendIds = new Set<string>();
         (friendsRes.data || []).forEach((r) => {
