@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,7 +8,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, LogOut, Pencil, Check, X as XIcon } from "lucide-react";
+import {
+  AlertTriangle,
+  Camera,
+  Check,
+  Heart,
+  Loader2,
+  Lock,
+  LogOut,
+  Pencil,
+  Save,
+  User,
+  X as XIcon,
+} from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 import AppLayout from "@/components/layout/AppLayout";
 
@@ -56,44 +68,182 @@ const createEmptyRanks = (): Record<GameMode, RankInput> =>
 const getRankLabel = (tier: RankTier) =>
   rankTierOptions.find((o) => o.value === tier)?.label ?? tier;
 
+type FavoriteTeammate = { userId: string; count: number; name: string } | null;
+
+const BIO_MAX = 140;
+
 const Profile = () => {
   const { user, loading: authLoading, signOut } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
+  // Avatar
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
+  // RL Username state
   const [rlAccountName, setRlAccountName] = useState("");
+  // Was the name already set when profile loaded?
+  const [rlNameWasSet, setRlNameWasSet] = useState(false);
+  // Whether the user is currently in inline-edit mode for the RL name
+  const [editingRlName, setEditingRlName] = useState(false);
+  const [rlNameDraft, setRlNameDraft] = useState("");
+  // localStorage-based lock flag
+  const [rlNameLocked, setRlNameLocked] = useState(false);
+
+  // Bio (localStorage)
+  const [bio, setBio] = useState("");
+
+  // Ranks
   const [ranks, setRanks] = useState<Record<GameMode, RankInput>>(createEmptyRanks());
-  // Which mode is currently being edited inline (mobile)
   const [editingMode, setEditingMode] = useState<GameMode | null>(null);
-  // Temp edit state
   const [editDraft, setEditDraft] = useState<RankInput | null>(null);
+
+  // Favorite teammate
+  const [favoriteTeammate, setFavoriteTeammate] = useState<FavoriteTeammate>(null);
+  const [loadingTeammate, setLoadingTeammate] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) { navigate("/auth"); return; }
     if (user) {
+      // Load localStorage values immediately
+      const locked = localStorage.getItem(`rl_name_locked_${user.id}`) === "true";
+      setRlNameLocked(locked);
+      const savedBio = localStorage.getItem(`profile_bio_${user.id}`) ?? "";
+      setBio(savedBio);
+
       const load = async () => {
         setLoading(true);
         try {
           const [profileRes, ranksRes] = await Promise.all([
-            supabase.from("profiles").select("rl_account_name").eq("user_id", user.id).single(),
+            supabase.from("profiles").select("rl_account_name, avatar_url").eq("user_id", user.id).single(),
             supabase.from("ranks").select("game_mode, rank_tier, rank_division, mmr").eq("user_id", user.id).eq("game_type", "competitive"),
           ]);
           if (profileRes.error) throw profileRes.error;
           if (ranksRes.error) throw ranksRes.error;
-          setRlAccountName(profileRes.data?.rl_account_name ?? "");
+
+          const loadedName = profileRes.data?.rl_account_name ?? "";
+          setRlAccountName(loadedName);
+          setRlNameWasSet(Boolean(loadedName));
+          setAvatarUrl(profileRes.data?.avatar_url ?? null);
+
           const next = createEmptyRanks();
-          (ranksRes.data || []).forEach((r) => { next[r.game_mode] = { rank_tier: r.rank_tier ?? "unranked", rank_division: r.rank_division ?? null, mmr: r.mmr ?? null }; });
+          (ranksRes.data || []).forEach((r) => {
+            next[r.game_mode] = { rank_tier: r.rank_tier ?? "unranked", rank_division: r.rank_division ?? null, mmr: r.mmr ?? null };
+          });
           setRanks(next);
         } catch (err: any) {
           toast({ title: "Failed to load profile", description: err.message, variant: "destructive" });
         } finally { setLoading(false); }
       };
       load();
+
+      // Load favorite teammate
+      const loadTeammate = async () => {
+        setLoadingTeammate(true);
+        try {
+          const { data: myRows } = await supabase
+            .from("game_players")
+            .select("game_id")
+            .eq("user_id", user.id);
+
+          const gameIds = (myRows || []).map((r) => r.game_id);
+
+          if (gameIds.length > 0) {
+            const { data: allPlayers } = await supabase
+              .from("game_players")
+              .select("game_id, user_id, player_name")
+              .in("game_id", gameIds)
+              .neq("user_id", user.id)
+              .not("user_id", "is", null);
+
+            const counts = new Map<string, { count: number; name: string }>();
+            (allPlayers || []).forEach((p) => {
+              if (!p.user_id) return;
+              const prev = counts.get(p.user_id);
+              counts.set(p.user_id, { count: (prev?.count ?? 0) + 1, name: p.player_name });
+            });
+
+            let best: FavoriteTeammate = null;
+            counts.forEach((v, userId) => {
+              if (!best || v.count > best.count) best = { userId, count: v.count, name: v.name };
+            });
+
+            setFavoriteTeammate(best);
+          }
+        } catch {
+          // Teammate query is non-critical; swallow errors
+        } finally { setLoadingTeammate(false); }
+      };
+      loadTeammate();
     }
   }, [authLoading, user, navigate, toast]);
 
+  // ---- Avatar upload ----
+  const handleAvatarClick = () => {
+    if (!uploadingAvatar) fileInputRef.current?.click();
+  };
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    const ext = file.name.split(".").pop() ?? "jpg";
+    const path = `avatars/${user.id}/${Date.now()}.${ext}`;
+    setUploadingAvatar(true);
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from("screenshots")
+        .upload(path, file, { upsert: true });
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage.from("screenshots").getPublicUrl(path);
+      const publicUrl = urlData.publicUrl;
+
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({ avatar_url: publicUrl })
+        .eq("user_id", user.id);
+      if (updateError) throw updateError;
+
+      setAvatarUrl(publicUrl);
+      toast({ title: "Avatar updated" });
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+    } finally {
+      setUploadingAvatar(false);
+      // Reset file input so the same file can be re-selected
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  // ---- RL Name inline edit ----
+  const startRlNameEdit = () => {
+    setRlNameDraft(rlAccountName);
+    setEditingRlName(true);
+  };
+
+  const cancelRlNameEdit = () => {
+    setEditingRlName(false);
+    setRlNameDraft("");
+  };
+
+  const confirmRlNameEdit = () => {
+    const trimmed = rlNameDraft.trim();
+    setRlAccountName(trimmed);
+    setEditingRlName(false);
+    setRlNameDraft("");
+    // Lock after this one-time change
+    if (user) {
+      localStorage.setItem(`rl_name_locked_${user.id}`, "true");
+      setRlNameLocked(true);
+    }
+  };
+
+  // ---- Rank inline editor ----
   const startEdit = (mode: GameMode) => {
     setEditingMode(mode);
     setEditDraft({ ...ranks[mode] });
@@ -108,10 +258,15 @@ const Profile = () => {
     setEditDraft(null);
   };
 
+  // ---- Save ----
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
     setSaving(true);
+
+    // Persist bio to localStorage
+    localStorage.setItem(`profile_bio_${user.id}`, bio);
+
     try {
       const trimmedName = rlAccountName.trim();
       const rankPayload = gameModes.map((mode) => ({
@@ -134,32 +289,205 @@ const Profile = () => {
   };
 
   if (authLoading || loading) {
-    return <AppLayout><div className="flex items-center justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div></AppLayout>;
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </AppLayout>
+    );
   }
 
   if (!user) return null;
 
+  // Derive RL name display mode
+  // 0 = initial setup (never set)         → editable input
+  // 1 = set, not locked                   → display + Edit button
+  // 2 = set + locked                      → display locked, no edit
+  const rlNameMode: 0 | 1 | 2 = !rlNameWasSet ? 0 : rlNameLocked ? 2 : 1;
+
   return (
     <AppLayout>
       <div className="space-y-5">
+        {/* Header */}
         <div>
           <h1 className="text-2xl font-display font-bold">Profile</h1>
           <p className="text-sm text-muted-foreground">{user.email}</p>
         </div>
 
+        {/* ── Avatar ── */}
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={handleAvatarClick}
+            className="relative group w-24 h-24 rounded-full overflow-hidden border-2 border-border/60 bg-muted/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary transition-colors"
+            aria-label="Upload avatar"
+          >
+            {uploadingAvatar ? (
+              <div className="absolute inset-0 flex items-center justify-center bg-background/70">
+                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+              </div>
+            ) : avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt="Avatar"
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <User className="w-10 h-10 text-muted-foreground/60" />
+              </div>
+            )}
+            {/* Camera overlay on hover */}
+            {!uploadingAvatar && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-full">
+                <Camera className="w-6 h-6 text-white" />
+              </div>
+            )}
+          </button>
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleAvatarChange}
+          />
+        </div>
+
         <form className="space-y-5" onSubmit={handleSave}>
-          {/* Account Name */}
+          {/* ── RL Username ── */}
           <Card className="border-border/50 bg-card/80">
             <CardHeader className="pb-2">
               <CardTitle className="text-base font-display">Rocket League Username</CardTitle>
               <CardDescription className="text-xs">Your in-game name for scoreboard matching</CardDescription>
             </CardHeader>
-            <CardContent>
-              <Input placeholder="e.g. Jstn" value={rlAccountName} onChange={(e) => setRlAccountName(e.target.value)} />
+            <CardContent className="space-y-3">
+              {rlNameMode === 0 && (
+                /* Initial setup — plain editable input */
+                <Input
+                  placeholder="e.g. Jstn"
+                  value={rlAccountName}
+                  onChange={(e) => setRlAccountName(e.target.value)}
+                />
+              )}
+
+              {rlNameMode === 1 && !editingRlName && (
+                /* Set but not locked — show with Edit button */
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-background/60 px-4 py-2.5">
+                  <span className="font-semibold text-sm truncate">{rlAccountName}</span>
+                  <button
+                    type="button"
+                    onClick={startRlNameEdit}
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                  >
+                    <Pencil className="w-3.5 h-3.5" /> Edit
+                  </button>
+                </div>
+              )}
+
+              {rlNameMode === 1 && editingRlName && (
+                /* Inline edit mode */
+                <div className="space-y-2">
+                  {/* Warning banner */}
+                  <div className="flex items-start gap-2 rounded-lg border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-400">
+                    <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                    <span>You can only change your RL username once. Choose carefully.</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      autoFocus
+                      placeholder="e.g. Jstn"
+                      value={rlNameDraft}
+                      onChange={(e) => setRlNameDraft(e.target.value)}
+                      className="flex-1"
+                    />
+                    <button
+                      type="button"
+                      onClick={confirmRlNameEdit}
+                      className="p-1.5 rounded-md text-green-400 hover:bg-green-400/10 transition-colors"
+                      aria-label="Confirm"
+                    >
+                      <Check className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={cancelRlNameEdit}
+                      className="p-1.5 rounded-md text-muted-foreground hover:bg-muted/50 transition-colors"
+                      aria-label="Cancel"
+                    >
+                      <XIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {rlNameMode === 2 && (
+                /* Locked — read-only */
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-background/60 px-4 py-2.5">
+                    <span className="font-semibold text-sm truncate">{rlAccountName}</span>
+                    <Lock className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  </div>
+                  <p className="text-xs text-muted-foreground px-1">Contact support to change your username.</p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
-          {/* Ranks — compact summary cards, tap to edit */}
+          {/* ── Bio ── */}
+          <Card className="border-border/50 bg-card/80">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-display">Short Bio</CardTitle>
+              <CardDescription className="text-xs">Tell your teammates something about yourself <span className="opacity-60">(stored locally for now)</span></CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-1.5">
+              <textarea
+                className="w-full rounded-md border border-input bg-background/60 px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+                rows={3}
+                maxLength={BIO_MAX}
+                placeholder="e.g. Diamond 3v3 grinder, always rotating..."
+                value={bio}
+                onChange={(e) => setBio(e.target.value.slice(0, BIO_MAX))}
+              />
+              <p className="text-right text-xs text-muted-foreground">
+                {bio.length}/{BIO_MAX}
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* ── Favorite Teammate ── */}
+          <Card className="border-border/50 bg-card/80">
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2">
+                <Heart className="w-4 h-4 text-rose-400" />
+                <CardTitle className="text-base font-display">Favorite Teammate</CardTitle>
+              </div>
+              <CardDescription className="text-xs">Linked player you've shared the most games with</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loadingTeammate ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Crunching games…</span>
+                </div>
+              ) : favoriteTeammate ? (
+                <div className="flex items-center gap-3 rounded-lg border border-border/50 bg-background/60 px-4 py-3">
+                  <div className="w-8 h-8 rounded-full bg-muted/60 flex items-center justify-center shrink-0">
+                    <User className="w-4 h-4 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-sm">{favoriteTeammate.name}</p>
+                    <p className="text-xs text-muted-foreground">{favoriteTeammate.count} games together</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No linked teammates found yet.</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* ── Competitive Ranks ── */}
           <Card className="border-border/50 bg-card/80">
             <CardHeader className="pb-2">
               <CardTitle className="text-base font-display">Competitive Ranks</CardTitle>
@@ -173,7 +501,7 @@ const Profile = () => {
 
                 return (
                   <div key={mode} className="rounded-lg border border-border/50 bg-background/60 overflow-hidden">
-                    {/* Summary row — always visible */}
+                    {/* Summary row */}
                     <div className="flex items-center justify-between px-4 py-3">
                       <div className="flex items-center gap-3">
                         <span className="font-display font-bold text-sm w-8">{gameModeLabels[mode]}</span>
@@ -198,7 +526,7 @@ const Profile = () => {
                       </button>
                     </div>
 
-                    {/* Inline edit panel — slides open when editing */}
+                    {/* Inline edit panel */}
                     {isEditing && editDraft && (
                       <div className="border-t border-border/50 bg-muted/20 px-4 py-3 space-y-3">
                         <div className="grid grid-cols-2 gap-3">
