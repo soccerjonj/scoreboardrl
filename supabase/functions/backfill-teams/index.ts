@@ -125,7 +125,7 @@ serve(async (req) => {
     } catch { /* no body */ }
     const batchLimit = Math.min(reqLimit, 50);
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
@@ -184,7 +184,7 @@ serve(async (req) => {
     }
 
     // Original backfill logic for team assignment
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+    if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY not configured");
 
     const { data: games, error: gamesErr } = await supabase
       .from("games")
@@ -217,34 +217,30 @@ serve(async (req) => {
         }
         base64 = btoa(base64);
 
-        const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${LOVABLE_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "google/gemini-2.5-flash-lite",
-            max_tokens: 2048,
-            messages: [
-              {
-                role: "system",
-                content: `You are a Rocket League scoreboard parser. Given a post-match screenshot, identify which team each player is on.
+        const aiRes = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{
+                parts: [
+                  {
+                    text: `You are a Rocket League scoreboard parser. Given a post-match screenshot, identify which team each player is on.
 The scoreboard always shows Blue team players on top and Orange team players on the bottom.
 Text in [brackets] is a club tag — strip it from player names.
 Return ONLY a JSON array of objects with "name" and "team" fields. Example:
-[{"name":"Player1","team":"blue"},{"name":"Player2","team":"blue"},{"name":"Player3","team":"orange"},{"name":"Player4","team":"orange"}]`,
-              },
-              {
-                role: "user",
-                content: [
-                  { type: "text", text: "Identify which team each player is on in this Rocket League scoreboard." },
-                  { type: "image_url", image_url: { url: `data:image/jpeg;base64,${base64}` } },
+[{"name":"Player1","team":"blue"},{"name":"Player2","team":"blue"},{"name":"Player3","team":"orange"},{"name":"Player4","team":"orange"}]
+
+Identify which team each player is on in this Rocket League scoreboard.`,
+                  },
+                  { inline_data: { mime_type: "image/jpeg", data: base64 } },
                 ],
-              },
-            ],
-          }),
-        });
+              }],
+              generationConfig: { maxOutputTokens: 2048, temperature: 0 },
+            }),
+          }
+        );
 
         if (!aiRes.ok) {
           results.push({ game_id: game.id, status: "skip", reason: `AI error ${aiRes.status}` });
@@ -253,7 +249,7 @@ Return ONLY a JSON array of objects with "name" and "team" fields. Example:
         }
 
         const aiData = await aiRes.json();
-        const content = aiData.choices?.[0]?.message?.content;
+        const content = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!content) {
           results.push({ game_id: game.id, status: "skip", reason: "no AI content" });
           continue;

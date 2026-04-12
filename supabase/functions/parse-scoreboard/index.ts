@@ -39,7 +39,7 @@ serve(async (req) => {
     if (!image_base64) {
       return new Response(
         JSON.stringify({ error: "No image provided" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -153,7 +153,7 @@ Double-check every number and the game_type before responding. Most matches ARE 
       if (res.status === 429) {
         return new Response(
           JSON.stringify({ error: "Rate limited. Please try again in a moment." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
@@ -204,7 +204,7 @@ Double-check every number and the game_type before responding. Most matches ARE 
           ? "Could not parse scoreboard correctly. Please try again or enter stats manually."
           : e instanceof Error ? e.message : "Unknown error",
       }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
