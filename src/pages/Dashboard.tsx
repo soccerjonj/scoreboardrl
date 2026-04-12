@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { CarryMeter } from "@/components/game/CarryMeter";
 import { calculateCarryScores } from "@/lib/carryScore";
+import { getRankIcon } from "@/lib/rankIcons";
 import AppLayout from "@/components/layout/AppLayout";
 
 type GameMode     = Database["public"]["Enums"]["game_mode"];
@@ -322,7 +323,10 @@ const Dashboard = () => {
                 <Card key={mode} className="border-border/50 bg-gradient-card text-center">
                   <CardContent className="pt-4 pb-3 px-2">
                     <p className="text-xs text-muted-foreground font-medium mb-1">{gameModeLabels[mode]}</p>
-                    <p className="font-display font-bold text-sm leading-tight">{rankDisplayName(tier)}</p>
+                    <div className="flex justify-center mb-1">
+                      <img src={getRankIcon(tier)} alt={rankDisplayName(tier)} className="w-10 h-10 object-contain" />
+                    </div>
+                    <p className="font-display font-bold text-xs leading-tight">{rankDisplayName(tier)}</p>
                     {div && tier !== "unranked" && (
                       <p className="text-xs text-muted-foreground">Div {div}</p>
                     )}
