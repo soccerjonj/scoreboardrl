@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,7 +15,6 @@ const Auth = () => {
   const [mode, setMode] = useState<AuthMode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [username, setUsername] = useState("");
   const [loading, setLoading] = useState(false);
   const { signIn, signUp, resetPassword, user } = useAuth();
   const navigate = useNavigate();
@@ -31,12 +31,18 @@ const Auth = () => {
     try {
       if (mode === "signin") {
         await signIn(email, password);
-        navigate("/dashboard");
+        // Check if onboarding is needed
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("rl_account_name")
+          .eq("user_id", (await supabase.auth.getUser()).data.user?.id ?? "")
+          .single();
+        navigate(profile?.rl_account_name ? "/dashboard" : "/onboarding");
       } else if (mode === "signup") {
-        await signUp(email, password, username);
+        await signUp(email, password);
         toast({
           title: "Account created!",
-          description: "Check your email to verify your account.",
+          description: "Check your email to verify your account, then sign in to complete your profile setup.",
         });
       } else {
         await resetPassword(email);
@@ -82,19 +88,6 @@ const Auth = () => {
 
           <form onSubmit={handleSubmit}>
             <CardContent className="space-y-4">
-              {mode === "signup" && (
-                <div className="space-y-2">
-                  <Label htmlFor="username">Username</Label>
-                  <Input
-                    id="username"
-                    placeholder="Your username"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    required
-                  />
-                </div>
-              )}
-
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
