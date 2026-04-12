@@ -303,19 +303,6 @@ const Friends = () => {
                       {p?.username && <p className="text-xs text-muted-foreground">@{p.username}</p>}
                     </div>
                     <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleToggleAutoApprove(req)}
-                        disabled={actionId === req.id}
-                        className={cn(
-                          "flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition-colors",
-                          autoApprove
-                            ? "bg-primary/10 text-primary border-primary/30"
-                            : "bg-muted text-muted-foreground border-border/50 hover:border-border"
-                        )}
-                      >
-                        <span className={cn("w-1.5 h-1.5 rounded-full", autoApprove ? "bg-primary" : "bg-muted-foreground/50")} />
-                        Auto-approve
-                      </button>
                       <Button size="sm" variant="outline" disabled={actionId === req.id} onClick={() => handleRemove(req)}>Remove</Button>
                     </div>
                   </div>

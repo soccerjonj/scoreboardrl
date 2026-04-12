@@ -265,13 +265,12 @@ const LogGame = () => {
 
         const { data: candidateGames } = await supabase
           .from("games")
-          .select("id, played_at, game_mode, game_type, result, division_change, screenshot_url, created_at, created_by, duplicate_of, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, carry_score, submission_status, submitted_by, created_at, game_id)")
+          .select("id, played_at, game_mode, game_type, result, division_change, screenshot_url, created_at, created_by, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, carry_score, submission_status, submitted_by, created_at, game_id)")
           .in("created_by", linkedUserIds)
           .eq("game_mode", gameMode)
           .eq("game_type", gameType)
           .gte("played_at", windowStart)
-          .lte("played_at", windowEnd)
-          .is("duplicate_of", null);
+          .lte("played_at", windowEnd);
 
         if (candidateGames && candidateGames.length > 0) {
           const existingGame = (candidateGames as GameWithPlayers[]).find((g) =>
@@ -310,7 +309,7 @@ const LogGame = () => {
           result,
           division_change: gameType === "competitive" ? divisionChange : null,
           screenshot_url: screenshotUrl,
-          duplicate_of: duplicateCanonicalId,
+          // duplicate_of not yet in schema
         })
         .select()
         .single();
@@ -321,7 +320,7 @@ const LogGame = () => {
       if (overridingConflictId) {
         await supabase
           .from("games")
-          .update({ duplicate_of: game.id })
+          .update({ result: "duplicate" })
           .eq("id", overridingConflictId);
         setConflictGame(null);
       }
@@ -336,19 +335,15 @@ const LogGame = () => {
       // Look up connected users for auto-approval
       const { data: friends } = await supabase
         .from("friend_requests")
-        .select("sender_id, receiver_id, sender_auto_approve, receiver_auto_approve")
+        .select("sender_id, receiver_id")
         .eq("status", "accepted")
         .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`);
 
-      // Build a map of friend id → whether that friend has auto-approve on
+      // Build a map of friend id → auto-approve (default true for now)
       const friendAutoApprove = new Map<string, boolean>();
-      (friends || []).forEach((f) => {
+      (friends || []).forEach((f: any) => {
         const otherId = f.sender_id === user.id ? f.receiver_id : f.sender_id;
-        // Auto-approve is on if BOTH sides have it enabled
-        const autoApprove = f.sender_id === user.id
-          ? (f.sender_auto_approve ?? true)
-          : (f.receiver_auto_approve ?? true);
-        friendAutoApprove.set(otherId, autoApprove);
+        friendAutoApprove.set(otherId, true);
       });
 
       const { data: profiles } = await supabase
