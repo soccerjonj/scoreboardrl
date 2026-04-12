@@ -43,9 +43,9 @@ serve(async (req) => {
       );
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    if (!GEMINI_API_KEY) {
+      throw new Error("GEMINI_API_KEY is not configured");
     }
 
     const systemPrompt = `You are a Rocket League scoreboard parser. You will receive a photo of a post-match scoreboard from Rocket League. Your job is to extract all player stats AND match metadata accurately.
@@ -115,24 +115,25 @@ Return ONLY a valid JSON object with this exact structure:
 Double-check every number and the game_type before responding. Most matches ARE competitive. Accuracy is critical.`;
 
     const requestBody = JSON.stringify({
-      model: "google/gemini-2.5-pro",
-      max_tokens: 8192,
-      messages: [
-        { role: "system", content: systemPrompt },
+      contents: [
         {
-          role: "user",
-          content: [
+          parts: [
             {
-              type: "text",
-              text: "Parse this Rocket League scoreboard screenshot. Extract all player stats accurately. Also determine: 1) Is this competitive or casual? Look at the bottom for rank/division info. 2) Did the user win or lose? 3) Did they rank up or down? 4) For each player, read the MMR value and MMR change shown to the LEFT of their name. Remember: text in [brackets] is a club tag, NOT part of the username.",
+              text: systemPrompt + "\n\nParse this Rocket League scoreboard screenshot. Extract all player stats accurately. Also determine: 1) Is this competitive or casual? Look at the bottom for rank/division info. 2) Did the user win or lose? 3) Did they rank up or down? 4) For each player, read the MMR value and MMR change shown to the LEFT of their name. Remember: text in [brackets] is a club tag, NOT part of the username.",
             },
             {
-              type: "image_url",
-              image_url: { url: `data:image/jpeg;base64,${image_base64}` },
+              inline_data: {
+                mime_type: "image/jpeg",
+                data: image_base64,
+              },
             },
           ],
         },
       ],
+      generationConfig: {
+        maxOutputTokens: 8192,
+        temperature: 0,
+      },
     });
 
     const MAX_RETRIES = 3;
@@ -141,13 +142,10 @@ Double-check every number and the game_type before responding. Most matches ARE 
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       const res = await fetch(
-        "https://ai.gateway.lovable.dev/v1/chat/completions",
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
         {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${LOVABLE_API_KEY}`,
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: requestBody,
         }
       );
@@ -158,15 +156,9 @@ Double-check every number and the game_type before responding. Most matches ARE 
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      if (res.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "AI credits exhausted. Please add funds." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
 
       if (!res.ok) {
-        lastError = `AI gateway error: ${res.status}`;
+        lastError = `Gemini API error: ${res.status}`;
         console.error(`Attempt ${attempt}: ${lastError}`);
         if (attempt < MAX_RETRIES) {
           await new Promise(r => setTimeout(r, 1000 * attempt));
@@ -180,17 +172,11 @@ Double-check every number and the game_type before responding. Most matches ARE 
     }
 
     if (!response) {
-      throw new Error(lastError || "AI gateway failed after retries");
+      throw new Error(lastError || "Gemini API failed after retries");
     }
-
 
     const aiResult = await response.json();
-    const finishReason = aiResult.choices?.[0]?.finish_reason;
-    if (finishReason === "length") {
-      console.error("AI response truncated due to token limit");
-      throw new Error("AI response was truncated. Please try again.");
-    }
-    const content = aiResult.choices?.[0]?.message?.content;
+    const content = aiResult.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!content) {
       throw new Error("No content from AI");
