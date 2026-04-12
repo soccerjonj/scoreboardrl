@@ -9,12 +9,36 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Save, Loader2 } from "lucide-react";
+import { Save, Loader2, AlertTriangle } from "lucide-react";
 import { CarryMeter } from "@/components/game/CarryMeter";
 import ScoreboardUploader from "@/components/game/ScoreboardUploader";
 import PlayerStatsEditor from "@/components/game/PlayerStatsEditor";
 import { calculateCarryScores } from "@/lib/carryScore";
+import { useNotifications } from "@/hooks/useNotifications";
 import type { Database } from "@/integrations/supabase/types";
+
+type GamePlayerRow = Database["public"]["Tables"]["game_players"]["Row"];
+type GameRow       = Database["public"]["Tables"]["games"]["Row"];
+type GameWithPlayers = GameRow & { game_players: GamePlayerRow[] };
+
+/** Stats similarity check — returns true if two sets of player stats are nearly identical */
+function statsAreNearlyIdentical(
+  playersA: { name: string; score: number; goals: number; assists: number; saves: number; shots: number }[],
+  playersB: { player_name: string; score: number; goals: number; assists: number; saves: number; shots: number }[]
+): boolean {
+  if (playersA.length !== playersB.length) return false;
+  const TOLERANCE = 0.15; // 15% variance allowed per stat per player
+  const sortedA = [...playersA].sort((a, b) => a.name.localeCompare(b.name));
+  const sortedB = [...playersB].sort((a, b) => a.player_name.localeCompare(b.player_name));
+  return sortedA.every((a, i) => {
+    const b = sortedB[i];
+    const nameSimilar = a.name.toLowerCase() === b.player_name.toLowerCase();
+    if (!nameSimilar) return false;
+    const check = (va: number, vb: number) => Math.abs(va - vb) <= Math.max(1, Math.round(va * TOLERANCE));
+    return check(a.score, b.score) && check(a.goals, b.goals) && check(a.assists, b.assists)
+        && check(a.saves, b.saves) && check(a.shots, b.shots);
+  });
+}
 
 type GameMode = Database["public"]["Enums"]["game_mode"];
 type GameType = Database["public"]["Enums"]["game_type"];
@@ -115,6 +139,9 @@ const LogGame = () => {
   const [currentRank, setCurrentRank] = useState<{ rank_tier: RankTier; rank_division: RankDivision | null } | null>(null);
   const [mmr, setMmr] = useState<number | null>(null);
   const [mmrChange, setMmrChange] = useState<number | null>(null);
+  const [conflictGame, setConflictGame] = useState<GameWithPlayers | null>(null);
+
+  const { sendNotification } = useNotifications();
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -190,7 +217,7 @@ const LogGame = () => {
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = async (override = false) => {
     if (!user) return;
     if (players.length === 0) {
       toast({ title: "No players", description: "Add player stats first.", variant: "destructive" });
@@ -212,6 +239,67 @@ const LogGame = () => {
         screenshotUrl = urlData.publicUrl;
       }
 
+      // ── Duplicate detection ────────────────────────────────────────────────
+      // Look for a game with the same mode/type logged by any of our linked
+      // players within a 10-minute window of now.
+      // Skip this check when the user has explicitly chosen "Use my version".
+      const playerNames   = players.map((p) => p.name);
+      const { data: linkedProfiles } = await supabase
+        .from("profiles")
+        .select("user_id, rl_account_name")
+        .in("rl_account_name", playerNames);
+
+      const nameToUserId = new Map<string, string>();
+      (linkedProfiles || []).forEach((p) => {
+        if (p.rl_account_name) nameToUserId.set(p.rl_account_name.toLowerCase(), p.user_id);
+      });
+
+      const linkedUserIds = Array.from(nameToUserId.values()).filter((id) => id !== user.id);
+      let duplicateCanonicalId: string | null = null;
+      // Capture the conflicting game id before we clear state so we can mark it after insert
+      const overridingConflictId = override && conflictGame ? conflictGame.id : null;
+
+      if (!override && linkedUserIds.length > 0) {
+        const windowStart = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+        const windowEnd   = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+
+        const { data: candidateGames } = await supabase
+          .from("games")
+          .select("id, played_at, game_mode, game_type, result, division_change, screenshot_url, created_at, created_by, duplicate_of, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, carry_score, submission_status, submitted_by, created_at, game_id)")
+          .in("created_by", linkedUserIds)
+          .eq("game_mode", gameMode)
+          .eq("game_type", gameType)
+          .gte("played_at", windowStart)
+          .lte("played_at", windowEnd)
+          .is("duplicate_of", null);
+
+        if (candidateGames && candidateGames.length > 0) {
+          const existingGame = (candidateGames as GameWithPlayers[]).find((g) =>
+            statsAreNearlyIdentical(players, g.game_players ?? [])
+          );
+
+          if (existingGame) {
+            const isIdentical = statsAreNearlyIdentical(players, existingGame.game_players ?? []);
+            const hasConflict = !isIdentical || (existingGame.game_players ?? []).some((ep) => {
+              const local = players.find((p) => p.name.toLowerCase() === ep.player_name.toLowerCase());
+              if (!local) return false;
+              return local.score !== ep.score || local.goals !== ep.goals ||
+                     local.assists !== ep.assists || local.saves !== ep.saves || local.shots !== ep.shots;
+            });
+
+            if (hasConflict) {
+              // Stop and show conflict UI — user must choose which version to keep
+              setConflictGame(existingGame as GameWithPlayers);
+              setSaving(false);
+              return;
+            } else {
+              // Stats are identical — silently mark this upload as a duplicate
+              duplicateCanonicalId = existingGame.id;
+            }
+          }
+        }
+      }
+
       // Create game
       const { data: game, error: gameErr } = await supabase
         .from("games")
@@ -222,37 +310,55 @@ const LogGame = () => {
           result,
           division_change: gameType === "competitive" ? divisionChange : null,
           screenshot_url: screenshotUrl,
+          duplicate_of: duplicateCanonicalId,
         })
         .select()
         .single();
 
       if (gameErr) throw gameErr;
 
+      // If the user chose "Use my version", mark the old conflicting game as duplicate of ours
+      if (overridingConflictId) {
+        await supabase
+          .from("games")
+          .update({ duplicate_of: game.id })
+          .eq("id", overridingConflictId);
+        setConflictGame(null);
+      }
+
+      // If this was a silent duplicate, we're done — no need to re-insert players
+      if (duplicateCanonicalId) {
+        toast({ title: "Game already logged", description: "This game was already logged by a teammate. Your upload has been linked." });
+        navigate("/dashboard");
+        return;
+      }
+
       // Look up connected users for auto-approval
       const { data: friends } = await supabase
         .from("friend_requests")
-        .select("sender_id, receiver_id")
+        .select("sender_id, receiver_id, sender_auto_approve, receiver_auto_approve")
         .eq("status", "accepted")
         .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`);
 
-      const friendIds = new Set(
-        (friends || []).map((f) =>
-          f.sender_id === user.id ? f.receiver_id : f.sender_id
-        )
-      );
+      // Build a map of friend id → whether that friend has auto-approve on
+      const friendAutoApprove = new Map<string, boolean>();
+      (friends || []).forEach((f) => {
+        const otherId = f.sender_id === user.id ? f.receiver_id : f.sender_id;
+        // Auto-approve is on if BOTH sides have it enabled
+        const autoApprove = f.sender_id === user.id
+          ? (f.sender_auto_approve ?? true)
+          : (f.receiver_auto_approve ?? true);
+        friendAutoApprove.set(otherId, autoApprove);
+      });
 
-      // Look up profiles to match player names to user IDs
-      const playerNames = players.map((p) => p.name);
       const { data: profiles } = await supabase
         .from("profiles")
         .select("user_id, rl_account_name")
-        .in("rl_account_name", playerNames);
+        .in("rl_account_name", players.map((p) => p.name));
 
-      const nameToUserId = new Map<string, string>();
+      const playerNameToUserId = new Map<string, string>();
       (profiles || []).forEach((p) => {
-        if (p.rl_account_name) {
-          nameToUserId.set(p.rl_account_name.toLowerCase(), p.user_id);
-        }
+        if (p.rl_account_name) playerNameToUserId.set(p.rl_account_name.toLowerCase(), p.user_id);
       });
 
       // Calculate carry scores before insert
@@ -261,24 +367,27 @@ const LogGame = () => {
 
       // Insert game players
       const gamePlayers = players.map((p) => {
-        const matchedUserId = nameToUserId.get(p.name.toLowerCase());
-        const isCurrentUser = matchedUserId === user.id;
-        const isFriend = matchedUserId ? friendIds.has(matchedUserId) : false;
+        const matchedUserId  = playerNameToUserId.get(p.name.toLowerCase());
+        const isCurrentUser  = matchedUserId === user.id;
+        const isFriend       = matchedUserId ? friendAutoApprove.has(matchedUserId) : false;
+        const friendApproves = matchedUserId ? (friendAutoApprove.get(matchedUserId) ?? true) : false;
 
         return {
-          game_id: game.id,
-          player_name: p.name,
-          team: p.team,
-          score: p.score,
-          goals: p.goals,
-          assists: p.assists,
-          saves: p.saves,
-          shots: p.shots,
-          is_mvp: p.is_mvp,
-          carry_score: carryMap.get(p.name.toLowerCase()) ?? 0,
-          user_id: matchedUserId || null,
-          submitted_by: user.id,
-          submission_status: (isCurrentUser || isFriend ? "approved" : matchedUserId ? "pending" : "approved") as "approved" | "pending",
+          game_id:           game.id,
+          player_name:       p.name,
+          team:              p.team,
+          score:             p.score,
+          goals:             p.goals,
+          assists:           p.assists,
+          saves:             p.saves,
+          shots:             p.shots,
+          is_mvp:            p.is_mvp,
+          carry_score:       carryMap.get(p.name.toLowerCase()) ?? 0,
+          user_id:           matchedUserId || null,
+          submitted_by:      user.id,
+          submission_status: (isCurrentUser || (isFriend && friendApproves)
+            ? "approved"
+            : matchedUserId ? "pending" : "approved") as "approved" | "pending",
         };
       });
 
@@ -287,6 +396,26 @@ const LogGame = () => {
         .insert(gamePlayers);
 
       if (playersErr) throw playersErr;
+
+      // ── Notify linked teammates that a game was shared with them ──────────
+      const notifyUserIds = gamePlayers
+        .filter((gp) => gp.user_id && gp.user_id !== user.id)
+        .map((gp) => gp.user_id as string);
+
+      const uploaderProfile = linkedProfiles?.find((p) => p.user_id === user.id);
+      const uploaderName    = uploaderProfile?.rl_account_name ?? rlName ?? "A teammate";
+
+      await Promise.all(
+        notifyUserIds.map((uid) =>
+          sendNotification(
+            uid,
+            "game_shared",
+            "New game logged",
+            `${uploaderName} logged a ${gameMode} ${gameType} game that includes you.`,
+            { game_id: game.id }
+          )
+        )
+      );
 
       // Auto-update profile rank and MMR if this is a competitive game
       if (gameType === "competitive") {
@@ -521,26 +650,139 @@ const LogGame = () => {
               </CardContent>
             </Card>
 
-            {/* Save button */}
-            <Button
-              onClick={handleSave}
-              disabled={saving}
-              variant="hero"
-              size="lg"
-              className="w-full gap-2"
-            >
-              {saving ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4" />
-                  Save Game
-                </>
-              )}
-            </Button>
+            {/* Conflict resolution UI */}
+            {conflictGame && (
+              <Card className="border-yellow-500/50 bg-yellow-500/5">
+                <CardHeader className="pb-3">
+                  <CardTitle className="font-display text-lg flex items-center gap-2 text-yellow-400">
+                    <AlertTriangle className="w-5 h-5 shrink-0" />
+                    Stats Conflict Detected
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    A teammate already logged this game with different stats. Choose which version to keep.
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Comparison table */}
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Existing version */}
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Existing</p>
+                      <div className="rounded-md border border-border/50 overflow-hidden">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b border-border/50 bg-muted/30">
+                              <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Player</th>
+                              <th className="px-2 py-1.5 text-right font-medium text-muted-foreground">Sc</th>
+                              <th className="px-2 py-1.5 text-right font-medium text-muted-foreground">G</th>
+                              <th className="px-2 py-1.5 text-right font-medium text-muted-foreground">A</th>
+                              <th className="px-2 py-1.5 text-right font-medium text-muted-foreground">Sv</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(conflictGame.game_players ?? []).map((ep) => (
+                              <tr key={ep.id} className="border-b border-border/30 last:border-0">
+                                <td className="px-2 py-1.5 font-medium truncate max-w-[70px]">{ep.player_name}</td>
+                                <td className="px-2 py-1.5 text-right tabular-nums">{ep.score}</td>
+                                <td className="px-2 py-1.5 text-right tabular-nums">{ep.goals}</td>
+                                <td className="px-2 py-1.5 text-right tabular-nums">{ep.assists}</td>
+                                <td className="px-2 py-1.5 text-right tabular-nums">{ep.saves}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* My version */}
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Your Version</p>
+                      <div className="rounded-md border border-primary/40 overflow-hidden">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b border-border/50 bg-primary/10">
+                              <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Player</th>
+                              <th className="px-2 py-1.5 text-right font-medium text-muted-foreground">Sc</th>
+                              <th className="px-2 py-1.5 text-right font-medium text-muted-foreground">G</th>
+                              <th className="px-2 py-1.5 text-right font-medium text-muted-foreground">A</th>
+                              <th className="px-2 py-1.5 text-right font-medium text-muted-foreground">Sv</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {players.map((p) => {
+                              // Highlight cells that differ from the existing version
+                              const existing = (conflictGame.game_players ?? []).find(
+                                (ep) => ep.player_name.toLowerCase() === p.name.toLowerCase()
+                              );
+                              const diff = (a: number, b: number | undefined) =>
+                                b !== undefined && a !== b ? "text-yellow-400 font-semibold" : "";
+                              return (
+                                <tr key={p.name} className="border-b border-border/30 last:border-0">
+                                  <td className="px-2 py-1.5 font-medium truncate max-w-[70px]">{p.name}</td>
+                                  <td className={`px-2 py-1.5 text-right tabular-nums ${diff(p.score, existing?.score)}`}>{p.score}</td>
+                                  <td className={`px-2 py-1.5 text-right tabular-nums ${diff(p.goals, existing?.goals)}`}>{p.goals}</td>
+                                  <td className={`px-2 py-1.5 text-right tabular-nums ${diff(p.assists, existing?.assists)}`}>{p.assists}</td>
+                                  <td className={`px-2 py-1.5 text-right tabular-nums ${diff(p.saves, existing?.saves)}`}>{p.saves}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Action buttons */}
+                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    <Button
+                      variant="outline"
+                      className="w-full border-border/50"
+                      onClick={() => {
+                        setConflictGame(null);
+                        navigate("/dashboard");
+                      }}
+                    >
+                      Keep Existing
+                    </Button>
+                    <Button
+                      variant="hero"
+                      className="w-full"
+                      disabled={saving}
+                      onClick={() => handleSave(true)}
+                    >
+                      {saving ? (
+                        <><Loader2 className="w-4 h-4 animate-spin mr-1" />Saving...</>
+                      ) : (
+                        "Use My Version"
+                      )}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Save button — hidden while conflict card is shown */}
+            {!conflictGame && (
+              <Button
+                onClick={handleSave}
+                disabled={saving}
+                variant="hero"
+                size="lg"
+                className="w-full gap-2"
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    Save Game
+                  </>
+                )}
+              </Button>
+            )}
 
             <Button
               variant="ghost"

@@ -18,7 +18,9 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          receiver_auto_approve: boolean
           receiver_id: string
+          sender_auto_approve: boolean
           sender_id: string
           status: Database["public"]["Enums"]["friend_request_status"]
           updated_at: string
@@ -26,7 +28,9 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          receiver_auto_approve?: boolean
           receiver_id: string
+          sender_auto_approve?: boolean
           sender_id: string
           status?: Database["public"]["Enums"]["friend_request_status"]
           updated_at?: string
@@ -34,10 +38,45 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          receiver_auto_approve?: boolean
           receiver_id?: string
+          sender_auto_approve?: boolean
           sender_id?: string
           status?: Database["public"]["Enums"]["friend_request_status"]
           updated_at?: string
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          body: string | null
+          created_at: string
+          id: string
+          payload: Json
+          read: boolean
+          title: string
+          type: Database["public"]["Enums"]["notification_type"]
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          payload?: Json
+          read?: boolean
+          title: string
+          type: Database["public"]["Enums"]["notification_type"]
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          payload?: Json
+          read?: boolean
+          title?: string
+          type?: Database["public"]["Enums"]["notification_type"]
+          user_id?: string
         }
         Relationships: []
       }
@@ -108,6 +147,7 @@ export type Database = {
           created_at: string
           created_by: string
           division_change: string | null
+          duplicate_of: string | null
           game_mode: Database["public"]["Enums"]["game_mode"]
           game_type: Database["public"]["Enums"]["game_type"]
           id: string
@@ -119,6 +159,7 @@ export type Database = {
           created_at?: string
           created_by: string
           division_change?: string | null
+          duplicate_of?: string | null
           game_mode: Database["public"]["Enums"]["game_mode"]
           game_type?: Database["public"]["Enums"]["game_type"]
           id?: string
@@ -130,6 +171,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           division_change?: string | null
+          duplicate_of?: string | null
           game_mode?: Database["public"]["Enums"]["game_mode"]
           game_type?: Database["public"]["Enums"]["game_type"]
           id?: string
@@ -216,6 +258,7 @@ export type Database = {
       friend_request_status: "pending" | "accepted" | "rejected"
       game_mode: "1v1" | "2v2" | "3v3"
       game_type: "competitive" | "casual"
+      notification_type: "game_shared" | "stat_conflict" | "stat_edit" | "friend_request"
       rank_division: "I" | "II" | "III" | "IV"
       rank_tier:
         | "unranked"
@@ -372,6 +415,7 @@ export const Constants = {
       friend_request_status: ["pending", "accepted", "rejected"],
       game_mode: ["1v1", "2v2", "3v3"],
       game_type: ["competitive", "casual"],
+      notification_type: ["game_shared", "stat_conflict", "stat_edit", "friend_request"],
       rank_division: ["I", "II", "III", "IV"],
       rank_tier: [
         "unranked",
