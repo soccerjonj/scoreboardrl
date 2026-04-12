@@ -383,7 +383,6 @@ const Profile = () => {
                 </div>
                 <div className="pb-1 min-w-0 flex-1">
                   <h2 className="font-display font-bold text-xl truncate">{rlAccountName || "—"}</h2>
-                  <p className="text-xs text-muted-foreground truncate">{user.email}</p>
                 </div>
               </div>
 
