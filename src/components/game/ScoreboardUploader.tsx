@@ -42,7 +42,11 @@ const ScoreboardUploader = ({ userRlName, onParsed }: ScoreboardUploaderProps) =
     setParsing(true);
     try {
       const { data, error } = await supabase.functions.invoke("parse-scoreboard", {
-        body: { image_base64: base64.split(",")[1], user_rl_name: userRlName },
+        body: {
+          image_base64: base64.split(",")[1],
+          user_rl_name: userRlName,
+          mime_type: file.type || "image/jpeg",
+        },
       });
 
       if (error) throw error;
