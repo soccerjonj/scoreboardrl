@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard.tsx";
 import Stats from "./pages/Stats.tsx";
 import LogGame from "./pages/LogGame.tsx";
 import Friends from "./pages/Friends.tsx";
+import Notifications from "./pages/Notifications.tsx";
 import Profile from "./pages/Profile.tsx";
 import ResetPassword from "./pages/ResetPassword.tsx";
 import NotFound from "./pages/NotFound.tsx";
@@ -32,6 +33,7 @@ const App = () => (
             <Route path="/friends" element={<Friends />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/notifications" element={<Notifications />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
