@@ -81,17 +81,17 @@ const Dashboard = () => {
         if (allIds.length > 0) {
           gamesRes = await supabase
             .from("games")
-            .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, duplicate_of, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, carry_score, submission_status, submitted_by, created_at, game_id)")
+            .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, carry_score, submission_status, submitted_by, created_at, game_id)")
             .or(`created_by.eq.${user.id},id.in.(${allIds.join(",")})`)
-            .is("duplicate_of", null)
+            
             .order("played_at", { ascending: false })
             .limit(20);
         } else {
           gamesRes = await supabase
             .from("games")
-            .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, duplicate_of, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, carry_score, submission_status, submitted_by, created_at, game_id)")
+            .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, carry_score, submission_status, submitted_by, created_at, game_id)")
             .eq("created_by", user.id)
-            .is("duplicate_of", null)
+            
             .order("played_at", { ascending: false })
             .limit(20);
         }
@@ -170,17 +170,17 @@ const Dashboard = () => {
     if (allIds2.length > 0) {
       refreshRes = await supabase
         .from("games")
-        .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, duplicate_of, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, carry_score, submission_status, submitted_by, created_at, game_id)")
+        .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, carry_score, submission_status, submitted_by, created_at, game_id)")
         .or(`created_by.eq.${user.id},id.in.(${allIds2.join(",")})`)
-        .is("duplicate_of", null)
+        
         .order("played_at", { ascending: false })
         .limit(20);
     } else {
       refreshRes = await supabase
         .from("games")
-        .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, duplicate_of, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, carry_score, submission_status, submitted_by, created_at, game_id)")
+        .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, carry_score, submission_status, submitted_by, created_at, game_id)")
         .eq("created_by", user.id)
-        .is("duplicate_of", null)
+        
         .order("played_at", { ascending: false })
         .limit(20);
     }
