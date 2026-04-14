@@ -20,7 +20,7 @@ const BottomNav = () => {
       <div className="flex items-center justify-around h-16 max-w-lg mx-auto">
         {tabs.map((tab) => {
           const active = location.pathname === tab.to;
-          const showBadge = tab.to === "/friends" && unreadCount > 0;
+          const showBadge = false; // badge lives on the bell in MobileHeader
           return (
             <NavLink
               key={tab.to}

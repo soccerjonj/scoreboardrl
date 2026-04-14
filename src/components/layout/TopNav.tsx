@@ -29,7 +29,7 @@ const TopNav = () => {
         <nav className="flex items-center gap-1">
           {tabs.map((tab) => {
             const active = location.pathname === tab.to;
-            const showBadge = tab.to === "/friends" && unreadCount > 0;
+            const showBadge = false; // badge lives on the bell icon instead
             return (
               <NavLink
                 key={tab.to}
