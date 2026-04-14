@@ -13,7 +13,7 @@ import { Save, Loader2, AlertTriangle } from "lucide-react";
 import { CarryMeter } from "@/components/game/CarryMeter";
 import ScoreboardUploader from "@/components/game/ScoreboardUploader";
 import PlayerStatsEditor from "@/components/game/PlayerStatsEditor";
-import { calculateCarryScores } from "@/lib/carryScore";
+import { calculateContributionScores } from "@/lib/carryScore";
 import { useNotifications } from "@/hooks/useNotifications";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -265,7 +265,7 @@ const LogGame = () => {
 
         const { data: candidateGames } = await supabase
           .from("games")
-          .select("id, played_at, game_mode, game_type, result, division_change, screenshot_url, created_at, created_by, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, carry_score, submission_status, submitted_by, created_at, game_id)")
+          .select("id, played_at, game_mode, game_type, result, division_change, screenshot_url, created_at, created_by, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, contribution_score, submission_status, submitted_by, created_at, game_id)")
           .in("created_by", linkedUserIds)
           .eq("game_mode", gameMode)
           .eq("game_type", gameType)
@@ -356,9 +356,10 @@ const LogGame = () => {
         if (p.rl_account_name) playerNameToUserId.set(p.rl_account_name.toLowerCase(), p.user_id);
       });
 
-      // Calculate carry scores before insert
-      const carryResults = calculateCarryScores(players);
-      const carryMap = new Map(carryResults.map((r) => [r.name.toLowerCase(), r.carry_score]));
+      // Calculate contribution scores before insert
+      const contributionMap = calculateContributionScores(
+        players.map((p) => ({ name: p.name, team: p.team, score: p.score, goals: p.goals, assists: p.assists, saves: p.saves, shots: p.shots }))
+      );
 
       // Insert game players
       const gamePlayers = players.map((p) => {
@@ -368,19 +369,19 @@ const LogGame = () => {
         const friendApproves = matchedUserId ? (friendAutoApprove.get(matchedUserId) ?? true) : false;
 
         return {
-          game_id:           game.id,
-          player_name:       p.name,
-          team:              p.team,
-          score:             p.score,
-          goals:             p.goals,
-          assists:           p.assists,
-          saves:             p.saves,
-          shots:             p.shots,
-          is_mvp:            p.is_mvp,
-          carry_score:       carryMap.get(p.name.toLowerCase()) ?? 0,
-          user_id:           matchedUserId || null,
-          submitted_by:      user.id,
-          submission_status: (isCurrentUser || (isFriend && friendApproves)
+          game_id:            game.id,
+          player_name:        p.name,
+          team:               p.team,
+          score:              p.score,
+          goals:              p.goals,
+          assists:            p.assists,
+          saves:              p.saves,
+          shots:              p.shots,
+          is_mvp:             p.is_mvp,
+          contribution_score: contributionMap.get(p.name.toLowerCase()) ?? 1,
+          user_id:            matchedUserId || null,
+          submitted_by:       user.id,
+          submission_status:  (isCurrentUser || (isFriend && friendApproves)
             ? "approved"
             : matchedUserId ? "pending" : "approved") as "approved" | "pending",
         };
@@ -622,20 +623,21 @@ const LogGame = () => {
                   userRlName={rlName}
                 />
 
-                {/* Carry score preview */}
-                {gameMode !== "1v1" && players.length > 0 && (() => {
-                  const carries = calculateCarryScores(
+                {/* Contribution score preview */}
+                {players.length > 0 && (() => {
+                  const contribMap = calculateContributionScores(
                     players.map(p => ({ name: p.name, team: p.team, score: p.score, goals: p.goals, assists: p.assists, saves: p.saves, shots: p.shots }))
-                  ).filter(c => c.carry_score > 0);
-                  if (carries.length === 0) return null;
+                  );
+                  const entries = Array.from(contribMap.entries()).filter(([, score]) => score >= 1);
+                  if (entries.length === 0) return null;
                   return (
                     <div className="mt-6 pt-4 border-t border-border/40">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Carry Scores</p>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Contribution Scores</p>
                       <div className="space-y-2">
-                        {carries.map(c => (
-                          <div key={c.name} className="flex items-center justify-between">
-                            <span className="text-sm font-medium">{c.name}</span>
-                            <CarryMeter score={c.carry_score} size="sm" />
+                        {entries.map(([name, score]) => (
+                          <div key={name} className="flex items-center justify-between">
+                            <span className="text-sm font-medium">{name}</span>
+                            <CarryMeter score={score} size="sm" />
                           </div>
                         ))}
                       </div>
