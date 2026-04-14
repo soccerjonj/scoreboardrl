@@ -1,10 +1,11 @@
-import { Home, PlusCircle, Users, User } from "lucide-react";
+import { Home, BarChart2, PlusCircle, Users, User } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useNotifications } from "@/hooks/useNotifications";
 
 const tabs = [
   { to: "/dashboard", label: "Home",     icon: Home },
+  { to: "/stats",     label: "Stats",    icon: BarChart2 },
   { to: "/log-game",  label: "Log Game", icon: PlusCircle },
   { to: "/friends",   label: "Friends",  icon: Users },
   { to: "/profile",   label: "Profile",  icon: User },
