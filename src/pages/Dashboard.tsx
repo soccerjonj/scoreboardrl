@@ -438,7 +438,7 @@ const Dashboard = () => {
 
           {games.length === 0 ? (
             <Card className="border-border/50 bg-card/80 border-dashed">
-              <CardContent className="py-8 text-center space-y-3">
+              <CardContent className="py-12 text-center space-y-6">
                 <p className="text-muted-foreground">No games logged yet</p>
                 <Link to="/log-game">
                   <Button variant="hero" className="gap-2">
