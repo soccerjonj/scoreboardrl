@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { format } from "date-fns";
-import { Loader2, BarChart2, LineChart as LineChartIcon } from "lucide-react";
+import { Loader2, BarChart2, LineChart as LineChartIcon, FilterX } from "lucide-react";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CarryMeter } from "@/components/game/CarryMeter";
 import { Label } from "@/components/ui/label";
@@ -649,11 +650,48 @@ const Stats = () => {
         </div>
 
         {userSummary.games === 0 ? (
-          <Card className="border-border/50 bg-card/80 border-dashed">
-            <CardContent className="py-8 text-center">
-              <p className="text-muted-foreground">No games match the current filters.</p>
-            </CardContent>
-          </Card>
+          games.length === 0 ? (
+            /* No games at all */
+            <Card className="border-border/50 bg-card/80 border-dashed">
+              <CardContent className="py-12 text-center space-y-4">
+                <div className="flex justify-center">
+                  <BarChart2 className="w-12 h-12 text-muted-foreground/40" />
+                </div>
+                <div>
+                  <p className="font-display font-semibold text-base">No games yet</p>
+                  <p className="text-sm text-muted-foreground mt-1">Log your first game to start tracking your stats</p>
+                </div>
+                <Link to="/log-game">
+                  <Button variant="hero" size="sm">Log a Game</Button>
+                </Link>
+              </CardContent>
+            </Card>
+          ) : (
+            /* Games exist but current filters exclude them */
+            <Card className="border-border/50 bg-card/80 border-dashed">
+              <CardContent className="py-12 text-center space-y-4">
+                <div className="flex justify-center">
+                  <FilterX className="w-10 h-10 text-muted-foreground/40" />
+                </div>
+                <div>
+                  <p className="font-display font-semibold text-base">No games match your filters</p>
+                  <p className="text-sm text-muted-foreground mt-1">Try adjusting the mode, type, or time range filters</p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setSelectedMode("all");
+                    setSelectedType("all");
+                    setSelectedFriendId("all");
+                    setTimeRange("all");
+                  }}
+                >
+                  Clear filters
+                </Button>
+              </CardContent>
+            </Card>
+          )
         ) : viewMode === "summary" ? (
           /* ── Summary view ── */
           <div className="space-y-4">

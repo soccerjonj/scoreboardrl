@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Search, UserPlus, X } from "lucide-react";
+import { Loader2, Search, UserPlus, X, CheckCircle2 } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 import AppLayout from "@/components/layout/AppLayout";
 import { cn } from "@/lib/utils";
@@ -29,6 +29,7 @@ const Friends = () => {
   const [searchResults, setSearchResults] = useState<FriendProfile[]>([]);
   const [searching, setSearching] = useState(false);
   const [actionId, setActionId] = useState<string | null>(null);
+  const [justSent, setJustSent] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/auth");
@@ -158,6 +159,7 @@ const Friends = () => {
       const { error } = await supabase.from("friend_requests").insert({ sender_id: user.id, receiver_id: targetId, status: "pending" });
       if (error) throw error;
       toast({ title: "Friend request sent" });
+      setJustSent((prev) => new Set(prev).add(targetId));
       await refresh();
     } catch (err: any) {
       toast({ title: "Failed", description: err.message, variant: "destructive" });
@@ -218,10 +220,17 @@ const Friends = () => {
                     </>
                   )}
                   {status === "none" && (
-                    <Button size="sm" variant="hero" onClick={() => handleSend(profile.user_id)} disabled={actionId === profile.user_id} className="gap-1">
-                      <UserPlus className="w-3.5 h-3.5" />
-                      Add
-                    </Button>
+                    justSent.has(profile.user_id) ? (
+                      <span className="flex items-center gap-1.5 text-sm text-rl-green font-medium">
+                        <CheckCircle2 className="w-4 h-4" />
+                        Request sent!
+                      </span>
+                    ) : (
+                      <Button size="sm" variant="hero" onClick={() => handleSend(profile.user_id)} disabled={actionId === profile.user_id} className="gap-1">
+                        <UserPlus className="w-3.5 h-3.5" />
+                        Add
+                      </Button>
+                    )
                   )}
                 </div>
               </div>

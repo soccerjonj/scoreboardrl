@@ -46,6 +46,7 @@ const Dashboard = () => {
   const [loading, setLoading]             = useState(true);
   const [ranks, setRanks]                 = useState<RankData[]>([]);
   const [games, setGames]                 = useState<GameWithPlayers[]>([]);
+  const [ranksExpanded, setRanksExpanded] = useState(false);
   const [rlName, setRlName]               = useState<string | null>(null);
   const [expandedGameId, setExpandedGameId] = useState<string | null>(null);
   const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
@@ -278,6 +279,7 @@ const Dashboard = () => {
   // ── Quick stats ─────────────────────────────────────────────────────────────
   const quickStats = useMemo(() => {
     let totalGames = 0, wins = 0, totalScore = 0, totalGoals = 0, mvps = 0;
+    const results: string[] = [];
     games.forEach((game) => {
       const userRow = game.game_players?.find(
         (p) => (userTarget.userId && p.user_id === userTarget.userId) || userTarget.names.includes(normalizeName(p.player_name))
@@ -288,7 +290,27 @@ const Dashboard = () => {
       totalScore += userRow.score;
       totalGoals += userRow.goals;
       if (userRow.is_mvp) mvps++;
+      results.push(game.result);
     });
+
+    // Current streak: consecutive wins from most recent game backwards
+    let currentStreak = 0;
+    for (const r of results) {
+      if (r === "win") currentStreak++;
+      else break;
+    }
+
+    // Longest streak: longest run of consecutive wins in entire list
+    let longestStreak = 0, runningStreak = 0;
+    for (const r of results) {
+      if (r === "win") {
+        runningStreak++;
+        if (runningStreak > longestStreak) longestStreak = runningStreak;
+      } else {
+        runningStreak = 0;
+      }
+    }
+
     return {
       totalGames,
       wins,
@@ -296,6 +318,8 @@ const Dashboard = () => {
       avgScore: totalGames ? Math.round(totalScore / totalGames) : 0,
       totalGoals,
       mvps,
+      currentStreak,
+      longestStreak,
     };
   }, [games, userTarget]);
 
@@ -334,32 +358,71 @@ const Dashboard = () => {
         </div>
 
         {/* Rank Cards */}
-        {ranks.length > 0 && (
-          <div className="grid grid-cols-3 gap-3">
-            {(["1v1", "2v2", "3v3"] as GameMode[]).map((mode) => {
-              const rank = ranks.find((r) => r.game_mode === mode);
-              const tier = rank?.rank_tier ?? "unranked";
-              const div  = rank?.rank_division;
-              return (
-                <Card key={mode} className="border-border/50 bg-gradient-card text-center">
-                  <CardContent className="pt-4 pb-3 px-2">
-                    <p className="text-xs text-muted-foreground font-medium mb-1">{gameModeLabels[mode]}</p>
-                    <div className="flex justify-center mb-1">
-                      <img src={getRankIcon(tier)} alt={rankDisplayName(tier)} className="w-10 h-10 object-contain" />
-                    </div>
-                    <p className="font-display font-bold text-xs leading-tight">{rankDisplayName(tier)}</p>
-                    {div && tier !== "unranked" && (
-                      <p className="text-xs text-muted-foreground">Div {div}</p>
+        {ranks.length > 0 && (() => {
+          const preferredMode = (["2v2", "3v3", "1v1"] as GameMode[]).find(
+            (m) => ranks.find((r) => r.game_mode === m && r.mmr != null)
+          ) ?? ranks[0]?.game_mode;
+          const mainRank = ranks.find((r) => r.game_mode === preferredMode);
+          const mainTier = mainRank?.rank_tier ?? "unranked";
+          const mainDiv  = mainRank?.rank_division;
+
+          return (
+            <div>
+              {/* Collapsed summary header */}
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-3">
+                  <img src={getRankIcon(mainTier)} alt={rankDisplayName(mainTier)} className="w-8 h-8 object-contain" />
+                  <div>
+                    <p className="font-display font-bold text-sm leading-tight">
+                      {rankDisplayName(mainTier)}{mainDiv && mainTier !== "unranked" ? ` Div ${mainDiv}` : ""}
+                    </p>
+                    {mainRank?.mmr != null && (
+                      <p className="text-xs text-primary font-mono">{mainRank.mmr} MMR · {gameModeLabels[preferredMode]}</p>
                     )}
-                    {rank?.mmr != null && (
-                      <p className="text-xs text-primary font-mono mt-1">{rank.mmr} MMR</p>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setRanksExpanded((v) => !v)}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {ranksExpanded ? (
+                    <><ChevronUp className="w-4 h-4" /> Hide ranks</>
+                  ) : (
+                    <><ChevronDown className="w-4 h-4" /> Show all ranks</>
+                  )}
+                </button>
+              </div>
+
+              {/* Expanded rank grid */}
+              {ranksExpanded && (
+                <div className="grid grid-cols-3 gap-3">
+                  {(["1v1", "2v2", "3v3"] as GameMode[]).map((mode) => {
+                    const rank = ranks.find((r) => r.game_mode === mode);
+                    const tier = rank?.rank_tier ?? "unranked";
+                    const div  = rank?.rank_division;
+                    return (
+                      <Card key={mode} className="border-border/50 bg-gradient-card text-center">
+                        <CardContent className="pt-4 pb-3 px-2">
+                          <p className="text-xs text-muted-foreground font-medium mb-1">{gameModeLabels[mode]}</p>
+                          <div className="flex justify-center mb-1">
+                            <img src={getRankIcon(tier)} alt={rankDisplayName(tier)} className="w-10 h-10 object-contain" />
+                          </div>
+                          <p className="font-display font-bold text-xs leading-tight">{rankDisplayName(tier)}</p>
+                          {div && tier !== "unranked" && (
+                            <p className="text-xs text-muted-foreground">Div {div}</p>
+                          )}
+                          {rank?.mmr != null && (
+                            <p className="text-xs text-primary font-mono mt-1">{rank.mmr} MMR</p>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {ranks.length === 0 && (
           <Card className="border-border/50 bg-card/80 border-dashed">
@@ -415,6 +478,28 @@ const Dashboard = () => {
               <div>
                 <p className="text-xs text-muted-foreground">MVPs</p>
                 <p className="font-display font-bold text-lg">{quickStats.mvps}</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-border/50 bg-card/80">
+            <CardContent className="pt-4 pb-3 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-rl-green/10 flex items-center justify-center">
+                <Zap className="w-4 h-4 text-rl-green" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Win Streak</p>
+                <p className="font-display font-bold text-lg">{quickStats.currentStreak}</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-border/50 bg-card/80">
+            <CardContent className="pt-4 pb-3 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-rl-purple/10 flex items-center justify-center">
+                <Trophy className="w-4 h-4 text-rl-purple" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Best Streak</p>
+                <p className="font-display font-bold text-lg">{quickStats.longestStreak}</p>
               </div>
             </CardContent>
           </Card>
@@ -509,11 +594,6 @@ const Dashboard = () => {
                                   }`}
                                 >
                                   Div {game.division_change === "up" ? "↑" : "↓"}
-                                </Badge>
-                              )}
-                              {userCarry > 0 && (
-                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-rl-purple/50 text-rl-purple">
-                                  Contribution
                                 </Badge>
                               )}
                             </div>
