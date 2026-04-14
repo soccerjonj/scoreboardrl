@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Search, UserPlus, X, CheckCircle2 } from "lucide-react";
+import { Loader2, Search, UserPlus, Users2, X, CheckCircle2 } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 import AppLayout from "@/components/layout/AppLayout";
 import { cn } from "@/lib/utils";
@@ -183,9 +183,17 @@ const Friends = () => {
   return (
     <AppLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-display font-bold">Friends</h1>
-          <p className="text-sm text-muted-foreground">Connect with teammates to compare stats</p>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-display font-bold">Friends</h1>
+            <p className="text-sm text-muted-foreground">Connect with teammates to compare stats</p>
+          </div>
+          <Link to="/squad">
+            <Button variant="outline" size="sm" className="gap-1.5 shrink-0">
+              <Users2 className="w-4 h-4" />
+              View Squad →
+            </Button>
+          </Link>
         </div>
 
         {/* Search */}
@@ -307,10 +315,10 @@ const Friends = () => {
                 const autoApprove = false; // auto-approve not yet implemented
                 return (
                   <div key={req.id} className="flex items-center justify-between gap-2 rounded-lg border border-border/60 bg-background/60 p-3">
-                    <div>
+                    <Link to={`/profile/${otherId}`} className="hover:underline min-w-0">
                       <p className="font-display text-sm font-semibold">{getDisplayName(p)}</p>
                       {p?.username && <p className="text-xs text-muted-foreground">@{p.username}</p>}
-                    </div>
+                    </Link>
                     <div className="flex items-center gap-2">
                       <Button size="sm" variant="outline" disabled={actionId === req.id} onClick={() => handleRemove(req)}>Remove</Button>
                     </div>
