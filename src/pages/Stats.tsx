@@ -320,13 +320,13 @@ const Stats = () => {
         if (allIds.length > 0) {
           gamesRes = await supabase
             .from("games")
-            .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, contribution_score, submission_status, submitted_by, created_at, game_id)")
+            .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, contribution_score, submission_status, submitted_by, created_at, game_id, mmr, mmr_change)")
             .or(`created_by.eq.${user.id},id.in.(${allIds.join(",")})`)
             .order("played_at", { ascending: true });
         } else {
           gamesRes = await supabase
             .from("games")
-            .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, contribution_score, submission_status, submitted_by, created_at, game_id)")
+            .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, contribution_score, submission_status, submitted_by, created_at, game_id, mmr, mmr_change)")
             .eq("created_by", user.id)
             .order("played_at", { ascending: true });
         }
@@ -559,6 +559,22 @@ const Stats = () => {
       .slice(0, 5),
   [rangeFilteredGames, userTarget]);
 
+  const mmrHistory = useMemo(() => {
+    const points: Array<{ label: string; fullLabel: string; mmr: number }> = [];
+    rangeFilteredGames.forEach((game, idx) => {
+      const userRow = findPlayer(game.game_players || [], userTarget);
+      if (!userRow) return;
+      const mmrVal = (userRow as any).mmr;
+      if (mmrVal == null || typeof mmrVal !== "number") return;
+      points.push({
+        label: `#${idx + 1}`,
+        fullLabel: `Game ${idx + 1} · ${format(new Date(game.played_at), "MMM d, yyyy")}`,
+        mmr: mmrVal,
+      });
+    });
+    return points;
+  }, [rangeFilteredGames, userTarget]);
+
   if (authLoading || loading) {
     return <AppLayout><div className="flex items-center justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div></AppLayout>;
   }
@@ -761,6 +777,27 @@ const Stats = () => {
                 />
               ))}
             </div>
+
+            {/* MMR History chart */}
+            {mmrHistory.length >= 2 && (
+              <Card className="border-border/50 bg-card/80">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-display">MMR History</CardTitle>
+                  <CardDescription className="text-xs">Your MMR progression over time (competitive games with MMR tracked)</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ChartContainer config={{ mmr: { label: "MMR", color: "hsl(var(--rl-blue))" } }} className="h-52 w-full">
+                    <LineChart data={mmrHistory} margin={{ left: 6, right: 12, top: 8, bottom: 0 }}>
+                      <CartesianGrid vertical={false} strokeDasharray="4 4" />
+                      <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} interval={mmrHistory.length <= 10 ? 0 : mmrHistory.length <= 20 ? 1 : Math.floor(mmrHistory.length / 10)} />
+                      <YAxis tickLine={false} axisLine={false} width={50} domain={["auto", "auto"]} />
+                      <ChartTooltip content={<ChartTooltipContent labelFormatter={(_, payload) => payload?.[0]?.payload?.fullLabel ?? ""} />} />
+                      <Line type="monotone" dataKey="mmr" stroke="var(--color-mmr)" strokeWidth={2.5} dot={false} />
+                    </LineChart>
+                  </ChartContainer>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Best Contribution Performances */}
             {bestContributionGames.length > 0 && (

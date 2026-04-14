@@ -54,6 +54,8 @@ export type Database = {
           saves: number
           score: number
           shots: number
+          mmr: number | null
+          mmr_change: number | null
           submission_status: Database["public"]["Enums"]["stat_submission_status"]
           submitted_by: string | null
           team: string | null
@@ -67,6 +69,8 @@ export type Database = {
           goals?: number
           id?: string
           is_mvp?: boolean
+          mmr?: number | null
+          mmr_change?: number | null
           player_name: string
           saves?: number
           score?: number
@@ -84,6 +88,8 @@ export type Database = {
           goals?: number
           id?: string
           is_mvp?: boolean
+          mmr?: number | null
+          mmr_change?: number | null
           player_name?: string
           saves?: number
           score?: number

@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Save, Loader2, AlertTriangle } from "lucide-react";
+import { Save, Loader2, AlertTriangle, ClipboardList } from "lucide-react";
 import { CarryMeter } from "@/components/game/CarryMeter";
 import ScoreboardUploader from "@/components/game/ScoreboardUploader";
 import PlayerStatsEditor from "@/components/game/PlayerStatsEditor";
@@ -379,6 +379,8 @@ const LogGame = () => {
           shots:              p.shots,
           is_mvp:             p.is_mvp,
           contribution_score: contributionMap.get(p.name.toLowerCase()) ?? 1,
+          mmr:                p.mmr ?? null,
+          mmr_change:         p.mmr_change ?? null,
           user_id:            matchedUserId || null,
           submitted_by:       user.id,
           submission_status:  (isCurrentUser || (isFriend && friendApproves)
@@ -482,7 +484,8 @@ const LogGame = () => {
               <ScoreboardUploader userRlName={rlName} onParsed={handleParsed} />
 
               <div className="mt-4 text-center">
-                <button
+                <Button
+                  variant="outline"
                   onClick={() => {
                     // Create empty players based on game mode
                     const count = gameMode === "1v1" ? 1 : gameMode === "2v2" ? 2 : 3;
@@ -496,10 +499,11 @@ const LogGame = () => {
                     setPlayers(emptyPlayers);
                     setStep("review");
                   }}
-                  className="text-sm text-muted-foreground hover:text-primary transition-colors"
+                  className="gap-2"
                 >
-                  Or enter stats manually →
-                </button>
+                  <ClipboardList className="w-4 h-4" />
+                  Enter Manually
+                </Button>
               </div>
             </CardContent>
           </Card>
