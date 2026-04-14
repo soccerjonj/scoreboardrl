@@ -120,12 +120,23 @@ const Dashboard = () => {
   const backfillCarryScores = useCallback(async (loadedGames: GameWithPlayers[]) => {
     if (!user) return;
 
+    const teamSumsTo100 = (game: GameWithPlayers) => {
+      for (const team of ["blue", "orange"] as const) {
+        const tp = (game.game_players ?? []).filter((p) => p.team === team);
+        if (tp.length < 2) continue;
+        const sum = tp.reduce((s, p) => s + (p.contribution_score ?? 0), 0);
+        // Allow ±5 rounding tolerance; anything outside means old algorithm ran
+        if (sum < 95 || sum > 105) return false;
+      }
+      return true;
+    };
+
     const needsBackfill = loadedGames.filter((game) => {
       const players = game.game_players ?? [];
-      // Only backfill if every player has team data and at least one has a null contribution_score
-      const allHaveTeam        = players.every((p) => p.team != null);
-      const someNullContrib    = players.some((p) => p.contribution_score === null);
-      return allHaveTeam && someNullContrib;
+      const allHaveTeam = players.every((p) => p.team != null);
+      if (!allHaveTeam) return false;
+      // Recalculate if any score is null OR if team scores don't sum to ~100
+      return players.some((p) => p.contribution_score === null) || !teamSumsTo100(game);
     });
 
     if (needsBackfill.length === 0) return;
