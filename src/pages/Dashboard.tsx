@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { format } from "date-fns";
-import { Plus, Loader2, Trophy, Target, TrendingUp, ChevronRight, Zap, ChevronDown, ChevronUp, Pencil, Check, X as XIcon } from "lucide-react";
+import { Plus, Loader2, Trophy, Target, TrendingUp, ChevronRight, Zap, ChevronDown, ChevronUp, Pencil, Check, X as XIcon, Trash2 } from "lucide-react";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -50,6 +50,7 @@ const Dashboard = () => {
   const [expandedGameId, setExpandedGameId] = useState<string | null>(null);
   const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<{ score: number; goals: number; assists: number; saves: number; shots: number }>({ score: 0, goals: 0, assists: 0, saves: 0, shots: 0 });
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/auth");
@@ -258,6 +259,19 @@ const Dashboard = () => {
       toast({ title: "Stats updated" });
     } catch (err: any) {
       toast({ title: "Failed to update", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleDeleteGame = async (gameId: string) => {
+    try {
+      await supabase.from("game_players").delete().eq("game_id", gameId);
+      await supabase.from("games").delete().eq("id", gameId);
+      setGames((prev) => prev.filter((g) => g.id !== gameId));
+      setConfirmDeleteId(null);
+      setExpandedGameId(null);
+      toast({ title: "Game deleted" });
+    } catch (err: any) {
+      toast({ title: "Failed to delete", description: err.message, variant: "destructive" });
     }
   };
 
@@ -629,6 +643,37 @@ const Dashboard = () => {
                               </div>
                             );
                           })}
+                        </div>
+                      )}
+
+                      {/* Delete game — only for the game creator, shown when expanded */}
+                      {isExpanded && game.created_by === user?.id && (
+                        <div className="mt-3 pt-3 border-t border-border/40 flex justify-end">
+                          {confirmDeleteId === game.id ? (
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-muted-foreground">Delete this game?</span>
+                              <button
+                                onClick={() => handleDeleteGame(game.id)}
+                                className="text-xs font-medium text-rl-red hover:text-rl-red/80 transition-colors"
+                              >
+                                Yes, delete
+                              </button>
+                              <button
+                                onClick={() => setConfirmDeleteId(null)}
+                                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setConfirmDeleteId(game.id)}
+                              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-rl-red transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              Delete game
+                            </button>
+                          )}
                         </div>
                       )}
                     </CardContent>
