@@ -44,7 +44,7 @@ export type Database = {
       game_players: {
         Row: {
           assists: number
-          carry_score: number | null
+          contribution_score: number | null
           created_at: string
           game_id: string
           goals: number
@@ -61,7 +61,7 @@ export type Database = {
         }
         Insert: {
           assists?: number
-          carry_score?: number | null
+          contribution_score?: number | null
           created_at?: string
           game_id: string
           goals?: number
@@ -78,7 +78,7 @@ export type Database = {
         }
         Update: {
           assists?: number
-          carry_score?: number | null
+          contribution_score?: number | null
           created_at?: string
           game_id?: string
           goals?: number

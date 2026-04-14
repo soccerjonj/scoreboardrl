@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { CarryMeter } from "@/components/game/CarryMeter";
-import { calculateCarryScores } from "@/lib/carryScore";
+import { calculateContributionScores } from "@/lib/carryScore";
 import { getRankIcon } from "@/lib/rankIcons";
 import AppLayout from "@/components/layout/AppLayout";
 
@@ -82,15 +82,15 @@ const Dashboard = () => {
         if (allIds.length > 0) {
           gamesRes = await supabase
             .from("games")
-            .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, carry_score, submission_status, submitted_by, created_at, game_id)")
+            .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, contribution_score, submission_status, submitted_by, created_at, game_id)")
             .or(`created_by.eq.${user.id},id.in.(${allIds.join(",")})`)
-            
+
             .order("played_at", { ascending: false })
             .limit(20);
         } else {
           gamesRes = await supabase
             .from("games")
-            .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, carry_score, submission_status, submitted_by, created_at, game_id)")
+            .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, contribution_score, submission_status, submitted_by, created_at, game_id)")
             .eq("created_by", user.id)
             
             .order("played_at", { ascending: false })
@@ -116,16 +116,16 @@ const Dashboard = () => {
     return { userId: user?.id, names };
   }, [user?.id, rlName]);
 
-  // ── Backfill carry scores for old games that were logged without them ────────
+  // ── Backfill contribution scores for old games that were logged without them ──
   const backfillCarryScores = useCallback(async (loadedGames: GameWithPlayers[]) => {
     if (!user) return;
 
     const needsBackfill = loadedGames.filter((game) => {
       const players = game.game_players ?? [];
-      // Only backfill if every player has team data and at least one has a null carry_score
-      const allHaveTeam    = players.every((p) => p.team != null);
-      const someNullCarry  = players.some((p) => p.carry_score === null);
-      return allHaveTeam && someNullCarry && players.length > 2; // skip 1v1 (2 players total)
+      // Only backfill if every player has team data and at least one has a null contribution_score
+      const allHaveTeam        = players.every((p) => p.team != null);
+      const someNullContrib    = players.some((p) => p.contribution_score === null);
+      return allHaveTeam && someNullContrib;
     });
 
     if (needsBackfill.length === 0) return;
@@ -141,24 +141,21 @@ const Dashboard = () => {
         shots:   p.shots,
       }));
 
-      const carryResults = calculateCarryScores(playersForCalc);
+      const contributionMap = calculateContributionScores(playersForCalc);
 
       // Batch-update each player row
       await Promise.all(
-        carryResults.map((r) => {
-          const row = (game.game_players ?? []).find(
-            (p) => normalizeName(p.player_name) === normalizeName(r.name)
-          );
-          if (!row) return Promise.resolve();
+        (game.game_players ?? []).map((row) => {
+          const contributionScore = contributionMap.get(normalizeName(row.player_name)) ?? 1;
           return supabase
             .from("game_players")
-            .update({ carry_score: r.carry_score })
+            .update({ contribution_score: contributionScore })
             .eq("id", row.id);
         })
       );
     }
 
-    // Refresh games so carry scores render immediately — use same OR logic as initial load
+    // Refresh games so contribution scores render immediately — use same OR logic as initial load
     const { data: playerGameRows2 } = await supabase
       .from("game_players")
       .select("game_id")
@@ -171,17 +168,17 @@ const Dashboard = () => {
     if (allIds2.length > 0) {
       refreshRes = await supabase
         .from("games")
-        .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, carry_score, submission_status, submitted_by, created_at, game_id)")
+        .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, contribution_score, submission_status, submitted_by, created_at, game_id)")
         .or(`created_by.eq.${user.id},id.in.(${allIds2.join(",")})`)
-        
+
         .order("played_at", { ascending: false })
         .limit(20);
     } else {
       refreshRes = await supabase
         .from("games")
-        .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, carry_score, submission_status, submitted_by, created_at, game_id)")
+        .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, contribution_score, submission_status, submitted_by, created_at, game_id)")
         .eq("created_by", user.id)
-        
+
         .order("played_at", { ascending: false })
         .limit(20);
     }
@@ -211,11 +208,11 @@ const Dashboard = () => {
         .eq("id", playerId);
       if (error) throw error;
 
-      // Recalculate carry scores with updated stats
+      // Recalculate contribution scores with updated stats
       const updatedPlayers = (game.game_players ?? []).map((p) =>
         p.id === playerId ? { ...p, ...editValues } : p
       );
-      const carryResults = calculateCarryScores(
+      const contributionMap = calculateContributionScores(
         updatedPlayers.map((p) => ({
           name:    p.player_name,
           team:    (p.team ?? "blue") as "blue" | "orange",
@@ -227,10 +224,9 @@ const Dashboard = () => {
         }))
       );
       await Promise.all(
-        carryResults.map((r) => {
-          const row = updatedPlayers.find((p) => p.player_name.toLowerCase() === r.name.toLowerCase());
-          if (!row) return Promise.resolve();
-          return supabase.from("game_players").update({ carry_score: r.carry_score }).eq("id", row.id);
+        updatedPlayers.map((row) => {
+          const contributionScore = contributionMap.get(row.player_name.toLowerCase()) ?? 1;
+          return supabase.from("game_players").update({ contribution_score: contributionScore }).eq("id", row.id);
         })
       );
 
@@ -240,8 +236,8 @@ const Dashboard = () => {
           g.id !== game.id ? g : {
             ...g,
             game_players: updatedPlayers.map((p) => {
-              const cr = carryResults.find((r) => r.name.toLowerCase() === p.player_name.toLowerCase());
-              return cr ? { ...p, carry_score: cr.carry_score } : p;
+              const cs = contributionMap.get(p.player_name.toLowerCase());
+              return cs !== undefined ? { ...p, contribution_score: cs } : p;
             }),
           }
         )
@@ -457,13 +453,13 @@ const Dashboard = () => {
                 );
                 const isWin      = game.result === "win";
                 const isExpanded = expandedGameId === game.id;
-                const userCarry  = userRow?.carry_score ?? 0;
+                const userCarry  = userRow?.contribution_score ?? 0;
 
-                // Sort players: blue team first, then orange; carrier row first within team
+                // Sort players: blue team first, then orange; highest contribution first within team
                 const sortedPlayers = [...players].sort((a, b) => {
                   if ((a.team ?? "blue") < (b.team ?? "orange")) return -1;
                   if ((a.team ?? "blue") > (b.team ?? "orange")) return  1;
-                  return (b.carry_score ?? 0) - (a.carry_score ?? 0);
+                  return (b.contribution_score ?? 0) - (a.contribution_score ?? 0);
                 });
 
                 return (
@@ -491,7 +487,7 @@ const Dashboard = () => {
                               )}
                               {userCarry > 0 && (
                                 <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-rl-purple/50 text-rl-purple">
-                                  Carry
+                                  Contribution
                                 </Badge>
                               )}
                             </div>
@@ -510,7 +506,7 @@ const Dashboard = () => {
                               </p>
                           {userCarry > 0 && (
                                 <div className="flex items-center gap-1.5 mt-1 justify-end">
-                                  <span className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Carry</span>
+                                  <span className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Contribution</span>
                                   <CarryMeter score={userCarry} size="sm" />
                                 </div>
                               )}
@@ -589,8 +585,8 @@ const Dashboard = () => {
                                             </span>
                                             <span className="text-xs font-mono font-bold w-12 text-right">{p.score}</span>
                                             <div className="w-28 flex justify-end">
-                                              {(p.carry_score ?? 0) > 0
-                                                ? <CarryMeter score={p.carry_score!} size="sm" />
+                                              {(p.contribution_score ?? 0) >= 1
+                                                ? <CarryMeter score={p.contribution_score!} size="sm" />
                                                 : <span className="text-[10px] text-muted-foreground/40 font-mono">—</span>
                                               }
                                             </div>

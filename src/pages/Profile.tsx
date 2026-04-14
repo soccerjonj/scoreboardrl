@@ -33,7 +33,7 @@ type ProfileStats = {
   bestGoals: number;
   bestAssists: number;
   bestSaves: number;
-  bestCarryScore: number;
+  bestContributionScore: number;
   topTeammates: Array<{ userId: string; name: string; games: number; wins: number }>;
 };
 
@@ -173,7 +173,7 @@ const Profile = () => {
         // Get all game_players rows for this user
         const { data: myPlayerRows } = await supabase
           .from("game_players")
-          .select("game_id, score, goals, assists, saves, carry_score")
+          .select("game_id, score, goals, assists, saves, contribution_score")
           .eq("user_id", user.id);
 
         if (!myPlayerRows || myPlayerRows.length === 0) {
@@ -186,13 +186,13 @@ const Profile = () => {
         // Compute personal records from player rows
         const records = myPlayerRows.reduce(
           (best, row) => ({
-            bestScore:      Math.max(best.bestScore,      safeNum(row.score)),
-            bestGoals:      Math.max(best.bestGoals,      safeNum(row.goals)),
-            bestAssists:    Math.max(best.bestAssists,    safeNum(row.assists)),
-            bestSaves:      Math.max(best.bestSaves,      safeNum(row.saves)),
-            bestCarryScore: Math.max(best.bestCarryScore, safeNum(row.carry_score)),
+            bestScore:             Math.max(best.bestScore,             safeNum(row.score)),
+            bestGoals:             Math.max(best.bestGoals,             safeNum(row.goals)),
+            bestAssists:           Math.max(best.bestAssists,           safeNum(row.assists)),
+            bestSaves:             Math.max(best.bestSaves,             safeNum(row.saves)),
+            bestContributionScore: Math.max(best.bestContributionScore, safeNum(row.contribution_score)),
           }),
-          { bestScore: 0, bestGoals: 0, bestAssists: 0, bestSaves: 0, bestCarryScore: 0 }
+          { bestScore: 0, bestGoals: 0, bestAssists: 0, bestSaves: 0, bestContributionScore: 0 }
         );
 
         // Fetch game results + all players in those games
@@ -481,7 +481,7 @@ const Profile = () => {
                     { label: "Goals",  value: profileStats.bestGoals },
                     { label: "Assists",value: profileStats.bestAssists },
                     { label: "Saves",  value: profileStats.bestSaves },
-                    { label: "Carry",  value: profileStats.bestCarryScore > 0 ? profileStats.bestCarryScore : null },
+                    { label: "Contribution", value: profileStats.bestContributionScore > 0 ? profileStats.bestContributionScore : null },
                   ].map(({ label, value }) => (
                     <div key={label} className="flex flex-col items-center gap-0.5 py-2 px-1 rounded-lg bg-background/60">
                       <span className="font-display font-bold text-lg leading-none">

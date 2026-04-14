@@ -60,7 +60,7 @@ type SummaryStats = {
   mvpRate: number | null;
   teamGoalsForPerGame: number | null;
   teamGoalsAgainstPerGame: number | null;
-  avgCarryScore: number | null;
+  avgContributionScore: number | null;
 };
 
 type TimeRange = "7d" | "30d" | "all";
@@ -111,7 +111,7 @@ const buildSummary = (t: {
   if (!t.games) return {
     games: 0, wins: 0, winRate: null, pointsPerGame: null, goalsPerGame: null,
     assistsPerGame: null, savesPerGame: null, shotsPerGame: null, mvpRate: null,
-    teamGoalsForPerGame: null, teamGoalsAgainstPerGame: null, avgCarryScore: null,
+    teamGoalsForPerGame: null, teamGoalsAgainstPerGame: null, avgContributionScore: null,
   };
   return {
     games: t.games,
@@ -125,7 +125,7 @@ const buildSummary = (t: {
     mvpRate: (t.mvp / t.games) * 100,
     teamGoalsForPerGame: t.teamGoalsFor / t.games,
     teamGoalsAgainstPerGame: t.teamGoalsAgainst / t.games,
-    avgCarryScore: t.carryGames > 0 ? t.carryTotal / t.carryGames : null,
+    avgContributionScore: t.carryGames > 0 ? t.carryTotal / t.carryGames : null,
   };
 };
 
@@ -148,7 +148,7 @@ const STAT_ROWS: StatRowDef[] = [
   { key: "mvpRate",               label: "MVP Rate",          formatter: formatPercent,                    highlight: "higher" },
   { key: "teamGoalsForPerGame",   label: "Team Goals For",    formatter: (v) => formatAverage(v, 2),      highlight: "higher" },
   { key: "teamGoalsAgainstPerGame", label: "Team Goals Against", formatter: (v) => formatAverage(v, 2),   highlight: "lower"  },
-  { key: "avgCarryScore",         label: "Avg Carry Score",   formatter: (v) => formatAverage(v, 1),      highlight: "higher" },
+  { key: "avgContributionScore",   label: "Avg Contribution Score", formatter: (v) => formatAverage(v, 1), highlight: "higher" },
 ];
 
 /** Solo summary: clean card grid */
@@ -319,13 +319,13 @@ const Stats = () => {
         if (allIds.length > 0) {
           gamesRes = await supabase
             .from("games")
-            .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, carry_score, submission_status, submitted_by, created_at, game_id)")
+            .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, contribution_score, submission_status, submitted_by, created_at, game_id)")
             .or(`created_by.eq.${user.id},id.in.(${allIds.join(",")})`)
             .order("played_at", { ascending: true });
         } else {
           gamesRes = await supabase
             .from("games")
-            .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, carry_score, submission_status, submitted_by, created_at, game_id)")
+            .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, contribution_score, submission_status, submitted_by, created_at, game_id)")
             .eq("created_by", user.id)
             .order("played_at", { ascending: true });
         }
@@ -399,14 +399,14 @@ const Stats = () => {
         const uAssists  = safeNumber(userRow.assists);
         const uSaves    = safeNumber(userRow.saves);
         const uShots    = safeNumber(userRow.shots);
-        const uCarry    = safeNumber(userRow.carry_score);
+        const uContrib  = safeNumber(userRow.contribution_score);
 
         ut.games++; ut.points += uScore; ut.goals += uGoals; ut.assists += uAssists;
         ut.saves += uSaves; ut.shots += uShots;
         ut.teamGoalsFor += teamFor; ut.teamGoalsAgainst += teamAgainst;
         if (game.result === "win") ut.wins++;
         if (userRow.is_mvp) ut.mvp++;
-        if (uCarry > 0) { ut.carryTotal += uCarry; ut.carryGames++; }
+        if (uContrib > 0) { ut.carryTotal += uContrib; ut.carryGames++; }
         uGames++; if (userRow.is_mvp) uMvp++;
 
         let teammateRow: GamePlayerRow | null = null;
@@ -414,7 +414,7 @@ const Stats = () => {
           teammateRow = findPlayer(players, teammateTarget);
           if (teammateRow) {
             const tScore = safeNumber(teammateRow.score), tGoals = safeNumber(teammateRow.goals), tAssists = safeNumber(teammateRow.assists), tSaves = safeNumber(teammateRow.saves), tShots = safeNumber(teammateRow.shots);
-            const tCarry = safeNumber(teammateRow.carry_score);
+            const tContrib = safeNumber(teammateRow.contribution_score);
             const tTeam  = teammateRow.team;
             const tFor   = players.filter((p) => p.team === tTeam).reduce((s, p) => s + safeNumber(p.goals), 0);
             const tAgainst = players.filter((p) => p.team !== tTeam).reduce((s, p) => s + safeNumber(p.goals), 0);
@@ -422,7 +422,7 @@ const Stats = () => {
             tt.teamGoalsFor += tFor; tt.teamGoalsAgainst += tAgainst;
             if (game.result === "win") tt.wins++;
             if (teammateRow.is_mvp) tt.mvp++;
-            if (tCarry > 0) { tt.carryTotal += tCarry; tt.carryGames++; }
+            if (tContrib > 0) { tt.carryTotal += tContrib; tt.carryGames++; }
             tGames++; if (teammateRow.is_mvp) tMvp++;
           }
         }
@@ -432,7 +432,7 @@ const Stats = () => {
           fullLabel: `Game ${gameNum} · ${format(new Date(game.played_at), "MMM d, yyyy")}`,
           points: uScore, goals: uGoals, assists: uAssists, saves: uSaves, shots: uShots,
           mvpRate:    uGames ? (uMvp / uGames) * 100 : 0,
-          carryScore: uCarry,
+          carryScore: uContrib,
           teammatePoints:    teammateRow ? safeNumber(teammateRow.score)   : null,
           teammateGoals:     teammateRow ? safeNumber(teammateRow.goals)   : null,
           teammateAssists:   teammateRow ? safeNumber(teammateRow.assists) : null,
@@ -455,7 +455,7 @@ const Stats = () => {
         const date  = new Date(dateKey);
         const count = dayGames.length;
 
-        let dayUScore = 0, dayUGoals = 0, dayUAssists = 0, dayUSaves = 0, dayUShots = 0, dayUCarry = 0, dayUMvp = 0;
+        let dayUScore = 0, dayUGoals = 0, dayUAssists = 0, dayUSaves = 0, dayUShots = 0, dayUContrib = 0, dayUMvp = 0;
         let dayUValid = 0;
         let dayTScore = 0, dayTGoals = 0, dayTAssists = 0, dayTSaves = 0, dayTShots = 0, dayTMvp = 0;
         let dayTValid = 0;
@@ -473,18 +473,18 @@ const Stats = () => {
           const uAssists   = safeNumber(userRow.assists);
           const uSaves     = safeNumber(userRow.saves);
           const uShots     = safeNumber(userRow.shots);
-          const uCarry     = safeNumber(userRow.carry_score);
+          const uContrib   = safeNumber(userRow.contribution_score);
 
           ut.games++; ut.points += uScore; ut.goals += uGoals; ut.assists += uAssists;
           ut.saves += uSaves; ut.shots += uShots;
           ut.teamGoalsFor += teamFor; ut.teamGoalsAgainst += teamAgainst;
           if (game.result === "win") ut.wins++;
           if (userRow.is_mvp) ut.mvp++;
-          if (uCarry > 0) { ut.carryTotal += uCarry; ut.carryGames++; }
+          if (uContrib > 0) { ut.carryTotal += uContrib; ut.carryGames++; }
           uGames++; if (userRow.is_mvp) uMvp++;
 
           dayUScore += uScore; dayUGoals += uGoals; dayUAssists += uAssists;
-          dayUSaves += uSaves; dayUShots += uShots; dayUCarry += uCarry;
+          dayUSaves += uSaves; dayUShots += uShots; dayUContrib += uContrib;
           if (userRow.is_mvp) dayUMvp++;
           dayUValid++;
 
@@ -492,7 +492,7 @@ const Stats = () => {
             const teammateRow = findPlayer(players, teammateTarget);
             if (teammateRow) {
               const tScore = safeNumber(teammateRow.score), tGoals = safeNumber(teammateRow.goals), tAssists = safeNumber(teammateRow.assists), tSaves = safeNumber(teammateRow.saves), tShots = safeNumber(teammateRow.shots);
-              const tCarry = safeNumber(teammateRow.carry_score);
+              const tContrib = safeNumber(teammateRow.contribution_score);
               const tTeam  = teammateRow.team;
               const tFor   = players.filter((p) => p.team === tTeam).reduce((s, p) => s + safeNumber(p.goals), 0);
               const tAgainst = players.filter((p) => p.team !== tTeam).reduce((s, p) => s + safeNumber(p.goals), 0);
@@ -500,7 +500,7 @@ const Stats = () => {
               tt.teamGoalsFor += tFor; tt.teamGoalsAgainst += tAgainst;
               if (game.result === "win") tt.wins++;
               if (teammateRow.is_mvp) tt.mvp++;
-              if (tCarry > 0) { tt.carryTotal += tCarry; tt.carryGames++; }
+              if (tContrib > 0) { tt.carryTotal += tContrib; tt.carryGames++; }
               tGames++; if (teammateRow.is_mvp) tMvp++;
 
               dayTScore += tScore; dayTGoals += tGoals; dayTAssists += tAssists;
@@ -517,12 +517,12 @@ const Stats = () => {
         data.push({
           label:     format(date, "MMM d"),
           fullLabel: format(date, "MMM d, yyyy") + (count > 1 ? ` (${count} games)` : ""),
-          points:    dayUScore   / dayUValid,
-          goals:     dayUGoals   / dayUValid,
-          assists:   dayUAssists / dayUValid,
-          saves:     dayUSaves   / dayUValid,
-          shots:     dayUShots   / dayUValid,
-          carryScore: dayUCarry  / dayUValid,
+          points:    dayUScore     / dayUValid,
+          goals:     dayUGoals    / dayUValid,
+          assists:   dayUAssists  / dayUValid,
+          saves:     dayUSaves    / dayUValid,
+          shots:     dayUShots    / dayUValid,
+          carryScore: dayUContrib / dayUValid,
           mvpRate:   uGames ? (uMvp / uGames) * 100 : 0,
           teammatePoints:    hasTeammateData ? dayTScore   / dayTValid : null,
           teammateGoals:     hasTeammateData ? dayTGoals   / dayTValid : null,
@@ -544,17 +544,17 @@ const Stats = () => {
     { id: "saves",      title: "Saves per Game",   description: "Defensive stops.",           userKey: "saves"      as const, teammateKey: "teammateSaves"    as const },
     { id: "shots",      title: "Shots per Game",   description: "Shot volume.",               userKey: "shots"      as const, teammateKey: "teammateShots"    as const },
     { id: "mvpRate",    title: "MVP Rate",          description: "Cumulative MVP %.",          userKey: "mvpRate"    as const, teammateKey: "teammateMvpRate"  as const, yAxisFormatter: (v: number) => `${Math.round(v)}%`, yAxisDomain: [0, 100] as [number, number] },
-    { id: "carryScore", title: "Carry Score",       description: "How much you carried each game.", userKey: "carryScore" as const, yAxisDomain: [0, 100] as [number, number] },
+    { id: "carryScore", title: "Contribution Score", description: "Your contribution score each game.", userKey: "carryScore" as const, yAxisDomain: [0, 100] as [number, number] },
   ];
 
-  const bestCarryGames = useMemo(() =>
+  const bestContributionGames = useMemo(() =>
     rangeFilteredGames
       .map((game) => {
         const userRow = findPlayer(game.game_players || [], userTarget);
-        return { game, carryScore: safeNumber(userRow?.carry_score) };
+        return { game, contributionScore: safeNumber(userRow?.contribution_score) };
       })
-      .filter((g) => g.carryScore > 0)
-      .sort((a, b) => b.carryScore - a.carryScore)
+      .filter((g) => g.contributionScore > 0)
+      .sort((a, b) => b.contributionScore - a.contributionScore)
       .slice(0, 5),
   [rangeFilteredGames, userTarget]);
 
@@ -667,15 +667,15 @@ const Stats = () => {
               <SoloSummaryGrid summary={userSummary} />
             )}
 
-            {/* Best Carry Performances */}
-            {bestCarryGames.length > 0 && (
+            {/* Best Contribution Performances */}
+            {bestContributionGames.length > 0 && (
               <Card className="border-border/50 bg-card/80">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base font-display">Best Carry Performances</CardTitle>
-                  <CardDescription className="text-xs">Your top carry games in the current filter</CardDescription>
+                  <CardTitle className="text-base font-display">Best Contribution Performances</CardTitle>
+                  <CardDescription className="text-xs">Your top contribution games in the current filter</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                  {bestCarryGames.map(({ game, carryScore }) => {
+                  {bestContributionGames.map(({ game, contributionScore }) => {
                     const userRow = findPlayer(game.game_players || [], userTarget);
                     const isWin   = game.result === "win";
                     return (
@@ -696,7 +696,7 @@ const Stats = () => {
                               {userRow.goals}G {userRow.assists}A {userRow.saves}S · {userRow.score}pts
                             </p>
                           )}
-                          <CarryMeter score={carryScore} size="md" />
+                          <CarryMeter score={contributionScore} size="md" />
                         </div>
                       </div>
                     );
@@ -724,15 +724,15 @@ const Stats = () => {
               ))}
             </div>
 
-            {/* Best Carry Performances */}
-            {bestCarryGames.length > 0 && (
+            {/* Best Contribution Performances */}
+            {bestContributionGames.length > 0 && (
               <Card className="border-border/50 bg-card/80">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base font-display">Best Carry Performances</CardTitle>
-                  <CardDescription className="text-xs">Your top carry games in the current filter</CardDescription>
+                  <CardTitle className="text-base font-display">Best Contribution Performances</CardTitle>
+                  <CardDescription className="text-xs">Your top contribution games in the current filter</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                  {bestCarryGames.map(({ game, carryScore }) => {
+                  {bestContributionGames.map(({ game, contributionScore }) => {
                     const userRow = findPlayer(game.game_players || [], userTarget);
                     const isWin   = game.result === "win";
                     return (
@@ -753,7 +753,7 @@ const Stats = () => {
                               {userRow.goals}G {userRow.assists}A {userRow.saves}S · {userRow.score}pts
                             </p>
                           )}
-                          <CarryMeter score={carryScore} size="md" />
+                          <CarryMeter score={contributionScore} size="md" />
                         </div>
                       </div>
                     );
