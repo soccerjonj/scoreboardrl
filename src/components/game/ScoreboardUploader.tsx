@@ -127,11 +127,17 @@ const ScoreboardUploader = ({ userRlName, onParsed }: ScoreboardUploaderProps) =
       return;
     }
 
-    // Standard images: compress first
+    // Standard images: only compress if over 2MB, otherwise send full quality
     try {
-      const compressed = await compressImage(file);
-      setPreview(compressed);
-      parseScoreboard(compressed, "image/jpeg", file);
+      if (file.size > 2 * 1024 * 1024) {
+        const compressed = await compressImage(file);
+        setPreview(compressed);
+        parseScoreboard(compressed, "image/jpeg", file);
+      } else {
+        const raw = await readRaw(file);
+        setPreview(raw);
+        parseScoreboard(raw, file.type || "image/jpeg", file);
+      }
     } catch {
       toast({ title: "Failed to process image", description: "Please try again.", variant: "destructive" });
     }
