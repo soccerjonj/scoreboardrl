@@ -454,6 +454,7 @@ const Dashboard = () => {
                 const isWin      = game.result === "win";
                 const isExpanded = expandedGameId === game.id;
                 const userCarry  = userRow?.contribution_score ?? 0;
+                const teamSize   = game.game_mode === "1v1" ? 1 : game.game_mode === "2v2" ? 2 : 3;
 
                 // Sort players: blue team first, then orange; highest contribution first within team
                 const sortedPlayers = [...players].sort((a, b) => {
@@ -507,7 +508,7 @@ const Dashboard = () => {
                           {userCarry > 0 && (
                                 <div className="flex items-center gap-1.5 mt-1 justify-end">
                                   <span className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Contribution</span>
-                                  <CarryMeter score={userCarry} size="sm" />
+                                  <CarryMeter score={userCarry} teamSize={teamSize} size="sm" />
                                 </div>
                               )}
                             </div>
@@ -586,7 +587,7 @@ const Dashboard = () => {
                                             <span className="text-xs font-mono font-bold w-12 text-right">{p.score}</span>
                                             <div className="w-28 flex justify-end">
                                               {(p.contribution_score ?? 0) >= 1
-                                                ? <CarryMeter score={p.contribution_score!} size="sm" />
+                                                ? <CarryMeter score={p.contribution_score!} teamSize={teamSize} size="sm" />
                                                 : <span className="text-[10px] text-muted-foreground/40 font-mono">—</span>
                                               }
                                             </div>

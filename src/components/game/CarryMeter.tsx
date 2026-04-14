@@ -1,15 +1,21 @@
 interface ContributionMeterProps {
-  score: number;
+  score: number;       // 1–100, represents % share of team contribution
+  teamSize?: number;   // helps set colour thresholds (default 2)
   size?: "sm" | "md";
 }
 
-const ContributionMeter = ({ score, size = "md" }: ContributionMeterProps) => {
+const ContributionMeter = ({ score, teamSize = 2, size = "md" }: ContributionMeterProps) => {
   if (!score || score < 1) return null;
 
+  // "Above average" threshold depends on team size (equal split = 100/teamSize)
+  const equalShare = Math.round(100 / teamSize);
+  const highThreshold = equalShare + 20; // notably above average
+  const midThreshold  = equalShare - 5;  // roughly average or above
+
   const color =
-    score >= 70
+    score >= highThreshold
       ? "bg-rl-purple"
-      : score >= 40
+      : score >= midThreshold
       ? "bg-primary"
       : "bg-muted-foreground";
 
@@ -24,7 +30,7 @@ const ContributionMeter = ({ score, size = "md" }: ContributionMeterProps) => {
           style={{ width: `${score}%` }}
         />
       </div>
-      <span className="text-xs font-mono text-muted-foreground">{score}</span>
+      <span className="text-xs font-mono text-muted-foreground">{score}%</span>
     </div>
   );
 };
