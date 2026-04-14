@@ -25,6 +25,7 @@ Deno.serve(async (req) => {
     const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
     if (!GEMINI_API_KEY) return fail("GEMINI_API_KEY is not configured");
 
+
     let body: { image_base64?: string; user_rl_name?: string; mime_type?: string };
     try {
       body = await req.json();
@@ -73,7 +74,7 @@ Return ONLY valid JSON with no extra text or markdown:
 
     for (let attempt = 1; attempt <= 3; attempt++) {
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -81,7 +82,11 @@ Return ONLY valid JSON with no extra text or markdown:
         }
       );
 
-      if (res.status === 429) return fail("Rate limited. Please try again in a moment.");
+      if (res.status === 429) {
+        const rateLimitBody = await res.text();
+        console.error("Gemini 429:", rateLimitBody);
+        return fail(`Rate limited by Gemini: ${rateLimitBody.slice(0, 200)}`);
+      }
 
       if (!res.ok) {
         const errBody = await res.text();
