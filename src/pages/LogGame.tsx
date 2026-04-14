@@ -637,7 +637,7 @@ const LogGame = () => {
                         {entries.map(([name, score]) => (
                           <div key={name} className="flex items-center justify-between">
                             <span className="text-sm font-medium">{name}</span>
-                            <CarryMeter score={score} size="sm" />
+                            <CarryMeter score={score} teamSize={gameMode === "1v1" ? 1 : gameMode === "2v2" ? 2 : 3} size="sm" />
                           </div>
                         ))}
                       </div>
