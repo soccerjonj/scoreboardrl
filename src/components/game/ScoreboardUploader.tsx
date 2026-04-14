@@ -67,21 +67,21 @@ const ScoreboardUploader = ({ userRlName, onParsed }: ScoreboardUploaderProps) =
     });
   };
 
-  const parseScoreboard = async (base64: string) => {
+  const parseScoreboard = async (base64: string, mimeType: string, originalFile: File) => {
     setParsing(true);
     try {
       const { data, error } = await supabase.functions.invoke("parse-scoreboard", {
         body: {
           image_base64: base64.split(",")[1],
           user_rl_name: userRlName,
-          mime_type: "image/jpeg",
+          mime_type: mimeType,
         },
       });
 
       if (error) throw error;
       if (data.error) throw new Error(data.error);
 
-      onParsed(data, file);
+      onParsed(data, originalFile);
       toast({ title: "Scoreboard parsed!", description: `Found ${data.players.length} players in a ${data.game_mode} ${data.game_type} game.` });
     } catch (err: any) {
       toast({
@@ -94,16 +94,44 @@ const ScoreboardUploader = ({ userRlName, onParsed }: ScoreboardUploaderProps) =
     }
   };
 
+  const readRaw = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target?.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+  const isHeic = (file: File) =>
+    file.type === "image/heic" ||
+    file.type === "image/heif" ||
+    file.name.toLowerCase().endsWith(".heic") ||
+    file.name.toLowerCase().endsWith(".heif");
+
   const handleFile = async (file: File) => {
-    if (!file.type.startsWith("image/")) {
+    if (!file.type.startsWith("image/") && !isHeic(file)) {
       toast({ title: "Invalid file", description: "Please upload an image.", variant: "destructive" });
       return;
     }
     setSelectedFile(file);
+
+    // HEIC: Canvas can't decode it in Chrome — send raw to Gemini which supports it
+    if (isHeic(file)) {
+      try {
+        const raw = await readRaw(file);
+        setPreview(null); // no preview for HEIC in Chrome
+        parseScoreboard(raw, "image/heic", file);
+      } catch {
+        toast({ title: "Failed to read image", description: "Please try again.", variant: "destructive" });
+      }
+      return;
+    }
+
+    // Standard images: compress first
     try {
       const compressed = await compressImage(file);
       setPreview(compressed);
-      parseScoreboard(compressed);
+      parseScoreboard(compressed, "image/jpeg", file);
     } catch {
       toast({ title: "Failed to process image", description: "Please try again.", variant: "destructive" });
     }
