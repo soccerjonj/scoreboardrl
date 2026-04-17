@@ -45,15 +45,28 @@ RULES:
 4. Count players per team to determine game_mode: 1="1v1", 2="2v2", 3="3v3".
 5. game_type is "competitive" if ANY rank/MMR/division info appears at the bottom. Otherwise "casual".
 6. ${user_rl_name ? `result: "win" if "${user_rl_name}"'s team has more goals, "loss" otherwise.` : 'Set result to "win" or "loss" based on which team has more goals for the top (blue) team.'}
-7. division_change: "up", "down", or "none" based on indicators at the bottom of the screen.
+7. division_change: "up", "down", or "none" based on rank change indicators at the bottom.
 8. MMR: two numbers left of each player avatar — [mmr_change] [mmr]. Set to null if not visible.
+9. new_rank_tier + new_rank_division: Read the CURRENT TIER shown at the bottom of the screen AFTER the match (e.g. "CURRENT TIER: PLATINUM III"). This is the rank the player IS NOW at. Map it exactly:
+   - "Bronze 1"→"bronze_1", "Bronze 2"→"bronze_2", "Bronze 3"→"bronze_3"
+   - "Silver 1"→"silver_1", "Silver 2"→"silver_2", "Silver 3"→"silver_3"
+   - "Gold 1"→"gold_1", "Gold 2"→"gold_2", "Gold 3"→"gold_3"
+   - "Platinum 1"→"platinum_1", "Platinum 2"→"platinum_2", "Platinum 3"→"platinum_3"
+   - "Diamond 1"→"diamond_1", "Diamond 2"→"diamond_2", "Diamond 3"→"diamond_3"
+   - "Champion 1"→"champion_1", "Champion 2"→"champion_2", "Champion 3"→"champion_3"
+   - "Grand Champion 1"→"grand_champion_1", "Grand Champion 2"→"grand_champion_2", "Grand Champion 3"→"grand_champion_3"
+   - "Supersonic Legend"→"supersonic_legend" (no division)
+   For new_rank_division read the division indicator (I, II, III, IV). Set both to null if not visible.
+   IMPORTANT: This is the RESULTING rank after this game, not the rank before. A player can skip multiple divisions in one game.
 
 Return ONLY valid JSON with no extra text or markdown:
 {
   "game_mode": "2v2",
   "game_type": "competitive",
   "result": "win",
-  "division_change": "none",
+  "division_change": "up",
+  "new_rank_tier": "diamond_1",
+  "new_rank_division": "I",
   "players": [
     {"name":"PlayerName","team":"blue","score":450,"goals":2,"assists":1,"saves":3,"shots":5,"is_mvp":true,"mmr":847,"mmr_change":12}
   ]
