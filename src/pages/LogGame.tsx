@@ -137,6 +137,8 @@ const LogGame = () => {
   const [rlName, setRlName] = useState<string | null>(null);
   const [step, setStep] = useState<"upload" | "review">("upload");
   const [currentRank, setCurrentRank] = useState<{ rank_tier: RankTier; rank_division: RankDivision | null } | null>(null);
+  // Rank parsed directly from the scoreboard — more accurate than shiftRank inference
+  const [parsedNewRank, setParsedNewRank] = useState<{ rank_tier: RankTier; rank_division: RankDivision | null } | null>(null);
   const [mmr, setMmr] = useState<number | null>(null);
   const [mmrChange, setMmrChange] = useState<number | null>(null);
   const [conflictGame, setConflictGame] = useState<GameWithPlayers | null>(null);
@@ -173,7 +175,7 @@ const LogGame = () => {
   }, [user, gameMode, gameType]);
 
   const handleParsed = (
-    data: { game_mode: GameMode; game_type: GameType; players: PlayerStat[]; result?: "win" | "loss"; division_change?: "up" | "down" | "none" },
+    data: { game_mode: GameMode; game_type: GameType; players: PlayerStat[]; result?: "win" | "loss"; division_change?: "up" | "down" | "none"; new_rank_tier?: string; new_rank_division?: string },
     file: File
   ) => {
     setGameMode(data.game_mode);
@@ -203,6 +205,14 @@ const LogGame = () => {
     // Use AI-detected division change if available
     if (data.division_change) {
       setDivisionChange(data.division_change);
+    }
+
+    // Store the exact resulting rank if Gemini read it from the scoreboard
+    if (data.new_rank_tier) {
+      setParsedNewRank({
+        rank_tier: data.new_rank_tier as RankTier,
+        rank_division: (data.new_rank_division as RankDivision) ?? null,
+      });
     }
 
     // Extract user's MMR from their player row
@@ -420,18 +430,27 @@ const LogGame = () => {
         const rankUpdate: { rank_tier?: RankTier; rank_division?: RankDivision | null; mmr?: number | null } = {};
 
         if (divisionChange === "up" || divisionChange === "down") {
-          const { data: storedRank } = await supabase
-            .from("ranks")
-            .select("rank_tier, rank_division")
-            .eq("user_id", user.id)
-            .eq("game_mode", gameMode)
-            .eq("game_type", "competitive")
-            .single();
+          if (parsedNewRank) {
+            // Use the rank Gemini read directly from the scoreboard — handles
+            // multi-division jumps (e.g. Platinum III → Diamond I in one game)
+            rankUpdate.rank_tier = parsedNewRank.rank_tier;
+            rankUpdate.rank_division = parsedNewRank.rank_division;
+          } else {
+            // Fall back to shifting by one division when no parsed rank available
+            // (manual entry or older screenshot without visible CURRENT TIER)
+            const { data: storedRank } = await supabase
+              .from("ranks")
+              .select("rank_tier, rank_division")
+              .eq("user_id", user.id)
+              .eq("game_mode", gameMode)
+              .eq("game_type", "competitive")
+              .single();
 
-          if (storedRank) {
-            const newRank = shiftRank(storedRank.rank_tier, storedRank.rank_division, divisionChange);
-            rankUpdate.rank_tier = newRank.rank_tier;
-            rankUpdate.rank_division = newRank.rank_division;
+            if (storedRank) {
+              const newRank = shiftRank(storedRank.rank_tier, storedRank.rank_division, divisionChange);
+              rankUpdate.rank_tier = newRank.rank_tier;
+              rankUpdate.rank_division = newRank.rank_division;
+            }
           }
         }
 
@@ -568,7 +587,10 @@ const LogGame = () => {
                           {divisionChange === "none" || !divisionChange
                             ? formatRank(currentRank.rank_tier, currentRank.rank_division)
                             : (() => {
-                                const next = shiftRank(currentRank.rank_tier, currentRank.rank_division, divisionChange as "up" | "down");
+                                // Prefer the rank Gemini read from the scoreboard; fall back to +1 shift
+                                const next = parsedNewRank
+                                  ? parsedNewRank
+                                  : shiftRank(currentRank.rank_tier, currentRank.rank_division, divisionChange as "up" | "down");
                                 return (
                                   <>
                                     <span>{formatRank(currentRank.rank_tier, currentRank.rank_division)}</span>
