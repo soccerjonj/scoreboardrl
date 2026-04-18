@@ -358,10 +358,10 @@ const BestContributionCard = ({
                         const isUser = matchesTarget(p, userTarget);
                         return (
                           <div key={p.id} className={`grid grid-cols-[1fr_2.5rem_2rem_2.5rem_2rem_2rem] gap-x-1 items-start py-1.5 rounded-md ${isUser ? "bg-primary/5 px-2 -mx-2" : ""}`}>
-                            {/* 1fr column: name + mvp on top, contribution bar below */}
-                            <div>
-                              <div className="flex items-center gap-1.5">
-                                <span className={`text-xs font-medium leading-snug ${isUser ? "text-primary" : "text-foreground"}`}>
+                            {/* 1fr column: min-w-0 lets CSS grid shrink it; name wraps rather than overflowing */}
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className={`text-xs font-medium leading-snug break-words min-w-0 ${isUser ? "text-primary" : "text-foreground"}`}>
                                   {p.player_name}
                                 </span>
                                 {p.is_mvp && <span className="text-[9px] text-yellow-400 font-bold leading-snug flex-shrink-0">MVP</span>}

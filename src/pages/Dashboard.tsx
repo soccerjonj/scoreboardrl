@@ -595,16 +595,16 @@ const Dashboard = () => {
                     {/* Main row */}
                     <CardContent className="py-3 px-4">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
                           <span className={`w-2 h-8 rounded-full flex-shrink-0 ${isWin ? "bg-rl-green" : "bg-rl-red"}`} />
-                          <div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-display font-bold text-sm">{isWin ? "WIN" : "LOSS"}</span>
-                              <Badge variant="outline" className="text-[10px] px-1.5 py-0">{game.game_mode}</Badge>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-nowrap">
+                              <span className="font-display font-bold text-sm flex-shrink-0">{isWin ? "WIN" : "LOSS"}</span>
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 flex-shrink-0">{game.game_mode}</Badge>
                               {game.division_change && game.division_change !== "none" && (
                                 <Badge
                                   variant="outline"
-                                  className={`text-[10px] px-1.5 py-0 ${
+                                  className={`text-[10px] px-1.5 py-0 flex-shrink-0 ${
                                     game.division_change === "up"
                                       ? "border-rl-green/50 text-rl-green"
                                       : "border-rl-red/50 text-rl-red"
@@ -673,10 +673,10 @@ const Dashboard = () => {
                                   const isUser = (userTarget.userId && p.user_id === userTarget.userId) || userTarget.names.includes(normalizeName(p.player_name));
                                   return (
                                     <div key={p.id} className={`grid grid-cols-[1fr_2.5rem_2rem_2.5rem_2rem_2rem] gap-x-1 items-start py-1.5 px-2 rounded-md ${isUser ? "bg-primary/5" : ""}`}>
-                                      {/* 1fr column: name + mvp on top, contribution bar below */}
-                                      <div>
-                                        <div className="flex items-center gap-1.5">
-                                          <span className={`text-xs font-medium leading-snug ${isUser ? "text-primary" : "text-foreground"}`}>
+                                      {/* 1fr column: min-w-0 lets CSS grid shrink it; name wraps rather than overflowing */}
+                                      <div className="min-w-0">
+                                        <div className="flex items-center gap-1.5 min-w-0">
+                                          <span className={`text-xs font-medium leading-snug break-words min-w-0 ${isUser ? "text-primary" : "text-foreground"}`}>
                                             {p.player_name}
                                           </span>
                                           {p.is_mvp && (
