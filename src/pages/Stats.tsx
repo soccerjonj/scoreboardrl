@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { format } from "date-fns";
-import { Loader2, BarChart2, LineChart as LineChartIcon, FilterX } from "lucide-react";
+import { Loader2, BarChart2, LineChart as LineChartIcon, FilterX, Filter, ChevronDown, ChevronUp } from "lucide-react";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -251,13 +251,13 @@ const StatChart = ({ title, description, data, userKey, teammateKey, teammateLab
   const tickInterval = data.length <= 10 ? 0 : data.length <= 20 ? 1 : data.length <= 40 ? 2 : Math.floor(data.length / 10);
 
   return (
-    <Card className="border-border/50 bg-card/80">
+    <Card className="border-border/50 bg-card/80 overflow-hidden">
       <CardHeader className="pb-2">
         <CardTitle className="text-base font-display">{title}</CardTitle>
         <CardDescription className="text-xs">{description}</CardDescription>
       </CardHeader>
-      <CardContent>
-        <ChartContainer config={chartConfig} className="h-52 w-full">
+      <CardContent className="overflow-hidden">
+        <ChartContainer config={chartConfig} className="h-52 w-full max-w-full">
           <LineChart data={data} margin={{ left: 6, right: 12, top: 8, bottom: 0 }}>
             <CartesianGrid vertical={false} strokeDasharray="4 4" />
             <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} interval={tickInterval} />
@@ -272,6 +272,114 @@ const StatChart = ({ title, description, data, userKey, teammateKey, teammateLab
     </Card>
   );
 };
+
+// ─── Best Contribution Performances card ─────────────────────────────────────
+
+const BestContributionCard = ({
+  bestContributionGames,
+  userTarget,
+  expandedGameId,
+  onToggleGame,
+}: {
+  bestContributionGames: Array<{ game: GameWithPlayers; contributionScore: number }>;
+  userTarget: PlayerMatchTarget;
+  expandedGameId: string | null;
+  onToggleGame: (id: string) => void;
+}) => (
+  <Card className="border-border/50 bg-card/80">
+    <CardHeader className="pb-2">
+      <CardTitle className="text-base font-display">Best Contribution Performances</CardTitle>
+      <CardDescription className="text-xs">Your top contribution games in the current filter</CardDescription>
+    </CardHeader>
+    <CardContent className="space-y-2">
+      {bestContributionGames.map(({ game, contributionScore }) => {
+        const userRow  = findPlayer(game.game_players || [], userTarget);
+        const isWin    = game.result === "win";
+        const isOpen   = expandedGameId === game.id;
+        const teamSize = game.game_mode === "1v1" ? 1 : game.game_mode === "2v2" ? 2 : 3;
+        const sortedPlayers = [...(game.game_players || [])].sort((a, b) => {
+          if ((a.team ?? "blue") < (b.team ?? "orange")) return -1;
+          if ((a.team ?? "blue") > (b.team ?? "orange")) return  1;
+          return (b.contribution_score ?? 0) - (a.contribution_score ?? 0);
+        });
+
+        return (
+          <div
+            key={game.id}
+            className="rounded-lg bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
+            onClick={() => onToggleGame(game.id)}
+          >
+            {/* Summary row */}
+            <div className="flex items-center justify-between py-2 px-3">
+              <div className="flex items-center gap-3">
+                <span className={`w-1.5 h-6 rounded-full flex-shrink-0 ${isWin ? "bg-rl-green" : "bg-rl-red"}`} />
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-display font-bold">{isWin ? "WIN" : "LOSS"}</span>
+                    <Badge variant="outline" className="text-[9px] px-1 py-0">{game.game_mode}</Badge>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">{format(new Date(game.played_at), "MMM d, yyyy")}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                {userRow && (
+                  <p className="text-xs text-muted-foreground font-mono hidden sm:block">
+                    {userRow.goals}G {userRow.assists}A {userRow.saves}S · {userRow.score}pts
+                  </p>
+                )}
+                <CarryMeter score={contributionScore} size="md" />
+                {isOpen
+                  ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                  : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />}
+              </div>
+            </div>
+
+            {/* Expanded scoreboard */}
+            {isOpen && (
+              <div className="px-3 pb-3 pt-1 border-t border-border/30 space-y-1" onClick={(e) => e.stopPropagation()}>
+                {["blue", "orange"].map((teamColor) => {
+                  const teamRows = sortedPlayers.filter((p) => (p.team ?? "blue") === teamColor);
+                  if (teamRows.length === 0) return null;
+                  return (
+                    <div key={teamColor}>
+                      <p className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${teamColor === "blue" ? "text-blue-400" : "text-orange-400"}`}>
+                        {teamColor}
+                      </p>
+                      {teamRows.map((p) => {
+                        const isUser = matchesTarget(p, userTarget);
+                        return (
+                          <div key={p.id} className={`flex items-center justify-between py-1 px-2 rounded-md ${isUser ? "bg-primary/5" : ""}`}>
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className={`text-xs font-medium truncate ${isUser ? "text-primary" : "text-foreground"}`}>
+                                {p.player_name}
+                              </span>
+                              {p.is_mvp && <span className="text-[9px] text-yellow-400 font-bold">MVP</span>}
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <span className="text-xs text-muted-foreground font-mono">
+                                {p.goals}G {p.assists}A {p.saves}S {p.shots}Sh
+                              </span>
+                              <span className="text-xs font-mono font-bold w-12 text-right">{p.score}</span>
+                              <div className="w-20 flex justify-end">
+                                {(p.contribution_score ?? 0) >= 1
+                                  ? <CarryMeter score={p.contribution_score!} teamSize={teamSize} size="sm" />
+                                  : <span className="text-[10px] text-muted-foreground/40 font-mono">—</span>}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </CardContent>
+  </Card>
+);
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -289,6 +397,8 @@ const Stats = () => {
   const [selectedFriendId, setSelectedFriendId] = useState<string>("all");
   const [timeRange, setTimeRange] = useState<TimeRange>("all");
   const [viewMode, setViewMode] = useState<ViewMode>("summary");
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
+  const [expandedContribGameId, setExpandedContribGameId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/auth");
@@ -375,6 +485,15 @@ const Stats = () => {
     cutoff.setDate(cutoff.getDate() - (timeRange === "7d" ? 7 : 30));
     return filteredGames.filter((g) => new Date(g.played_at) >= cutoff);
   }, [filteredGames, timeRange]);
+
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (selectedMode !== "all") count++;
+    if (selectedType !== "all") count++;
+    if (selectedFriendId !== "all") count++;
+    if (timeRange !== "all") count++;
+    return count;
+  }, [selectedMode, selectedType, selectedFriendId, timeRange]);
 
   const { chartData, userSummary, teammateSummary } = useMemo(() => {
     const ut = { games: 0, wins: 0, points: 0, goals: 0, assists: 0, saves: 0, shots: 0, mvp: 0, teamGoalsFor: 0, teamGoalsAgainst: 0, carryTotal: 0, carryGames: 0 };
@@ -595,74 +714,124 @@ const Stats = () => {
           <p className="text-sm text-muted-foreground">Detailed performance analytics</p>
         </div>
 
-        {/* Filters */}
-        <div className="grid gap-3 grid-cols-2 md:grid-cols-3">
-          <div className="space-y-1">
-            <Label className="text-xs">Mode</Label>
-            <Select value={selectedMode} onValueChange={(v) => setSelectedMode(v as GameMode | "all")}>
-              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-              <SelectContent>{gameModes.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Type</Label>
-            <Select value={selectedType} onValueChange={(v) => setSelectedType(v as GameType | "all")}>
-              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-              <SelectContent>{gameTypes.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1 col-span-2 md:col-span-1">
-            <Label className="text-xs">Teammate</Label>
-            <Select value={selectedFriendId} onValueChange={setSelectedFriendId} disabled={friendOptions.length === 0}>
-              <SelectTrigger className="h-9"><SelectValue placeholder="All" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All teammates</SelectItem>
-                {friendOptions.map((f) => <SelectItem key={f.id} value={f.id}>{f.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+        {/* Compact filter bar */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            {/* Filters toggle button */}
+            <button
+              onClick={() => setFiltersExpanded((v) => !v)}
+              className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
+            >
+              <Filter className="w-4 h-4" />
+              <span>Filters</span>
+              {activeFilterCount > 0 && (
+                <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
+                  {activeFilterCount}
+                </span>
+              )}
+              {filtersExpanded
+                ? <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+            </button>
 
-        {/* Time range + View mode pills */}
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex gap-2">
-            {timeRangePills.map((pill) => (
+            {/* View mode toggle */}
+            <div className="flex gap-1 bg-muted rounded-full p-1">
               <button
-                key={pill.value}
-                onClick={() => setTimeRange(pill.value)}
-                className={`text-xs px-3 py-1 rounded-full font-medium transition-colors ${
-                  timeRange === pill.value
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                onClick={() => setViewMode("summary")}
+                className={`flex items-center gap-1.5 text-xs px-3 py-1 rounded-full font-medium transition-colors ${
+                  viewMode === "summary" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
                 }`}
               >
-                {pill.label}
+                <BarChart2 className="w-3 h-3" /> Summary
               </button>
-            ))}
+              <button
+                onClick={() => setViewMode("charts")}
+                className={`flex items-center gap-1.5 text-xs px-3 py-1 rounded-full font-medium transition-colors ${
+                  viewMode === "charts" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
+                }`}
+              >
+                <LineChartIcon className="w-3 h-3" /> Charts
+              </button>
+            </div>
           </div>
-          <div className="flex gap-1 bg-muted rounded-full p-1">
-            <button
-              onClick={() => setViewMode("summary")}
-              className={`flex items-center gap-1.5 text-xs px-3 py-1 rounded-full font-medium transition-colors ${
-                viewMode === "summary" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
-              }`}
-            >
-              <BarChart2 className="w-3 h-3" /> Summary
-            </button>
-            <button
-              onClick={() => setViewMode("charts")}
-              className={`flex items-center gap-1.5 text-xs px-3 py-1 rounded-full font-medium transition-colors ${
-                viewMode === "charts" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
-              }`}
-            >
-              <LineChartIcon className="w-3 h-3" /> Charts
-            </button>
-          </div>
+
+          {/* Collapsible filter panel */}
+          {filtersExpanded && (
+            <div className="bg-muted/30 rounded-xl p-4 space-y-4 border border-border/30">
+              {/* Time range */}
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="text-xs text-muted-foreground font-medium w-14">Time</span>
+                <div className="flex gap-2">
+                  {timeRangePills.map((pill) => (
+                    <button
+                      key={pill.value}
+                      onClick={() => setTimeRange(pill.value)}
+                      className={`text-xs px-3 py-1 rounded-full font-medium transition-colors ${
+                        timeRange === pill.value
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted text-muted-foreground hover:bg-muted/80"
+                      }`}
+                    >
+                      {pill.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Mode, Type, Teammate */}
+              <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Mode</Label>
+                  <Select value={selectedMode} onValueChange={(v) => setSelectedMode(v as GameMode | "all")}>
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>{gameModes.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Type</Label>
+                  <Select value={selectedType} onValueChange={(v) => setSelectedType(v as GameType | "all")}>
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>{gameTypes.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Teammate</Label>
+                  <Select value={selectedFriendId} onValueChange={setSelectedFriendId} disabled={friendOptions.length === 0}>
+                    <SelectTrigger className="h-9"><SelectValue placeholder="All" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All teammates</SelectItem>
+                      {friendOptions.map((f) => <SelectItem key={f.id} value={f.id}>{f.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Clear filters */}
+              {activeFilterCount > 0 && (
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => {
+                      setSelectedMode("all");
+                      setSelectedType("all");
+                      setSelectedFriendId("all");
+                      setTimeRange("all");
+                    }}
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+                  >
+                    <FilterX className="w-3.5 h-3.5" /> Clear all
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="flex flex-wrap gap-2">
           <Badge variant="outline">{userSummary.games} game{userSummary.games !== 1 ? "s" : ""}</Badge>
           {selectedFriend && <Badge variant="outline">with {selectedFriend.label}</Badge>}
+          {selectedMode !== "all" && <Badge variant="outline">{selectedMode}</Badge>}
+          {selectedType !== "all" && <Badge variant="outline">{selectedType}</Badge>}
+          {timeRange !== "all" && <Badge variant="outline">{timeRange === "7d" ? "Last 7 days" : "Last 30 days"}</Badge>}
         </div>
 
         {userSummary.games === 0 ? (
@@ -721,48 +890,19 @@ const Stats = () => {
               <SoloSummaryGrid summary={userSummary} />
             )}
 
-            {/* Best Contribution Performances */}
             {bestContributionGames.length > 0 && (
-              <Card className="border-border/50 bg-card/80">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base font-display">Best Contribution Performances</CardTitle>
-                  <CardDescription className="text-xs">Your top contribution games in the current filter</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {bestContributionGames.map(({ game, contributionScore }) => {
-                    const userRow = findPlayer(game.game_players || [], userTarget);
-                    const isWin   = game.result === "win";
-                    return (
-                      <div key={game.id} className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/30">
-                        <div className="flex items-center gap-3">
-                          <span className={`w-1.5 h-6 rounded-full flex-shrink-0 ${isWin ? "bg-rl-green" : "bg-rl-red"}`} />
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-display font-bold">{isWin ? "WIN" : "LOSS"}</span>
-                              <Badge variant="outline" className="text-[9px] px-1 py-0">{game.game_mode}</Badge>
-                            </div>
-                            <p className="text-[10px] text-muted-foreground">{format(new Date(game.played_at), "MMM d, yyyy")}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          {userRow && (
-                            <p className="text-xs text-muted-foreground font-mono hidden sm:block">
-                              {userRow.goals}G {userRow.assists}A {userRow.saves}S · {userRow.score}pts
-                            </p>
-                          )}
-                          <CarryMeter score={contributionScore} size="md" />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </CardContent>
-              </Card>
+              <BestContributionCard
+                bestContributionGames={bestContributionGames}
+                userTarget={userTarget}
+                expandedGameId={expandedContribGameId}
+                onToggleGame={(id) => setExpandedContribGameId((v) => v === id ? null : id)}
+              />
             )}
           </div>
         ) : (
           /* ── Charts view ── */
           <div className="space-y-4">
-            <div className="grid gap-4 lg:grid-cols-2">
+            <div className="grid gap-4 lg:grid-cols-2 overflow-x-hidden">
               {chartDefinitions.map((c) => (
                 <StatChart
                   key={c.id}
@@ -780,13 +920,13 @@ const Stats = () => {
 
             {/* MMR History chart */}
             {mmrHistory.length >= 2 && (
-              <Card className="border-border/50 bg-card/80">
+              <Card className="border-border/50 bg-card/80 overflow-hidden">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base font-display">MMR History</CardTitle>
                   <CardDescription className="text-xs">Your MMR progression over time (competitive games with MMR tracked)</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <ChartContainer config={{ mmr: { label: "MMR", color: "hsl(var(--rl-blue))" } }} className="h-52 w-full">
+                <CardContent className="overflow-hidden">
+                  <ChartContainer config={{ mmr: { label: "MMR", color: "hsl(var(--rl-blue))" } }} className="h-52 w-full max-w-full">
                     <LineChart data={mmrHistory} margin={{ left: 6, right: 12, top: 8, bottom: 0 }}>
                       <CartesianGrid vertical={false} strokeDasharray="4 4" />
                       <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} interval={mmrHistory.length <= 10 ? 0 : mmrHistory.length <= 20 ? 1 : Math.floor(mmrHistory.length / 10)} />
@@ -799,42 +939,13 @@ const Stats = () => {
               </Card>
             )}
 
-            {/* Best Contribution Performances */}
             {bestContributionGames.length > 0 && (
-              <Card className="border-border/50 bg-card/80">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base font-display">Best Contribution Performances</CardTitle>
-                  <CardDescription className="text-xs">Your top contribution games in the current filter</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {bestContributionGames.map(({ game, contributionScore }) => {
-                    const userRow = findPlayer(game.game_players || [], userTarget);
-                    const isWin   = game.result === "win";
-                    return (
-                      <div key={game.id} className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/30">
-                        <div className="flex items-center gap-3">
-                          <span className={`w-1.5 h-6 rounded-full flex-shrink-0 ${isWin ? "bg-rl-green" : "bg-rl-red"}`} />
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-display font-bold">{isWin ? "WIN" : "LOSS"}</span>
-                              <Badge variant="outline" className="text-[9px] px-1 py-0">{game.game_mode}</Badge>
-                            </div>
-                            <p className="text-[10px] text-muted-foreground">{format(new Date(game.played_at), "MMM d, yyyy")}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          {userRow && (
-                            <p className="text-xs text-muted-foreground font-mono hidden sm:block">
-                              {userRow.goals}G {userRow.assists}A {userRow.saves}S · {userRow.score}pts
-                            </p>
-                          )}
-                          <CarryMeter score={contributionScore} size="md" />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </CardContent>
-              </Card>
+              <BestContributionCard
+                bestContributionGames={bestContributionGames}
+                userTarget={userTarget}
+                expandedGameId={expandedContribGameId}
+                onToggleGame={(id) => setExpandedContribGameId((v) => v === id ? null : id)}
+              />
             )}
           </div>
         )}

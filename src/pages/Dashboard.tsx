@@ -38,6 +38,8 @@ const rankDisplayName = (tier: RankTier): string =>
 const gameModeLabels: Record<GameMode, string> = { "1v1": "1v1", "2v2": "2v2", "3v3": "3v3" };
 const normalizeName  = (v?: string | null) => v?.trim().toLowerCase() ?? "";
 
+type PlayerEditValues = { score: number; goals: number; assists: number; saves: number; shots: number };
+
 const Dashboard = () => {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
@@ -49,8 +51,8 @@ const Dashboard = () => {
   const [ranksExpanded, setRanksExpanded] = useState(false);
   const [rlName, setRlName]               = useState<string | null>(null);
   const [expandedGameId, setExpandedGameId] = useState<string | null>(null);
-  const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
-  const [editValues, setEditValues] = useState<{ score: number; goals: number; assists: number; saves: number; shots: number }>({ score: 0, goals: 0, assists: 0, saves: 0, shots: 0 });
+  const [editingGameId, setEditingGameId] = useState<string | null>(null);
+  const [editValuesMap, setEditValuesMap] = useState<Record<string, PlayerEditValues>>({});
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -94,7 +96,7 @@ const Dashboard = () => {
             .from("games")
             .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, contribution_score, submission_status, submitted_by, created_at, game_id)")
             .eq("created_by", user.id)
-            
+
             .order("played_at", { ascending: false })
             .limit(20);
         }
@@ -205,26 +207,35 @@ const Dashboard = () => {
     }
   }, [loading]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Inline stat editing ──────────────────────────────────────────────────────
-  const handleStatSave = async (game: GameWithPlayers, playerId: string) => {
+  // ── Inline stat editing (whole scoreboard at once) ────────────────────────────
+  const handleAllStatsSave = async (game: GameWithPlayers) => {
     if (!user) return;
     try {
-      const { error } = await supabase
-        .from("game_players")
-        .update({
-          score:   editValues.score,
-          goals:   editValues.goals,
-          assists: editValues.assists,
-          saves:   editValues.saves,
-          shots:   editValues.shots,
+      const players = game.game_players ?? [];
+      const updatedPlayers = players.map((p) => ({
+        ...p,
+        ...(editValuesMap[p.id] ?? {}),
+      }));
+
+      // Save each player's stats
+      await Promise.all(
+        updatedPlayers.map((p) => {
+          const vals = editValuesMap[p.id];
+          if (!vals) return Promise.resolve({ error: null });
+          return supabase
+            .from("game_players")
+            .update({
+              score:   vals.score,
+              goals:   vals.goals,
+              assists: vals.assists,
+              saves:   vals.saves,
+              shots:   vals.shots,
+            })
+            .eq("id", p.id);
         })
-        .eq("id", playerId);
-      if (error) throw error;
+      );
 
       // Recalculate contribution scores with updated stats
-      const updatedPlayers = (game.game_players ?? []).map((p) =>
-        p.id === playerId ? { ...p, ...editValues } : p
-      );
       const contributionMap = calculateContributionScores(
         updatedPlayers.map((p) => ({
           name:    p.player_name,
@@ -256,7 +267,8 @@ const Dashboard = () => {
         )
       );
 
-      setEditingPlayerId(null);
+      setEditingGameId(null);
+      setEditValuesMap({});
       toast({ title: "Stats updated" });
     } catch (err: any) {
       toast({ title: "Failed to update", description: err.message, variant: "destructive" });
@@ -279,6 +291,7 @@ const Dashboard = () => {
   // ── Quick stats ─────────────────────────────────────────────────────────────
   const quickStats = useMemo(() => {
     let totalGames = 0, wins = 0, totalScore = 0, totalGoals = 0, mvps = 0;
+    let totalContrib = 0, contribGames = 0;
     const results: string[] = [];
     games.forEach((game) => {
       const userRow = game.game_players?.find(
@@ -290,36 +303,32 @@ const Dashboard = () => {
       totalScore += userRow.score;
       totalGoals += userRow.goals;
       if (userRow.is_mvp) mvps++;
+      const cs = userRow.contribution_score ?? 0;
+      if (cs > 0) { totalContrib += cs; contribGames++; }
       results.push(game.result);
     });
 
-    // Current streak: consecutive wins from most recent game backwards
-    let currentStreak = 0;
-    for (const r of results) {
-      if (r === "win") currentStreak++;
-      else break;
-    }
-
-    // Longest streak: longest run of consecutive wins in entire list
-    let longestStreak = 0, runningStreak = 0;
-    for (const r of results) {
-      if (r === "win") {
-        runningStreak++;
-        if (runningStreak > longestStreak) longestStreak = runningStreak;
-      } else {
-        runningStreak = 0;
+    // Current streak: direction + consecutive count from most recent game
+    let currentStreakCount = 0;
+    let currentStreakType: "win" | "loss" | null = null;
+    if (results.length > 0) {
+      currentStreakType = results[0] === "win" ? "win" : "loss";
+      for (const r of results) {
+        if (r === currentStreakType) currentStreakCount++;
+        else break;
       }
     }
 
     return {
       totalGames,
       wins,
-      winRate:  totalGames ? Math.round((wins / totalGames) * 100) : 0,
-      avgScore: totalGames ? Math.round(totalScore / totalGames) : 0,
-      totalGoals,
-      mvps,
-      currentStreak,
-      longestStreak,
+      winRate:     totalGames ? Math.round((wins / totalGames) * 100) : 0,
+      avgScore:    totalGames ? Math.round(totalScore / totalGames) : 0,
+      goalsPerGame: totalGames ? totalGoals / totalGames : 0,
+      mvpRate:     totalGames ? Math.round((mvps / totalGames) * 100) : 0,
+      currentStreakCount,
+      currentStreakType,
+      avgContributionScore: contribGames ? totalContrib / contribGames : null,
     };
   }, [games, userTarget]);
 
@@ -465,8 +474,8 @@ const Dashboard = () => {
                 <Zap className="w-4 h-4 text-rl-green" />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Total Goals</p>
-                <p className="font-display font-bold text-lg">{quickStats.totalGoals}</p>
+                <p className="text-xs text-muted-foreground">Goals / Game</p>
+                <p className="font-display font-bold text-lg">{quickStats.goalsPerGame.toFixed(2)}</p>
               </div>
             </CardContent>
           </Card>
@@ -476,19 +485,29 @@ const Dashboard = () => {
                 <Trophy className="w-4 h-4 text-rl-purple" />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">MVPs</p>
-                <p className="font-display font-bold text-lg">{quickStats.mvps}</p>
+                <p className="text-xs text-muted-foreground">MVP Rate</p>
+                <p className="font-display font-bold text-lg">{quickStats.mvpRate}%</p>
               </div>
             </CardContent>
           </Card>
           <Card className="border-border/50 bg-card/80">
             <CardContent className="pt-4 pb-3 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-rl-green/10 flex items-center justify-center">
-                <Zap className="w-4 h-4 text-rl-green" />
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${
+                quickStats.currentStreakType === "win" ? "bg-rl-green/10" : "bg-rl-red/10"
+              }`}>
+                <Zap className={`w-4 h-4 ${
+                  quickStats.currentStreakType === "win" ? "text-rl-green" : "text-rl-red"
+                }`} />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Win Streak</p>
-                <p className="font-display font-bold text-lg">{quickStats.currentStreak}</p>
+                <p className="text-xs text-muted-foreground">Current Streak</p>
+                <p className={`font-display font-bold text-lg ${
+                  quickStats.currentStreakType === "win" ? "text-rl-green" : quickStats.currentStreakType === "loss" ? "text-rl-red" : ""
+                }`}>
+                  {quickStats.currentStreakCount > 0
+                    ? `${quickStats.currentStreakCount}${quickStats.currentStreakType === "win" ? "W" : "L"}`
+                    : "—"}
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -498,8 +517,12 @@ const Dashboard = () => {
                 <Trophy className="w-4 h-4 text-rl-purple" />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Best Streak</p>
-                <p className="font-display font-bold text-lg">{quickStats.longestStreak}</p>
+                <p className="text-xs text-muted-foreground">Avg Contribution</p>
+                <p className="font-display font-bold text-lg">
+                  {quickStats.avgContributionScore !== null
+                    ? quickStats.avgContributionScore.toFixed(1)
+                    : "—"}
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -563,6 +586,7 @@ const Dashboard = () => {
                 );
                 const isWin      = game.result === "win";
                 const isExpanded = expandedGameId === game.id;
+                const isEditing  = editingGameId === game.id;
                 const userCarry  = userRow?.contribution_score ?? 0;
                 const teamSize   = game.game_mode === "1v1" ? 1 : game.game_mode === "2v2" ? 2 : 3;
 
@@ -610,7 +634,7 @@ const Dashboard = () => {
                               <p className="text-xs text-muted-foreground">
                                 {userRow.goals}G {userRow.assists}A {userRow.saves}S
                               </p>
-                          {userCarry > 0 && (
+                              {userCarry > 0 && (
                                 <div className="flex items-center gap-1.5 mt-1 justify-end">
                                   <span className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Contribution</span>
                                   <CarryMeter score={userCarry} teamSize={teamSize} size="sm" />
@@ -642,7 +666,6 @@ const Dashboard = () => {
                                 </p>
                                 {teamRows.map((p) => {
                                   const isUser = (userTarget.userId && p.user_id === userTarget.userId) || userTarget.names.includes(normalizeName(p.player_name));
-                                  const isEditing = isUser && editingPlayerId === p.id;
                                   return (
                                     <div key={p.id} className={`flex items-center justify-between py-1 px-2 rounded-md ${isUser ? "bg-primary/5" : ""}`}>
                                       <div className="flex items-center gap-2 min-w-0">
@@ -655,39 +678,26 @@ const Dashboard = () => {
                                       </div>
                                       <div className="flex items-center gap-2 flex-shrink-0">
                                         {isEditing ? (
-                                          <>
-                                            <div className="flex items-center gap-1">
-                                              {(["score", "goals", "assists", "saves", "shots"] as const).map((field) => (
-                                                <Input
-                                                  key={field}
-                                                  type="number"
-                                                  min={0}
-                                                  value={editValues[field]}
-                                                  onChange={(e) => setEditValues((prev) => ({ ...prev, [field]: Number(e.target.value) }))}
-                                                  className="h-6 w-12 text-xs px-1"
-                                                  title={field}
-                                                />
-                                              ))}
-                                            </div>
-                                            <button
-                                              onClick={() => handleStatSave(game, p.id)}
-                                              className="text-rl-green hover:text-rl-green/80 transition-colors p-0.5"
-                                              title="Save"
-                                            >
-                                              <Check className="w-3.5 h-3.5" />
-                                            </button>
-                                            <button
-                                              onClick={() => setEditingPlayerId(null)}
-                                              className="text-muted-foreground hover:text-foreground transition-colors p-0.5"
-                                              title="Cancel"
-                                            >
-                                              <XIcon className="w-3.5 h-3.5" />
-                                            </button>
-                                          </>
+                                          <div className="flex items-center gap-1">
+                                            {(["score", "goals", "assists", "saves", "shots"] as const).map((field) => (
+                                              <Input
+                                                key={field}
+                                                type="number"
+                                                min={0}
+                                                value={editValuesMap[p.id]?.[field] ?? 0}
+                                                onChange={(e) => setEditValuesMap((prev) => ({
+                                                  ...prev,
+                                                  [p.id]: { ...prev[p.id], [field]: Number(e.target.value) }
+                                                }))}
+                                                className="h-6 w-10 text-xs px-1"
+                                                title={field}
+                                              />
+                                            ))}
+                                          </div>
                                         ) : (
                                           <>
                                             <span className="text-xs text-muted-foreground font-mono">
-                                              {p.goals}G {p.assists}A {p.saves}S
+                                              {p.goals}G {p.assists}A {p.saves}S {p.shots}Sh
                                             </span>
                                             <span className="text-xs font-mono font-bold w-12 text-right">{p.score}</span>
                                             <div className="w-28 flex justify-end">
@@ -696,24 +706,6 @@ const Dashboard = () => {
                                                 : <span className="text-[10px] text-muted-foreground/40 font-mono">—</span>
                                               }
                                             </div>
-                                            {isUser && (
-                                              <button
-                                                onClick={() => {
-                                                  setEditingPlayerId(p.id);
-                                                  setEditValues({
-                                                    score:   p.score,
-                                                    goals:   p.goals,
-                                                    assists: p.assists,
-                                                    saves:   p.saves,
-                                                    shots:   p.shots,
-                                                  });
-                                                }}
-                                                className="text-muted-foreground hover:text-foreground transition-colors p-0.5 ml-1"
-                                                title="Edit stats"
-                                              >
-                                                <Pencil className="w-3 h-3" />
-                                              </button>
-                                            )}
                                           </>
                                         )}
                                       </div>
@@ -726,20 +718,20 @@ const Dashboard = () => {
                         </div>
                       )}
 
-                      {/* Delete game — only for the game creator, shown when expanded */}
-                      {isExpanded && game.created_by === user?.id && (
-                        <div className="mt-3 pt-3 border-t border-border/40 flex justify-end">
-                          {confirmDeleteId === game.id ? (
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-muted-foreground">Delete this game?</span>
+                      {/* Bottom action row — edit scoreboard + delete */}
+                      {isExpanded && (
+                        <div className="mt-3 pt-3 border-t border-border/40 flex items-center justify-between">
+                          {/* Left: edit controls */}
+                          {isEditing ? (
+                            <div className="flex items-center gap-3">
                               <button
-                                onClick={() => handleDeleteGame(game.id)}
-                                className="text-xs font-medium text-rl-red hover:text-rl-red/80 transition-colors"
+                                onClick={() => handleAllStatsSave(game)}
+                                className="flex items-center gap-1 text-xs font-medium text-rl-green hover:text-rl-green/80 transition-colors"
                               >
-                                Yes, delete
+                                <Check className="w-3.5 h-3.5" /> Save All
                               </button>
                               <button
-                                onClick={() => setConfirmDeleteId(null)}
+                                onClick={() => { setEditingGameId(null); setEditValuesMap({}); }}
                                 className="text-xs text-muted-foreground hover:text-foreground transition-colors"
                               >
                                 Cancel
@@ -747,12 +739,47 @@ const Dashboard = () => {
                             </div>
                           ) : (
                             <button
-                              onClick={() => setConfirmDeleteId(game.id)}
-                              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-rl-red transition-colors"
+                              onClick={() => {
+                                setEditingGameId(game.id);
+                                const map: Record<string, PlayerEditValues> = {};
+                                (game.game_players ?? []).forEach((p) => {
+                                  map[p.id] = { score: p.score, goals: p.goals, assists: p.assists, saves: p.saves, shots: p.shots };
+                                });
+                                setEditValuesMap(map);
+                              }}
+                              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              Delete game
+                              <Pencil className="w-3.5 h-3.5" /> Edit scoreboard
                             </button>
+                          )}
+
+                          {/* Right: delete (only creator, not while editing) */}
+                          {!isEditing && game.created_by === user?.id && (
+                            confirmDeleteId === game.id ? (
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-muted-foreground">Delete this game?</span>
+                                <button
+                                  onClick={() => handleDeleteGame(game.id)}
+                                  className="text-xs font-medium text-rl-red hover:text-rl-red/80 transition-colors"
+                                >
+                                  Yes, delete
+                                </button>
+                                <button
+                                  onClick={() => setConfirmDeleteId(null)}
+                                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setConfirmDeleteId(game.id)}
+                                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-rl-red transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                Delete game
+                              </button>
+                            )
                           )}
                         </div>
                       )}
