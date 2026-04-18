@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { format } from "date-fns";
-import { Plus, Loader2, Trophy, Target, TrendingUp, ChevronRight, Zap, ChevronDown, ChevronUp, Pencil, Check, X as XIcon, Trash2 } from "lucide-react";
+import { Plus, Loader2, Trophy, Target, TrendingUp, ChevronRight, Zap, ChevronDown, ChevronUp, Pencil, Check, X as XIcon, Trash2, Info } from "lucide-react";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { CarryMeter } from "@/components/game/CarryMeter";
 import { calculateContributionScores } from "@/lib/carryScore";
 import { getRankIcon } from "@/lib/rankIcons";
@@ -54,6 +55,7 @@ const Dashboard = () => {
   const [editingGameId, setEditingGameId] = useState<string | null>(null);
   const [editValuesMap, setEditValuesMap] = useState<Record<string, PlayerEditValues>>({});
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [showContribInfo, setShowContribInfo] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/auth");
@@ -120,28 +122,14 @@ const Dashboard = () => {
     return { userId: user?.id, names };
   }, [user?.id, rlName]);
 
-  // ── Backfill contribution scores for old games that were logged without them ──
+  // ── Recalculate contribution scores for all games on every load ──────────────
   const backfillCarryScores = useCallback(async (loadedGames: GameWithPlayers[]) => {
     if (!user) return;
 
-    const teamSumsTo100 = (game: GameWithPlayers) => {
-      for (const team of ["blue", "orange"] as const) {
-        const tp = (game.game_players ?? []).filter((p) => p.team === team);
-        if (tp.length < 2) continue;
-        const sum = tp.reduce((s, p) => s + (p.contribution_score ?? 0), 0);
-        // Allow ±5 rounding tolerance; anything outside means old algorithm ran
-        if (sum < 95 || sum > 105) return false;
-      }
-      return true;
-    };
-
-    const needsBackfill = loadedGames.filter((game) => {
-      const players = game.game_players ?? [];
-      const allHaveTeam = players.every((p) => p.team != null);
-      if (!allHaveTeam) return false;
-      // Recalculate if any score is null OR if team scores don't sum to ~100
-      return players.some((p) => p.contribution_score === null) || !teamSumsTo100(game);
-    });
+    // Always recalculate every game so algorithm changes are reflected immediately
+    const needsBackfill = loadedGames.filter((game) =>
+      (game.game_players ?? []).every((p) => p.team != null)
+    );
 
     if (needsBackfill.length === 0) return;
 
@@ -517,7 +505,12 @@ const Dashboard = () => {
                 <Trophy className="w-4 h-4 text-rl-purple" />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Avg Contribution</p>
+                <div className="flex items-center gap-1">
+                  <p className="text-xs text-muted-foreground">Avg Contribution</p>
+                  <button onClick={() => setShowContribInfo(true)} className="text-muted-foreground hover:text-foreground transition-colors">
+                    <Info className="w-3 h-3" />
+                  </button>
+                </div>
                 <p className="font-display font-bold text-lg">
                   {quickStats.avgContributionScore !== null
                     ? quickStats.avgContributionScore.toFixed(1)
@@ -637,6 +630,9 @@ const Dashboard = () => {
                               {userCarry > 0 && (
                                 <div className="flex items-center gap-1.5 mt-1 justify-end">
                                   <span className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Contribution</span>
+                                  <button onClick={(e) => { e.stopPropagation(); setShowContribInfo(true); }} className="text-muted-foreground hover:text-foreground transition-colors">
+                                    <Info className="w-2.5 h-2.5" />
+                                  </button>
                                   <CarryMeter score={userCarry} teamSize={teamSize} size="sm" />
                                 </div>
                               )}
@@ -795,6 +791,29 @@ const Dashboard = () => {
           )}
         </div>
       </div>
+
+      <Dialog open={showContribInfo} onOpenChange={setShowContribInfo}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>What is the Contribution Score?</DialogTitle>
+            <DialogDescription asChild>
+              <div className="space-y-3 text-sm text-muted-foreground pt-1">
+                <p>
+                  The Contribution Score shows how much you contributed to your team's performance in a game. It's calculated from your in-game score, goals, assists, and saves relative to your teammates.
+                </p>
+                <p>Equal contribution looks like this:</p>
+                <ul className="space-y-1 pl-4 list-disc">
+                  <li><span className="font-semibold text-foreground">1v1:</span> 100% — you're the whole team</li>
+                  <li><span className="font-semibold text-foreground">2v2:</span> 50% each means both players contributed equally</li>
+                  <li><span className="font-semibold text-foreground">3v3:</span> 33–34% each means all 3 contributed evenly</li>
+                  <li><span className="font-semibold text-foreground">4v4:</span> 25% each means all 4 contributed evenly</li>
+                </ul>
+                <p>A higher percentage means you carried more of the load for your team.</p>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 };
