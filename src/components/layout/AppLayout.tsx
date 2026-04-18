@@ -11,7 +11,7 @@ const MobileHeader = () => {
   const { unreadCount } = useNotifications();
 
   return (
-    <header className="md:hidden sticky top-0 z-50 border-b border-border/50 bg-card/95 backdrop-blur-xl">
+    <header className="md:hidden border-b border-border/50 bg-card/95">
       <div className="h-12 px-4 flex items-center justify-between">
         <NavLink to="/dashboard" className="font-display text-lg font-bold">
           <span className="text-primary">Scoreboard</span>
@@ -42,7 +42,7 @@ const AppLayout = ({ children }: { children: ReactNode }) => (
   <div className="min-h-screen bg-background">
     <TopNav />
     <MobileHeader />
-    <main className="max-w-5xl mx-auto px-4 py-6 pb-24 md:pb-6">
+    <main className="max-w-5xl mx-auto px-4 py-6 pb-28 md:pb-6">
       {children}
     </main>
     <BottomNav />
