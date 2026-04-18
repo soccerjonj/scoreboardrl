@@ -11,7 +11,10 @@ const MobileHeader = () => {
   const { unreadCount } = useNotifications();
 
   return (
-    <header className="md:hidden border-b border-border/50 bg-card/95">
+    <header
+      className="md:hidden border-b border-border/50 bg-card/95"
+      style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+    >
       <div className="h-12 px-4 flex items-center justify-between">
         <NavLink to="/dashboard" className="font-display text-lg font-bold">
           <span className="text-primary">Scoreboard</span>
