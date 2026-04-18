@@ -676,20 +676,28 @@ const Dashboard = () => {
                                 {teamRows.map((p) => {
                                   const isUser = (userTarget.userId && p.user_id === userTarget.userId) || userTarget.names.includes(normalizeName(p.player_name));
                                   return (
-                                    <div key={p.id} className={`grid grid-cols-[1fr_2.5rem_2rem_2.5rem_2rem_2rem] gap-x-1 items-start py-1 px-2 rounded-md ${isUser ? "bg-primary/5" : ""}`}>
-                                      {/* Player name — not truncated, wraps for long names */}
-                                      <div className="flex flex-wrap items-baseline gap-x-1.5">
-                                        <span className={`text-xs font-medium leading-snug ${isUser ? "text-primary" : "text-foreground"}`}>
-                                          {p.player_name}
-                                        </span>
-                                        {p.is_mvp && (
-                                          <span className="text-[9px] text-yellow-400 font-bold leading-snug">MVP</span>
+                                    <div key={p.id} className={`py-1.5 px-2 rounded-md ${isUser ? "bg-primary/5" : ""}`}>
+                                      {/* Line 1: name + mvp badge + contribution % */}
+                                      <div className="flex items-center justify-between gap-2">
+                                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                          <span className={`text-xs font-medium leading-snug ${isUser ? "text-primary" : "text-foreground"}`}>
+                                            {p.player_name}
+                                          </span>
+                                          {p.is_mvp && (
+                                            <span className="text-[9px] text-yellow-400 font-bold leading-snug flex-shrink-0">MVP</span>
+                                          )}
+                                        </div>
+                                        {p.contribution_score != null && p.contribution_score > 0 && (
+                                          <span className={`text-[10px] font-bold flex-shrink-0 ${isUser ? "text-primary/80" : "text-muted-foreground"}`}>
+                                            {p.contribution_score}%
+                                          </span>
                                         )}
                                       </div>
-                                      {/* Stats or inputs */}
-                                      {isEditing ? (
-                                        <>
-                                          {(["score", "goals", "assists", "saves", "shots"] as const).map((field) => (
+                                      {/* Line 2: stats locked to header columns via matching grid + spacer */}
+                                      <div className="grid grid-cols-[1fr_2.5rem_2rem_2.5rem_2rem_2rem] gap-x-1 mt-0.5">
+                                        <span /> {/* occupies the Player column — keeps numbers under their headers */}
+                                        {isEditing ? (
+                                          (["score", "goals", "assists", "saves", "shots"] as const).map((field) => (
                                             <Input
                                               key={field}
                                               type="number"
@@ -702,17 +710,17 @@ const Dashboard = () => {
                                               className="h-6 w-full text-xs px-1 text-right"
                                               title={field}
                                             />
-                                          ))}
-                                        </>
-                                      ) : (
-                                        <>
-                                          <span className="text-xs font-mono font-bold text-right leading-snug">{p.score}</span>
-                                          <span className="text-xs font-mono text-muted-foreground text-right leading-snug">{p.goals}</span>
-                                          <span className="text-xs font-mono text-muted-foreground text-right leading-snug">{p.assists}</span>
-                                          <span className="text-xs font-mono text-muted-foreground text-right leading-snug">{p.saves}</span>
-                                          <span className="text-xs font-mono text-muted-foreground text-right leading-snug">{p.shots}</span>
-                                        </>
-                                      )}
+                                          ))
+                                        ) : (
+                                          <>
+                                            <span className="text-xs font-mono font-bold text-right leading-snug">{p.score}</span>
+                                            <span className="text-xs font-mono text-muted-foreground text-right leading-snug">{p.goals}</span>
+                                            <span className="text-xs font-mono text-muted-foreground text-right leading-snug">{p.assists}</span>
+                                            <span className="text-xs font-mono text-muted-foreground text-right leading-snug">{p.saves}</span>
+                                            <span className="text-xs font-mono text-muted-foreground text-right leading-snug">{p.shots}</span>
+                                          </>
+                                        )}
+                                      </div>
                                     </div>
                                   );
                                 })}
