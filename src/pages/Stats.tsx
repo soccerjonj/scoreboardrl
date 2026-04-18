@@ -357,30 +357,27 @@ const BestContributionCard = ({
                       {teamRows.map((p) => {
                         const isUser = matchesTarget(p, userTarget);
                         return (
-                          <div key={p.id} className={`py-1.5 rounded-md ${isUser ? "bg-primary/5 px-2 -mx-2" : ""}`}>
-                            {/* Line 1: name + mvp badge + contribution % */}
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                          <div key={p.id} className={`grid grid-cols-[1fr_2.5rem_2rem_2.5rem_2rem_2rem] gap-x-1 items-start py-1.5 rounded-md ${isUser ? "bg-primary/5 px-2 -mx-2" : ""}`}>
+                            {/* 1fr column: name + mvp on top, contribution bar below */}
+                            <div>
+                              <div className="flex items-center gap-1.5">
                                 <span className={`text-xs font-medium leading-snug ${isUser ? "text-primary" : "text-foreground"}`}>
                                   {p.player_name}
                                 </span>
                                 {p.is_mvp && <span className="text-[9px] text-yellow-400 font-bold leading-snug flex-shrink-0">MVP</span>}
                               </div>
                               {p.contribution_score != null && p.contribution_score > 0 && (
-                                <span className={`text-[10px] font-bold flex-shrink-0 ${isUser ? "text-primary/80" : "text-muted-foreground"}`}>
-                                  {p.contribution_score}%
-                                </span>
+                                <div className="mt-0.5">
+                                  <CarryMeter score={p.contribution_score} teamSize={teamSize} size="sm" />
+                                </div>
                               )}
                             </div>
-                            {/* Line 2: stats locked to header columns via matching grid + spacer */}
-                            <div className="grid grid-cols-[1fr_2.5rem_2rem_2.5rem_2rem_2rem] gap-x-1 mt-0.5">
-                              <span /> {/* occupies the Player column — keeps numbers under their headers */}
-                              <span className="text-xs font-mono font-bold text-right leading-snug">{p.score}</span>
-                              <span className="text-xs font-mono text-muted-foreground text-right leading-snug">{p.goals}</span>
-                              <span className="text-xs font-mono text-muted-foreground text-right leading-snug">{p.assists}</span>
-                              <span className="text-xs font-mono text-muted-foreground text-right leading-snug">{p.saves}</span>
-                              <span className="text-xs font-mono text-muted-foreground text-right leading-snug">{p.shots}</span>
-                            </div>
+                            {/* Stat columns — always top-aligned with the name line */}
+                            <span className="text-xs font-mono font-bold text-right leading-snug">{p.score}</span>
+                            <span className="text-xs font-mono text-muted-foreground text-right leading-snug">{p.goals}</span>
+                            <span className="text-xs font-mono text-muted-foreground text-right leading-snug">{p.assists}</span>
+                            <span className="text-xs font-mono text-muted-foreground text-right leading-snug">{p.saves}</span>
+                            <span className="text-xs font-mono text-muted-foreground text-right leading-snug">{p.shots}</span>
                           </div>
                         );
                       })}
