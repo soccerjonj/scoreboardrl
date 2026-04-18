@@ -141,30 +141,49 @@ const FriendProfile = () => {
 
   const displayName = profile.rl_account_name?.trim() || "Unknown Player";
 
-  // Stats from last 20 games
   const validGames = playerRows.filter((r) => r.games != null);
-  const totalGames = validGames.length;
+  const n = validGames.length;
   const wins = validGames.filter((r) => r.games?.result === "win").length;
-  const winRate = totalGames > 0 ? Math.round((wins / totalGames) * 100) : null;
-  const bestScore = validGames.reduce((max, r) => Math.max(max, r.score ?? 0), 0);
-
-  // Recent form: last 5
-  const recentForm: Array<"W" | "L"> = validGames
-    .slice(0, 5)
-    .map((r) => (r.games?.result === "win" ? "W" : "L"));
-
-  // Recent 5 games
+  const winRate = n > 0 ? Math.round((wins / n) * 100) : null;
+  const recentForm: Array<"W" | "L"> = validGames.slice(0, 5).map((r) => (r.games?.result === "win" ? "W" : "L"));
   const recentGames = validGames.slice(0, 5);
-
   const rankMap = new Map(ranks.map((r) => [r.game_mode, r]));
+
+  // Averages
+  const safeN = (v: number | null | undefined) => (typeof v === "number" && !isNaN(v) ? v : 0);
+  const totals = validGames.reduce(
+    (t, r) => ({
+      score:        t.score        + safeN(r.score),
+      goals:        t.goals        + safeN(r.goals),
+      assists:      t.assists      + safeN(r.assists),
+      saves:        t.saves        + safeN(r.saves),
+      shots:        t.shots        + safeN(r.shots),
+      mvps:         t.mvps         + (r.is_mvp ? 1 : 0),
+      contrib:      t.contrib      + safeN(r.contribution_score),
+      contribGames: t.contribGames + (safeN(r.contribution_score) > 0 ? 1 : 0),
+    }),
+    { score: 0, goals: 0, assists: 0, saves: 0, shots: 0, mvps: 0, contrib: 0, contribGames: 0 }
+  );
+  const avg = {
+    score:   n > 0 ? totals.score   / n : 0,
+    goals:   n > 0 ? totals.goals   / n : 0,
+    assists: n > 0 ? totals.assists / n : 0,
+    saves:   n > 0 ? totals.saves   / n : 0,
+    shots:   n > 0 ? totals.shots   / n : 0,
+    contrib: totals.contribGames > 0 ? totals.contrib / totals.contribGames : null,
+    mvpRate: n > 0 ? (totals.mvps / n) * 100 : 0,
+  };
 
   return (
     <AppLayout>
       <div className="space-y-5">
-        {/* Profile card */}
+
+        {/* ── Unified profile card ── */}
         <Card className="border-border/50 bg-card/80 overflow-hidden">
           <div className="h-20 bg-gradient-to-br from-primary/20 via-secondary/10 to-transparent" />
           <CardContent className="pt-0 pb-5 px-5">
+
+            {/* Avatar + name */}
             <div className="flex items-end gap-4 -mt-10 mb-3">
               <div className="w-20 h-20 rounded-full border-4 border-card bg-muted/40 overflow-hidden shrink-0">
                 {profile.avatar_url ? (
@@ -180,13 +199,66 @@ const FriendProfile = () => {
               </div>
             </div>
 
-            {profile.bio && (
-              <p className="text-sm text-muted-foreground mt-1">{profile.bio}</p>
+            {/* Bio */}
+            {profile.bio && <p className="text-sm text-muted-foreground mb-3">{profile.bio}</p>}
+
+            {n > 0 && (
+              <>
+                {/* W/L + form */}
+                <div className="border-t border-border/30 pt-3 mb-3">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rl-green/10 border border-rl-green/20">
+                      <span className="text-xs font-bold text-rl-green">W</span>
+                      <span className="text-sm font-display font-bold text-rl-green">{wins}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rl-red/10 border border-rl-red/20">
+                      <span className="text-xs font-bold text-rl-red">L</span>
+                      <span className="text-sm font-display font-bold text-rl-red">{n - wins}</span>
+                    </div>
+                    {winRate !== null && (
+                      <span className="text-xs text-muted-foreground font-mono">{winRate}% win rate</span>
+                    )}
+                  </div>
+                  {recentForm.length > 0 && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wider mr-0.5">Recent</span>
+                      {recentForm.map((r, i) => (
+                        <div key={i} className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold ${
+                          r === "W" ? "bg-rl-green/20 text-rl-green border border-rl-green/30" : "bg-rl-red/20 text-rl-red border border-rl-red/30"
+                        }`}>{r}</div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Stats grid */}
+                <div className="border-t border-border/30 pt-3">
+                  <div className="grid grid-cols-4 gap-x-2 gap-y-3">
+                    {[
+                      { label: "Games",     value: n,           fmt: (v: number) => String(v) },
+                      { label: "Avg Score", value: avg.score,   fmt: (v: number) => v.toFixed(1) },
+                      { label: "Contrib",   value: avg.contrib, fmt: (v: number) => `${v.toFixed(1)}%` },
+                      { label: "MVP Rate",  value: avg.mvpRate, fmt: (v: number) => `${Math.round(v)}%` },
+                      { label: "Goals",     value: avg.goals,   fmt: (v: number) => v.toFixed(2) },
+                      { label: "Assists",   value: avg.assists, fmt: (v: number) => v.toFixed(2) },
+                      { label: "Saves",     value: avg.saves,   fmt: (v: number) => v.toFixed(2) },
+                      { label: "Shots",     value: avg.shots,   fmt: (v: number) => v.toFixed(2) },
+                    ].map(({ label, value, fmt }) => (
+                      <div key={label} className="text-center">
+                        <p className="font-display font-bold text-base leading-tight">
+                          {value !== null ? fmt(value) : <span className="text-muted-foreground">—</span>}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">{label}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>
 
-        {/* Ranks */}
+        {/* ── Ranks ── */}
         <Card className="border-border/50 bg-card/80">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-display">Competitive Ranks</CardTitle>
@@ -200,69 +272,16 @@ const FriendProfile = () => {
               return (
                 <div key={mode} className="flex flex-col items-center gap-1.5">
                   <p className="text-xs font-semibold text-muted-foreground">{mode}</p>
-                  <img
-                    src={getRankIcon(tier)}
-                    alt={label}
-                    className="w-10 h-10 object-contain"
-                  />
+                  <img src={getRankIcon(tier)} alt={label} className="w-10 h-10 object-contain" />
                   <p className="text-xs font-medium text-center leading-tight">{label}</p>
-                  {mmr != null && (
-                    <p className="text-[10px] text-muted-foreground">{mmr} MMR</p>
-                  )}
+                  {mmr != null && <p className="text-[10px] text-muted-foreground">{mmr} MMR</p>}
                 </div>
               );
             })}
           </CardContent>
         </Card>
 
-        {/* Stats */}
-        {totalGames > 0 && (
-          <div className="grid grid-cols-3 gap-3">
-            <Card className="border-border/50 bg-card/80">
-              <CardContent className="pt-4 pb-3">
-                <p className="text-xs text-muted-foreground mb-1">Games</p>
-                <p className="font-display font-bold text-2xl">{totalGames}</p>
-              </CardContent>
-            </Card>
-            <Card className="border-border/50 bg-card/80">
-              <CardContent className="pt-4 pb-3">
-                <p className="text-xs text-muted-foreground mb-1">Win Rate</p>
-                <p className="font-display font-bold text-2xl">{winRate != null ? `${winRate}%` : "--"}</p>
-              </CardContent>
-            </Card>
-            <Card className="border-border/50 bg-card/80">
-              <CardContent className="pt-4 pb-3">
-                <p className="text-xs text-muted-foreground mb-1">Best Score</p>
-                <p className="font-display font-bold text-2xl">{bestScore}</p>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* Recent form */}
-        {recentForm.length > 0 && (
-          <Card className="border-border/50 bg-card/80">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base font-display">Recent Form</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex gap-1.5">
-                {recentForm.map((r, i) => (
-                  <div
-                    key={i}
-                    className={`w-8 h-8 rounded flex items-center justify-center text-xs font-bold ${
-                      r === "W" ? "bg-rl-green/20 text-rl-green" : "bg-rl-red/20 text-rl-red"
-                    }`}
-                  >
-                    {r}
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Recent games */}
+        {/* ── Recent games ── */}
         {recentGames.length > 0 && (
           <Card className="border-border/50 bg-card/80">
             <CardHeader className="pb-2">
@@ -281,9 +300,7 @@ const FriendProfile = () => {
                           <span className="text-xs font-display font-bold">{isWin ? "WIN" : "LOSS"}</span>
                           <Badge variant="outline" className="text-[9px] px-1 py-0">{game.game_mode}</Badge>
                         </div>
-                        <p className="text-[10px] text-muted-foreground">
-                          {format(new Date(game.played_at), "MMM d, yyyy")}
-                        </p>
+                        <p className="text-[10px] text-muted-foreground">{format(new Date(game.played_at), "MMM d, yyyy")}</p>
                       </div>
                     </div>
                     <p className="text-xs text-muted-foreground font-mono">
