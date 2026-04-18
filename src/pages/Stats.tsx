@@ -336,36 +336,39 @@ const BestContributionCard = ({
 
             {/* Expanded scoreboard */}
             {isOpen && (
-              <div className="px-3 pb-3 pt-1 border-t border-border/30 space-y-1" onClick={(e) => e.stopPropagation()}>
+              <div className="px-3 pb-3 pt-2 border-t border-border/30" onClick={(e) => e.stopPropagation()}>
+                {/* Column headers */}
+                <div className="grid grid-cols-[1fr_2.5rem_2rem_2.5rem_2rem_2rem] gap-x-1 pb-1.5 mb-0.5 border-b border-border/20">
+                  <span className="text-[9px] text-muted-foreground font-semibold uppercase tracking-wide">Player</span>
+                  <span className="text-[9px] text-muted-foreground font-semibold text-right">Score</span>
+                  <span className="text-[9px] text-muted-foreground font-semibold text-right">Goals</span>
+                  <span className="text-[9px] text-muted-foreground font-semibold text-right">Assists</span>
+                  <span className="text-[9px] text-muted-foreground font-semibold text-right">Saves</span>
+                  <span className="text-[9px] text-muted-foreground font-semibold text-right">Shots</span>
+                </div>
                 {["blue", "orange"].map((teamColor) => {
                   const teamRows = sortedPlayers.filter((p) => (p.team ?? "blue") === teamColor);
                   if (teamRows.length === 0) return null;
                   return (
-                    <div key={teamColor}>
-                      <p className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${teamColor === "blue" ? "text-blue-400" : "text-orange-400"}`}>
+                    <div key={teamColor} className="mb-1">
+                      <p className={`text-[10px] font-bold uppercase tracking-wider mt-1.5 mb-0.5 ${teamColor === "blue" ? "text-blue-400" : "text-orange-400"}`}>
                         {teamColor}
                       </p>
                       {teamRows.map((p) => {
                         const isUser = matchesTarget(p, userTarget);
                         return (
-                          <div key={p.id} className={`flex items-center justify-between py-1 px-2 rounded-md ${isUser ? "bg-primary/5" : ""}`}>
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className={`text-xs font-medium truncate ${isUser ? "text-primary" : "text-foreground"}`}>
+                          <div key={p.id} className={`grid grid-cols-[1fr_2.5rem_2rem_2.5rem_2rem_2rem] gap-x-1 items-start py-1 rounded-md ${isUser ? "bg-primary/5 px-1" : ""}`}>
+                            <div className="flex flex-wrap items-baseline gap-x-1.5">
+                              <span className={`text-xs font-medium leading-snug ${isUser ? "text-primary" : "text-foreground"}`}>
                                 {p.player_name}
                               </span>
-                              {p.is_mvp && <span className="text-[9px] text-yellow-400 font-bold">MVP</span>}
+                              {p.is_mvp && <span className="text-[9px] text-yellow-400 font-bold leading-snug">MVP</span>}
                             </div>
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                              <span className="text-xs text-muted-foreground font-mono">
-                                {p.goals}G {p.assists}A {p.saves}S {p.shots}Sh
-                              </span>
-                              <span className="text-xs font-mono font-bold w-12 text-right">{p.score}</span>
-                              <div className="w-20 flex justify-end">
-                                {(p.contribution_score ?? 0) >= 1
-                                  ? <CarryMeter score={p.contribution_score!} teamSize={teamSize} size="sm" />
-                                  : <span className="text-[10px] text-muted-foreground/40 font-mono">—</span>}
-                              </div>
-                            </div>
+                            <span className="text-xs font-mono font-bold text-right leading-snug">{p.score}</span>
+                            <span className="text-xs font-mono text-muted-foreground text-right leading-snug">{p.goals}</span>
+                            <span className="text-xs font-mono text-muted-foreground text-right leading-snug">{p.assists}</span>
+                            <span className="text-xs font-mono text-muted-foreground text-right leading-snug">{p.saves}</span>
+                            <span className="text-xs font-mono text-muted-foreground text-right leading-snug">{p.shots}</span>
                           </div>
                         );
                       })}
