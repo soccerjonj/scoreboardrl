@@ -90,7 +90,9 @@ const Profile = () => {
   const [loading, setLoading]                 = useState(true);
   const [saving, setSaving]                   = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [avatarUrl, setAvatarUrl]             = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl]             = useState<string | null>(() =>
+    user ? (localStorage.getItem(`avatar_url_${user.id}`) ?? null) : null
+  );
   const [rlAccountName, setRlAccountName]     = useState("");
   const [rlNameWasSet, setRlNameWasSet]       = useState(false);
   const [rlNameLocked, setRlNameLocked]       = useState(false);
@@ -134,7 +136,10 @@ const Profile = () => {
         const loadedName = profileRes.data?.rl_account_name ?? "";
         setRlAccountName(loadedName);
         setRlNameWasSet(Boolean(loadedName));
-        setAvatarUrl(profileRes.data?.avatar_url ?? null);
+        const freshAvatarUrl = profileRes.data?.avatar_url ?? null;
+        setAvatarUrl(freshAvatarUrl);
+        if (freshAvatarUrl) localStorage.setItem(`avatar_url_${user.id}`, freshAvatarUrl);
+        else localStorage.removeItem(`avatar_url_${user.id}`);
 
         const next = createEmptyRanks();
         (ranksRes.data || []).forEach((r) => {
@@ -274,6 +279,7 @@ const Profile = () => {
       const { data: urlData } = supabase.storage.from("screenshots").getPublicUrl(path);
       await supabase.from("profiles").update({ avatar_url: urlData.publicUrl }).eq("user_id", user.id);
       setAvatarUrl(urlData.publicUrl);
+      localStorage.setItem(`avatar_url_${user.id}`, urlData.publicUrl);
       toast({ title: "Avatar updated" });
     } catch (err: any) {
       toast({ title: "Upload failed", description: err.message, variant: "destructive" });
