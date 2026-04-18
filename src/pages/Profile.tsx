@@ -29,6 +29,15 @@ type ProfileStats = {
   wins: number;
   losses: number;
   recentForm: Array<"W" | "L">;
+  // per-game averages
+  avgScore: number;
+  avgGoals: number;
+  avgAssists: number;
+  avgSaves: number;
+  avgShots: number;
+  avgContribution: number | null;
+  mvpRate: number;
+  // personal records
   bestScore: number;
   bestGoals: number;
   bestAssists: number;
@@ -178,7 +187,7 @@ const Profile = () => {
         // Get all game_players rows for this user
         const { data: myPlayerRows } = await supabase
           .from("game_players")
-          .select("game_id, score, goals, assists, saves, contribution_score")
+          .select("game_id, score, goals, assists, saves, shots, is_mvp, contribution_score")
           .eq("user_id", user.id);
 
         if (!myPlayerRows || myPlayerRows.length === 0) {
@@ -188,16 +197,32 @@ const Profile = () => {
 
         const gameIds = myPlayerRows.map((r) => r.game_id);
 
-        // Compute personal records from player rows
-        const records = myPlayerRows.reduce(
-          (best, row) => ({
-            bestScore:             Math.max(best.bestScore,             safeNum(row.score)),
-            bestGoals:             Math.max(best.bestGoals,             safeNum(row.goals)),
-            bestAssists:           Math.max(best.bestAssists,           safeNum(row.assists)),
-            bestSaves:             Math.max(best.bestSaves,             safeNum(row.saves)),
-            bestContributionScore: Math.max(best.bestContributionScore, safeNum(row.contribution_score)),
+        // Compute personal records + totals for averages
+        const n = myPlayerRows.length;
+        const { records, totals } = myPlayerRows.reduce(
+          ({ records: best, totals: t }, row) => ({
+            records: {
+              bestScore:             Math.max(best.bestScore,             safeNum(row.score)),
+              bestGoals:             Math.max(best.bestGoals,             safeNum(row.goals)),
+              bestAssists:           Math.max(best.bestAssists,           safeNum(row.assists)),
+              bestSaves:             Math.max(best.bestSaves,             safeNum(row.saves)),
+              bestContributionScore: Math.max(best.bestContributionScore, safeNum(row.contribution_score)),
+            },
+            totals: {
+              score:        t.score        + safeNum(row.score),
+              goals:        t.goals        + safeNum(row.goals),
+              assists:      t.assists      + safeNum(row.assists),
+              saves:        t.saves        + safeNum(row.saves),
+              shots:        t.shots        + safeNum(row.shots),
+              mvps:         t.mvps         + ((row as any).is_mvp ? 1 : 0),
+              contribution: t.contribution + safeNum(row.contribution_score),
+              contribGames: t.contribGames + (safeNum(row.contribution_score) > 0 ? 1 : 0),
+            },
           }),
-          { bestScore: 0, bestGoals: 0, bestAssists: 0, bestSaves: 0, bestContributionScore: 0 }
+          {
+            records: { bestScore: 0, bestGoals: 0, bestAssists: 0, bestSaves: 0, bestContributionScore: 0 },
+            totals:  { score: 0, goals: 0, assists: 0, saves: 0, shots: 0, mvps: 0, contribution: 0, contribGames: 0 },
+          }
         );
 
         // Fetch game results + all players in those games
@@ -240,6 +265,13 @@ const Profile = () => {
           wins,
           losses: totalGames - wins,
           recentForm,
+          avgScore:        n > 0 ? totals.score    / n : 0,
+          avgGoals:        n > 0 ? totals.goals    / n : 0,
+          avgAssists:      n > 0 ? totals.assists  / n : 0,
+          avgSaves:        n > 0 ? totals.saves    / n : 0,
+          avgShots:        n > 0 ? totals.shots    / n : 0,
+          avgContribution: totals.contribGames > 0 ? totals.contribution / totals.contribGames : null,
+          mvpRate:         n > 0 ? (totals.mvps / n) * 100 : 0,
           ...records,
           topTeammates,
         });
@@ -443,6 +475,34 @@ const Profile = () => {
               </Button>
             </CardContent>
           </Card>
+
+          {/* ── Per-game stats ── */}
+          {profileStats && profileStats.totalGames > 0 && (
+            <Card className="border-border/50 bg-card/80">
+              <CardContent className="pt-4 pb-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Stats</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {[
+                    { label: "Games",        value: profileStats.totalGames,                          fmt: (v: number) => String(v) },
+                    { label: "Avg Score",    value: profileStats.avgScore,                            fmt: (v: number) => v.toFixed(1) },
+                    { label: "Contribution", value: profileStats.avgContribution,                     fmt: (v: number) => `${v.toFixed(1)}%` },
+                    { label: "MVP Rate",     value: profileStats.mvpRate,                             fmt: (v: number) => `${Math.round(v)}%` },
+                    { label: "Goals",        value: profileStats.avgGoals,                            fmt: (v: number) => v.toFixed(2) },
+                    { label: "Assists",      value: profileStats.avgAssists,                          fmt: (v: number) => v.toFixed(2) },
+                    { label: "Saves",        value: profileStats.avgSaves,                            fmt: (v: number) => v.toFixed(2) },
+                    { label: "Shots",        value: profileStats.avgShots,                            fmt: (v: number) => v.toFixed(2) },
+                  ].map(({ label, value, fmt }) => (
+                    <div key={label} className="flex flex-col items-center gap-0.5 py-2 px-1 rounded-lg bg-background/60">
+                      <span className="font-display font-bold text-base leading-none">
+                        {value !== null ? fmt(value) : <span className="text-muted-foreground text-sm">—</span>}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground leading-none text-center">{label}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* ── Ranks ── */}
           <Card className="border-border/50 bg-card/80">
