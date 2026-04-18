@@ -407,11 +407,12 @@ const Profile = () => {
       <AppLayout>
         <div className="space-y-4">
 
-          {/* ── Profile card ── */}
+          {/* ── Unified profile card ── */}
           <Card className="border-border/50 bg-card/80 overflow-hidden">
             <div className="h-20 bg-gradient-to-br from-primary/20 via-secondary/10 to-transparent" />
             <CardContent className="pt-0 pb-5 px-5">
-              {/* Avatar + name row */}
+
+              {/* Avatar + name */}
               <div className="flex items-end gap-4 -mt-10 mb-3">
                 <div className="w-20 h-20 rounded-full border-4 border-card bg-muted/40 overflow-hidden shrink-0">
                   {avatarUrl
@@ -427,82 +428,74 @@ const Profile = () => {
               {/* Bio */}
               {bio && <p className="text-sm text-muted-foreground mb-3">{bio}</p>}
 
-              {/* W/L record */}
-              {profileStats && profileStats.totalGames > 0 && (
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rl-green/10 border border-rl-green/20">
-                    <span className="text-xs font-bold text-rl-green">W</span>
-                    <span className="text-sm font-display font-bold text-rl-green">{profileStats.wins}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rl-red/10 border border-rl-red/20">
-                    <span className="text-xs font-bold text-rl-red">L</span>
-                    <span className="text-sm font-display font-bold text-rl-red">{profileStats.losses}</span>
-                  </div>
-                  {winRate !== null && (
-                    <span className="text-xs text-muted-foreground font-mono">{winRate}% win rate</span>
-                  )}
-                </div>
-              )}
-
-              {/* Recent form strip */}
-              {profileStats && profileStats.recentForm.length > 0 && (
-                <div className="flex items-center gap-1.5 mb-4">
-                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider mr-0.5">Recent</span>
-                  {profileStats.recentForm.map((result, i) => (
-                    <div
-                      key={i}
-                      className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold ${
-                        result === "W" ? "bg-rl-green/20 text-rl-green border border-rl-green/30" : "bg-rl-red/20 text-rl-red border border-rl-red/30"
-                      }`}
-                    >
-                      {result}
-                    </div>
-                  ))}
-                </div>
-              )}
-
               {/* Favorite car */}
               {favoriteCarObj && (
-                <div className="flex items-center gap-2 mb-4">
+                <div className="flex items-center gap-2 mb-3">
                   <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Favorite Car</span>
                   <CarBadge car={favoriteCarObj} />
                 </div>
               )}
 
+              {profileStats && profileStats.totalGames > 0 && (
+                <>
+                  {/* W/L + form */}
+                  <div className="border-t border-border/30 pt-3 mb-3">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rl-green/10 border border-rl-green/20">
+                        <span className="text-xs font-bold text-rl-green">W</span>
+                        <span className="text-sm font-display font-bold text-rl-green">{profileStats.wins}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rl-red/10 border border-rl-red/20">
+                        <span className="text-xs font-bold text-rl-red">L</span>
+                        <span className="text-sm font-display font-bold text-rl-red">{profileStats.losses}</span>
+                      </div>
+                      {winRate !== null && (
+                        <span className="text-xs text-muted-foreground font-mono">{winRate}% win rate</span>
+                      )}
+                    </div>
+                    {profileStats.recentForm.length > 0 && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] text-muted-foreground uppercase tracking-wider mr-0.5">Recent</span>
+                        {profileStats.recentForm.map((result, i) => (
+                          <div key={i} className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold ${
+                            result === "W" ? "bg-rl-green/20 text-rl-green border border-rl-green/30" : "bg-rl-red/20 text-rl-red border border-rl-red/30"
+                          }`}>{result}</div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Stats grid */}
+                  <div className="border-t border-border/30 pt-3">
+                    <div className="grid grid-cols-4 gap-x-2 gap-y-3">
+                      {[
+                        { label: "Games",    value: profileStats.totalGames,     fmt: (v: number) => String(v) },
+                        { label: "Avg Score",value: profileStats.avgScore,       fmt: (v: number) => v.toFixed(1) },
+                        { label: "Contrib",  value: profileStats.avgContribution,fmt: (v: number) => `${v.toFixed(1)}%` },
+                        { label: "MVP Rate", value: profileStats.mvpRate,        fmt: (v: number) => `${Math.round(v)}%` },
+                        { label: "Goals",    value: profileStats.avgGoals,       fmt: (v: number) => v.toFixed(2) },
+                        { label: "Assists",  value: profileStats.avgAssists,     fmt: (v: number) => v.toFixed(2) },
+                        { label: "Saves",    value: profileStats.avgSaves,       fmt: (v: number) => v.toFixed(2) },
+                        { label: "Shots",    value: profileStats.avgShots,       fmt: (v: number) => v.toFixed(2) },
+                      ].map(({ label, value, fmt }) => (
+                        <div key={label} className="text-center">
+                          <p className="font-display font-bold text-base leading-tight">
+                            {value !== null ? fmt(value) : <span className="text-muted-foreground">—</span>}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">{label}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+
               {/* Edit button */}
-              <Button variant="outline" size="sm" className="gap-1.5" onClick={enterEditMode}>
+              <Button variant="outline" size="sm" className="gap-1.5 mt-4" onClick={enterEditMode}>
                 <Pencil className="w-3.5 h-3.5" /> Edit Profile
               </Button>
             </CardContent>
           </Card>
-
-          {/* ── Per-game stats ── */}
-          {profileStats && profileStats.totalGames > 0 && (
-            <Card className="border-border/50 bg-card/80">
-              <CardContent className="pt-4 pb-3">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Stats</p>
-                <div className="grid grid-cols-4 gap-2">
-                  {[
-                    { label: "Games",        value: profileStats.totalGames,                          fmt: (v: number) => String(v) },
-                    { label: "Avg Score",    value: profileStats.avgScore,                            fmt: (v: number) => v.toFixed(1) },
-                    { label: "Contribution", value: profileStats.avgContribution,                     fmt: (v: number) => `${v.toFixed(1)}%` },
-                    { label: "MVP Rate",     value: profileStats.mvpRate,                             fmt: (v: number) => `${Math.round(v)}%` },
-                    { label: "Goals",        value: profileStats.avgGoals,                            fmt: (v: number) => v.toFixed(2) },
-                    { label: "Assists",      value: profileStats.avgAssists,                          fmt: (v: number) => v.toFixed(2) },
-                    { label: "Saves",        value: profileStats.avgSaves,                            fmt: (v: number) => v.toFixed(2) },
-                    { label: "Shots",        value: profileStats.avgShots,                            fmt: (v: number) => v.toFixed(2) },
-                  ].map(({ label, value, fmt }) => (
-                    <div key={label} className="flex flex-col items-center gap-0.5 py-2 px-1 rounded-lg bg-background/60">
-                      <span className="font-display font-bold text-base leading-none">
-                        {value !== null ? fmt(value) : <span className="text-muted-foreground text-sm">—</span>}
-                      </span>
-                      <span className="text-[10px] text-muted-foreground leading-none text-center">{label}</span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
 
           {/* ── Ranks ── */}
           <Card className="border-border/50 bg-card/80">
