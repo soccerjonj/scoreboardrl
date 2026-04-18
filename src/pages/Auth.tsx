@@ -63,7 +63,10 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-4">
+    <div
+      className="min-h-screen bg-background flex items-center justify-center px-4"
+      style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+    >
       <div className="w-full max-w-md">
         <Link to="/" className="block text-center mb-8">
           <span className="font-display text-3xl font-bold">
