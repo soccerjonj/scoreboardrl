@@ -202,9 +202,11 @@ const LogGame = () => {
       }
     }
 
-    // Use AI-detected division change if available
-    if (data.division_change) {
+    // Use AI-detected division change — only accept explicit up/down
+    if (data.division_change === "up" || data.division_change === "down") {
       setDivisionChange(data.division_change);
+    } else {
+      setDivisionChange("none");
     }
 
     // Store the exact resulting rank if Gemini read it from the scoreboard

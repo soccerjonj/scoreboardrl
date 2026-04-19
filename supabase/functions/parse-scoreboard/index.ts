@@ -45,7 +45,7 @@ RULES:
 4. Count players per team to determine game_mode: 1="1v1", 2="2v2", 3="3v3".
 5. game_type is "competitive" if ANY rank/MMR/division info appears at the bottom. Otherwise "casual".
 6. ${user_rl_name ? `result: "win" if "${user_rl_name}"'s team has more goals, "loss" otherwise.` : 'Set result to "win" or "loss" based on which team has more goals for the top (blue) team.'}
-7. division_change: "up", "down", or "none" based on rank change indicators at the bottom.
+7. division_change: Look for an EXPLICIT rank-change indicator — an upward arrow (↑), "RANK UP", upward chevron, or similar for "up"; a downward arrow (↓), "RANK DOWN", downward chevron for "down". If NO such indicator is visible, use "none". Most games do NOT result in a rank change — default to "none" when unsure.
 8. MMR: two numbers left of each player avatar — [mmr_change] [mmr]. Set to null if not visible.
 9. new_rank_tier + new_rank_division: Read the CURRENT TIER shown at the bottom of the screen AFTER the match (e.g. "CURRENT TIER: PLATINUM III"). This is the rank the player IS NOW at. Map it exactly:
    - "Bronze 1"→"bronze_1", "Bronze 2"→"bronze_2", "Bronze 3"→"bronze_3"
@@ -64,7 +64,7 @@ Return ONLY valid JSON with no extra text or markdown:
   "game_mode": "2v2",
   "game_type": "competitive",
   "result": "win",
-  "division_change": "up",
+  "division_change": "none",
   "new_rank_tier": "diamond_1",
   "new_rank_division": "I",
   "players": [
