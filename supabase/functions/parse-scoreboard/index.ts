@@ -79,7 +79,12 @@ Return ONLY valid JSON with no extra text or markdown:
           { inline_data: { mime_type: mime_type || "image/jpeg", data: image_base64 } },
         ],
       }],
-      generationConfig: { maxOutputTokens: 4096, temperature: 0 },
+      generationConfig: {
+        maxOutputTokens: 4096,
+        temperature: 0,
+        // Disable thinking — we need deterministic JSON, not reasoning traces
+        thinkingConfig: { thinkingBudget: 0 },
+      },
     };
 
     let response: Response | null = null;
@@ -119,7 +124,10 @@ Return ONLY valid JSON with no extra text or markdown:
     if (!response) return fail(lastError || "Gemini API failed");
 
     const aiResult = await response.json();
-    const content = aiResult.candidates?.[0]?.content?.parts?.[0]?.text;
+    // gemini-2.5-flash may return a "thought" part before the actual response part
+    const parts: { text?: string; thought?: boolean }[] = aiResult.candidates?.[0]?.content?.parts ?? [];
+    const responsePart = parts.find((p) => !p.thought && typeof p.text === "string");
+    const content = responsePart?.text;
     if (!content) {
       console.error("Gemini full response:", JSON.stringify(aiResult));
       return fail("No response from Gemini");
