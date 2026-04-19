@@ -1,0 +1,2 @@
+[functions.parse-scoreboard]
+verify_jwt = false
