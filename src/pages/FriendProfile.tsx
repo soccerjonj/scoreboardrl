@@ -181,9 +181,9 @@ const FriendProfile = () => {
         {/* ── Unified profile card ── */}
         <Card className="border-border/50 bg-card/80 overflow-hidden">
           <div className="h-20 bg-gradient-to-br from-primary/20 via-secondary/10 to-transparent" />
-          <CardContent className="pt-0 pb-5 px-5">
 
-            {/* Avatar + name */}
+          {/* Identity zone */}
+          <div className="px-5 pt-0 pb-4">
             <div className="flex items-end gap-4 -mt-10 mb-3">
               <div className="w-20 h-20 rounded-full border-4 border-card bg-muted/40 overflow-hidden shrink-0">
                 {profile.avatar_url ? (
@@ -198,64 +198,66 @@ const FriendProfile = () => {
                 <h1 className="font-display font-bold text-xl leading-tight truncate">{displayName}</h1>
               </div>
             </div>
+            {profile.bio && <p className="text-sm text-muted-foreground">{profile.bio}</p>}
+          </div>
 
-            {/* Bio */}
-            {profile.bio && <p className="text-sm text-muted-foreground mb-3">{profile.bio}</p>}
-
-            {n > 0 && (
-              <>
-                {/* W/L + form */}
-                <div className="border-t border-border/30 pt-3 mb-3">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rl-green/10 border border-rl-green/20">
-                      <span className="text-xs font-bold text-rl-green">W</span>
-                      <span className="text-sm font-display font-bold text-rl-green">{wins}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rl-red/10 border border-rl-red/20">
-                      <span className="text-xs font-bold text-rl-red">L</span>
-                      <span className="text-sm font-display font-bold text-rl-red">{n - wins}</span>
-                    </div>
-                    {winRate !== null && (
-                      <span className="text-xs text-muted-foreground font-mono">{winRate}% win rate</span>
-                    )}
-                  </div>
-                  {recentForm.length > 0 && (
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] text-muted-foreground uppercase tracking-wider mr-0.5">Recent</span>
-                      {recentForm.map((r, i) => (
-                        <div key={i} className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold ${
-                          r === "W" ? "bg-rl-green/20 text-rl-green border border-rl-green/30" : "bg-rl-red/20 text-rl-red border border-rl-red/30"
-                        }`}>{r}</div>
-                      ))}
-                    </div>
+          {/* Stats shelf — full-bleed */}
+          {n > 0 && (
+            <div className="border-t border-border/40 bg-muted/20">
+              {/* W/L + form */}
+              <div className="px-5 py-3 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <span className="font-display font-bold text-sm text-rl-green">W {wins}</span>
+                  <span className="text-muted-foreground/40">·</span>
+                  <span className="font-display font-bold text-sm text-rl-red">L {n - wins}</span>
+                  {winRate !== null && (
+                    <span className="text-xs text-muted-foreground font-mono">{winRate}%</span>
                   )}
                 </div>
-
-                {/* Stats grid */}
-                <div className="border-t border-border/30 pt-3">
-                  <div className="grid grid-cols-4 gap-x-2 gap-y-3">
-                    {[
-                      { label: "Games",     value: n,           fmt: (v: number) => String(v) },
-                      { label: "Avg Score", value: avg.score,   fmt: (v: number) => v.toFixed(1) },
-                      { label: "Contrib",   value: avg.contrib, fmt: (v: number) => `${v.toFixed(1)}%` },
-                      { label: "MVP Rate",  value: avg.mvpRate, fmt: (v: number) => `${Math.round(v)}%` },
-                      { label: "Goals",     value: avg.goals,   fmt: (v: number) => v.toFixed(2) },
-                      { label: "Assists",   value: avg.assists, fmt: (v: number) => v.toFixed(2) },
-                      { label: "Saves",     value: avg.saves,   fmt: (v: number) => v.toFixed(2) },
-                      { label: "Shots",     value: avg.shots,   fmt: (v: number) => v.toFixed(2) },
-                    ].map(({ label, value, fmt }) => (
-                      <div key={label} className="text-center">
-                        <p className="font-display font-bold text-base leading-tight">
-                          {value !== null ? fmt(value) : <span className="text-muted-foreground">—</span>}
-                        </p>
-                        <p className="text-[10px] text-muted-foreground mt-0.5">{label}</p>
-                      </div>
+                {recentForm.length > 0 && (
+                  <div className="flex items-center gap-1">
+                    {recentForm.map((r, i) => (
+                      <div key={i} className={`w-5 h-5 rounded text-[9px] font-bold flex items-center justify-center ${
+                        r === "W" ? "bg-rl-green/20 text-rl-green" : "bg-rl-red/20 text-rl-red"
+                      }`}>{r}</div>
                     ))}
                   </div>
-                </div>
-              </>
-            )}
-          </CardContent>
+                )}
+              </div>
+              {/* Row 1: Games · Avg Score · Contrib · MVP Rate */}
+              <div className="border-t border-border/30 grid grid-cols-4 divide-x divide-border/30">
+                {[
+                  { label: "Games",     value: n,           fmt: (v: number) => String(v) },
+                  { label: "Avg Score", value: avg.score,   fmt: (v: number) => v.toFixed(1) },
+                  { label: "Contrib",   value: avg.contrib, fmt: (v: number) => `${v.toFixed(1)}%` },
+                  { label: "MVP Rate",  value: avg.mvpRate, fmt: (v: number) => `${Math.round(v)}%` },
+                ].map(({ label, value, fmt }) => (
+                  <div key={label} className="py-3 text-center">
+                    <p className="font-display font-bold text-base leading-tight">
+                      {value !== null ? fmt(value) : <span className="text-muted-foreground">—</span>}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{label}</p>
+                  </div>
+                ))}
+              </div>
+              {/* Row 2: Goals · Assists · Saves · Shots */}
+              <div className="border-t border-border/30 grid grid-cols-4 divide-x divide-border/30">
+                {[
+                  { label: "Goals",   value: avg.goals,   fmt: (v: number) => v.toFixed(2) },
+                  { label: "Assists", value: avg.assists, fmt: (v: number) => v.toFixed(2) },
+                  { label: "Saves",   value: avg.saves,   fmt: (v: number) => v.toFixed(2) },
+                  { label: "Shots",   value: avg.shots,   fmt: (v: number) => v.toFixed(2) },
+                ].map(({ label, value, fmt }) => (
+                  <div key={label} className="py-3 text-center">
+                    <p className="font-display font-bold text-sm leading-tight">
+                      {value !== null ? fmt(value) : <span className="text-muted-foreground">—</span>}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{label}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </Card>
 
         {/* ── Ranks ── */}
