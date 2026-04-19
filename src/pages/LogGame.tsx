@@ -174,6 +174,16 @@ const LogGame = () => {
       .then(({ data }) => setCurrentRank(data ?? null));
   }, [user, gameMode, gameType]);
 
+  // Seed parsedNewRank from shiftRank when user picks up/down and AI didn't provide one
+  useEffect(() => {
+    if ((divisionChange === "up" || divisionChange === "down") && !parsedNewRank && currentRank) {
+      setParsedNewRank(shiftRank(currentRank.rank_tier, currentRank.rank_division, divisionChange));
+    }
+    if (divisionChange === "none") {
+      setParsedNewRank(null);
+    }
+  }, [divisionChange, currentRank]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleParsed = (
     data: { game_mode: GameMode; game_type: GameType; players: PlayerStat[]; result?: "win" | "loss"; division_change?: "up" | "down" | "none"; new_rank_tier?: string; new_rank_division?: string },
     file: File
@@ -584,26 +594,65 @@ const LogGame = () => {
                           <SelectItem value="down">Division Down ↓</SelectItem>
                         </SelectContent>
                       </Select>
-                      {currentRank && (
+                      {currentRank && divisionChange === "none" && (
                         <p className="text-xs text-muted-foreground">
-                          {divisionChange === "none" || !divisionChange
-                            ? formatRank(currentRank.rank_tier, currentRank.rank_division)
-                            : (() => {
-                                // Prefer the rank Gemini read from the scoreboard; fall back to +1 shift
-                                const next = parsedNewRank
-                                  ? parsedNewRank
-                                  : shiftRank(currentRank.rank_tier, currentRank.rank_division, divisionChange as "up" | "down");
-                                return (
-                                  <>
-                                    <span>{formatRank(currentRank.rank_tier, currentRank.rank_division)}</span>
-                                    <span className={divisionChange === "up" ? " text-green-500" : " text-red-500"}>
-                                      {" → "}{formatRank(next.rank_tier, next.rank_division)}
-                                    </span>
-                                  </>
-                                );
-                              })()
-                          }
+                          {formatRank(currentRank.rank_tier, currentRank.rank_division)}
                         </p>
+                      )}
+                      {(divisionChange === "up" || divisionChange === "down") && (
+                        <div className="mt-2 space-y-1.5">
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                            Resulting rank
+                            {currentRank && (
+                              <span className="normal-case ml-1 text-muted-foreground/60">
+                                (was {formatRank(currentRank.rank_tier, currentRank.rank_division)})
+                              </span>
+                            )}
+                          </p>
+                          <div className="flex gap-2">
+                            <Select
+                              value={parsedNewRank?.rank_tier ?? ""}
+                              onValueChange={(v) =>
+                                setParsedNewRank((prev) => ({
+                                  rank_tier: v as RankTier,
+                                  rank_division: v === "unranked" || v === "supersonic_legend" ? null : (prev?.rank_division ?? "I"),
+                                }))
+                              }
+                            >
+                              <SelectTrigger className="h-8 text-xs flex-1">
+                                <SelectValue placeholder="Tier" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {RANK_TIERS.filter((t) => t !== "unranked").map((t) => (
+                                  <SelectItem key={t} value={t} className="text-xs">
+                                    {TIER_LABELS[t]}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {parsedNewRank?.rank_tier &&
+                              parsedNewRank.rank_tier !== "unranked" &&
+                              parsedNewRank.rank_tier !== "supersonic_legend" && (
+                              <Select
+                                value={parsedNewRank?.rank_division ?? "I"}
+                                onValueChange={(v) =>
+                                  setParsedNewRank((prev) =>
+                                    prev ? { ...prev, rank_division: v as RankDivision } : null
+                                  )
+                                }
+                              >
+                                <SelectTrigger className="h-8 text-xs w-20">
+                                  <SelectValue placeholder="Div" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {RANK_DIVISIONS.map((d) => (
+                                    <SelectItem key={d} value={d} className="text-xs">Div {d}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )}
+                          </div>
+                        </div>
                       )}
                     </div>
                   )}
