@@ -79,12 +79,7 @@ Return ONLY valid JSON with no extra text or markdown:
           { inline_data: { mime_type: mime_type || "image/jpeg", data: image_base64 } },
         ],
       }],
-      generationConfig: {
-        maxOutputTokens: 4096,
-        temperature: 0,
-        // Disable thinking — we need deterministic JSON, not reasoning traces
-        thinkingConfig: { thinkingBudget: 0 },
-      },
+      generationConfig: { maxOutputTokens: 4096, temperature: 0 },
     };
 
     let response: Response | null = null;
