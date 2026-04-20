@@ -29,16 +29,16 @@ export default defineConfig(() => ({
         start_url: "/",
         icons: [
           {
-            src: "pwa-icon.svg",
-            sizes: "any",
-            type: "image/svg+xml",
+            src: "apple-touch-icon.png",
+            sizes: "180x180",
+            type: "image/png",
             purpose: "any",
           },
           {
-            src: "pwa-icon.svg",
-            sizes: "any",
-            type: "image/svg+xml",
-            purpose: "maskable",
+            src: "pwa-icon-512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "any maskable",
           },
         ],
       },
