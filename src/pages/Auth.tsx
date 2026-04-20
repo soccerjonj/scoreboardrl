@@ -65,7 +65,7 @@ const Auth = () => {
   return (
     <div
       className="min-h-screen bg-background flex items-start justify-center px-4 overflow-y-auto"
-      style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 2rem)', paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 2rem)' }}
+      style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 2rem)', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 2rem)' }}
     >
       <div className="w-full max-w-md">
         <Link to="/" className="block text-center mb-8">
