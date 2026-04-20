@@ -260,7 +260,7 @@ const StatChart = ({ title, description, data, userKey, teammateKey, teammateLab
         <ChartContainer config={chartConfig} className="h-52 w-full max-w-full">
           <LineChart data={data} margin={{ left: 6, right: 12, top: 8, bottom: 0 }}>
             <CartesianGrid vertical={false} strokeDasharray="4 4" />
-            <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} interval={tickInterval} />
+            <XAxis dataKey="label" hide />
             <YAxis tickLine={false} axisLine={false} width={40} tickFormatter={yAxisFormatter} domain={yAxisDomain} />
             <ChartTooltip content={<ChartTooltipContent labelFormatter={(_, payload) => payload?.[0]?.payload?.fullLabel ?? ""} />} />
             <Line type="monotone" dataKey={userKey} stroke={`var(--color-${String(userKey)})`} strokeWidth={2.5} dot={false} />
@@ -941,7 +941,7 @@ const Stats = () => {
                   <ChartContainer config={{ mmr: { label: "MMR", color: "hsl(var(--rl-blue))" } }} className="h-52 w-full max-w-full">
                     <LineChart data={mmrHistory} margin={{ left: 6, right: 12, top: 8, bottom: 0 }}>
                       <CartesianGrid vertical={false} strokeDasharray="4 4" />
-                      <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} interval={mmrHistory.length <= 10 ? 0 : mmrHistory.length <= 20 ? 1 : Math.floor(mmrHistory.length / 10)} />
+                      <XAxis dataKey="label" hide />
                       <YAxis tickLine={false} axisLine={false} width={50} domain={["auto", "auto"]} />
                       <ChartTooltip content={<ChartTooltipContent labelFormatter={(_, payload) => payload?.[0]?.payload?.fullLabel ?? ""} />} />
                       <Line type="monotone" dataKey="mmr" stroke="var(--color-mmr)" strokeWidth={2.5} dot={false} />
