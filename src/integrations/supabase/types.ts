@@ -18,7 +18,9 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          receiver_auto_approve: boolean
           receiver_id: string
+          sender_auto_approve: boolean
           sender_id: string
           status: Database["public"]["Enums"]["friend_request_status"]
           updated_at: string
@@ -26,7 +28,9 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          receiver_auto_approve?: boolean
           receiver_id: string
+          sender_auto_approve?: boolean
           sender_id: string
           status?: Database["public"]["Enums"]["friend_request_status"]
           updated_at?: string
@@ -34,7 +38,9 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          receiver_auto_approve?: boolean
           receiver_id?: string
+          sender_auto_approve?: boolean
           sender_id?: string
           status?: Database["public"]["Enums"]["friend_request_status"]
           updated_at?: string
@@ -44,7 +50,7 @@ export type Database = {
       game_players: {
         Row: {
           assists: number
-          contribution_score: number | null
+          carry_score: number | null
           created_at: string
           game_id: string
           goals: number
@@ -54,8 +60,6 @@ export type Database = {
           saves: number
           score: number
           shots: number
-          mmr: number | null
-          mmr_change: number | null
           submission_status: Database["public"]["Enums"]["stat_submission_status"]
           submitted_by: string | null
           team: string | null
@@ -63,14 +67,12 @@ export type Database = {
         }
         Insert: {
           assists?: number
-          contribution_score?: number | null
+          carry_score?: number | null
           created_at?: string
           game_id: string
           goals?: number
           id?: string
           is_mvp?: boolean
-          mmr?: number | null
-          mmr_change?: number | null
           player_name: string
           saves?: number
           score?: number
@@ -82,14 +84,12 @@ export type Database = {
         }
         Update: {
           assists?: number
-          contribution_score?: number | null
+          carry_score?: number | null
           created_at?: string
           game_id?: string
           goals?: number
           id?: string
           is_mvp?: boolean
-          mmr?: number | null
-          mmr_change?: number | null
           player_name?: string
           saves?: number
           score?: number
@@ -114,6 +114,7 @@ export type Database = {
           created_at: string
           created_by: string
           division_change: string | null
+          duplicate_of: string | null
           game_mode: Database["public"]["Enums"]["game_mode"]
           game_type: Database["public"]["Enums"]["game_type"]
           id: string
@@ -125,6 +126,7 @@ export type Database = {
           created_at?: string
           created_by: string
           division_change?: string | null
+          duplicate_of?: string | null
           game_mode: Database["public"]["Enums"]["game_mode"]
           game_type?: Database["public"]["Enums"]["game_type"]
           id?: string
@@ -136,6 +138,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           division_change?: string | null
+          duplicate_of?: string | null
           game_mode?: Database["public"]["Enums"]["game_mode"]
           game_type?: Database["public"]["Enums"]["game_type"]
           id?: string
@@ -143,14 +146,53 @@ export type Database = {
           result?: string
           screenshot_url?: string | null
         }
+        Relationships: [
+          {
+            foreignKeyName: "games_duplicate_of_fkey"
+            columns: ["duplicate_of"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          body: string | null
+          created_at: string
+          id: string
+          payload: Json | null
+          read: boolean
+          title: string
+          type: Database["public"]["Enums"]["notification_type"]
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          payload?: Json | null
+          read?: boolean
+          title: string
+          type: Database["public"]["Enums"]["notification_type"]
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          payload?: Json | null
+          read?: boolean
+          title?: string
+          type?: Database["public"]["Enums"]["notification_type"]
+          user_id?: string
+        }
         Relationships: []
       }
       profiles: {
         Row: {
           avatar_url: string | null
-          bio: string | null
           created_at: string
-          favorite_car: string | null
           id: string
           rl_account_name: string | null
           updated_at: string
@@ -159,9 +201,7 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
-          bio?: string | null
           created_at?: string
-          favorite_car?: string | null
           id?: string
           rl_account_name?: string | null
           updated_at?: string
@@ -170,9 +210,7 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
-          bio?: string | null
           created_at?: string
-          favorite_car?: string | null
           id?: string
           rl_account_name?: string | null
           updated_at?: string
@@ -228,6 +266,11 @@ export type Database = {
       friend_request_status: "pending" | "accepted" | "rejected"
       game_mode: "1v1" | "2v2" | "3v3"
       game_type: "competitive" | "casual"
+      notification_type:
+        | "game_shared"
+        | "stat_conflict"
+        | "stat_edit"
+        | "friend_request"
       rank_division: "I" | "II" | "III" | "IV"
       rank_tier:
         | "unranked"
@@ -384,6 +427,12 @@ export const Constants = {
       friend_request_status: ["pending", "accepted", "rejected"],
       game_mode: ["1v1", "2v2", "3v3"],
       game_type: ["competitive", "casual"],
+      notification_type: [
+        "game_shared",
+        "stat_conflict",
+        "stat_edit",
+        "friend_request",
+      ],
       rank_division: ["I", "II", "III", "IV"],
       rank_tier: [
         "unranked",
