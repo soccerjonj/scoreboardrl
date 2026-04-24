@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { Plus, Loader2, Trophy, Target, TrendingUp, ChevronRight, Zap, ChevronDown, ChevronUp, Pencil, Check, X as XIcon, Trash2, Info } from "lucide-react";
 
@@ -431,114 +432,109 @@ const Dashboard = () => {
         )}
 
         {/* Quick Stats */}
-        <div className="grid grid-cols-2 gap-3">
-          <Card className="border-border/50 bg-card/80">
-            <CardContent className="pt-4 pb-3 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Target className="w-4 h-4 text-primary" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Win Rate</p>
-                <p className="font-display font-bold text-lg">{quickStats.winRate}%</p>
-              </div>
+        <div className="grid grid-cols-2 gap-3 stagger-children">
+          {/* Win Rate */}
+          <Card className="relative overflow-hidden border-primary/10 animate-fade-in-up">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent" />
+            <CardContent className="pt-4 pb-3 relative">
+              <Target className="absolute top-3 right-3 w-4 h-4 text-primary/30" />
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Win Rate</p>
+              <p className="font-display font-bold text-3xl mt-0.5 text-primary">{quickStats.winRate}%</p>
             </CardContent>
           </Card>
-          <Card className="border-border/50 bg-card/80">
-            <CardContent className="pt-4 pb-3 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-secondary/10 flex items-center justify-center">
-                <TrendingUp className="w-4 h-4 text-secondary" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Avg Score</p>
-                <p className="font-display font-bold text-lg">{quickStats.avgScore}</p>
-              </div>
+
+          {/* Avg Score */}
+          <Card className="relative overflow-hidden border-secondary/10 animate-fade-in-up">
+            <div className="absolute inset-0 bg-gradient-to-br from-secondary/10 via-secondary/5 to-transparent" />
+            <CardContent className="pt-4 pb-3 relative">
+              <TrendingUp className="absolute top-3 right-3 w-4 h-4 text-secondary/30" />
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Avg Score</p>
+              <p className="font-display font-bold text-3xl mt-0.5 text-secondary">{quickStats.avgScore}</p>
             </CardContent>
           </Card>
-          <Card className="border-border/50 bg-card/80">
-            <CardContent className="pt-4 pb-3 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-rl-green/10 flex items-center justify-center">
-                <Zap className="w-4 h-4 text-rl-green" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Goals / Game</p>
-                <p className="font-display font-bold text-lg">{quickStats.goalsPerGame.toFixed(2)}</p>
-              </div>
+
+          {/* Goals / Game */}
+          <Card className="relative overflow-hidden border-rl-green/10 animate-fade-in-up">
+            <div className="absolute inset-0 bg-gradient-to-br from-rl-green/10 via-rl-green/5 to-transparent" />
+            <CardContent className="pt-4 pb-3 relative">
+              <Zap className="absolute top-3 right-3 w-4 h-4 text-rl-green/30" />
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Goals / Game</p>
+              <p className="font-display font-bold text-3xl mt-0.5 text-rl-green">{quickStats.goalsPerGame.toFixed(2)}</p>
             </CardContent>
           </Card>
-          <Card className="border-border/50 bg-card/80">
-            <CardContent className="pt-4 pb-3 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-rl-purple/10 flex items-center justify-center">
-                <Trophy className="w-4 h-4 text-rl-purple" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">MVP Rate</p>
-                <p className="font-display font-bold text-lg">{quickStats.mvpRate}%</p>
-              </div>
+
+          {/* MVP Rate */}
+          <Card className="relative overflow-hidden border-rl-purple/10 animate-fade-in-up">
+            <div className="absolute inset-0 bg-gradient-to-br from-rl-purple/10 via-rl-purple/5 to-transparent" />
+            <CardContent className="pt-4 pb-3 relative">
+              <Trophy className="absolute top-3 right-3 w-4 h-4 text-rl-purple/30" />
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">MVP Rate</p>
+              <p className="font-display font-bold text-3xl mt-0.5 text-rl-purple">{quickStats.mvpRate}%</p>
             </CardContent>
           </Card>
-          <Card className="border-border/50 bg-card/80">
-            <CardContent className="pt-4 pb-3 flex items-center gap-3">
-              <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${
-                quickStats.currentStreakType === "win" ? "bg-rl-green/10" : "bg-rl-red/10"
-              }`}>
-                <Zap className={`w-4 h-4 ${
-                  quickStats.currentStreakType === "win" ? "text-rl-green" : "text-rl-red"
-                }`} />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Current Streak</p>
-                <p className={`font-display font-bold text-lg ${
-                  quickStats.currentStreakType === "win" ? "text-rl-green" : quickStats.currentStreakType === "loss" ? "text-rl-red" : ""
-                }`}>
-                  {quickStats.currentStreakCount > 0
-                    ? `${quickStats.currentStreakCount}${quickStats.currentStreakType === "win" ? "W" : "L"}`
-                    : "—"}
-                </p>
-              </div>
+
+          {/* Current Streak */}
+          <Card className={cn(
+            "relative overflow-hidden animate-fade-in-up",
+            quickStats.currentStreakType === "win" ? "border-rl-green/10" : "border-rl-red/10"
+          )}>
+            <div className={cn(
+              "absolute inset-0 bg-gradient-to-br to-transparent",
+              quickStats.currentStreakType === "win" ? "from-rl-green/10 via-rl-green/5" : "from-rl-red/10 via-rl-red/5"
+            )} />
+            <CardContent className="pt-4 pb-3 relative">
+              <Zap className={cn(
+                "absolute top-3 right-3 w-4 h-4",
+                quickStats.currentStreakType === "win" ? "text-rl-green/30" : "text-rl-red/30"
+              )} />
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Streak</p>
+              <p className={cn(
+                "font-display font-bold text-3xl mt-0.5",
+                quickStats.currentStreakType === "win" ? "text-rl-green" : quickStats.currentStreakType === "loss" ? "text-rl-red" : "text-foreground"
+              )}>
+                {quickStats.currentStreakCount > 0
+                  ? `${quickStats.currentStreakCount}${quickStats.currentStreakType === "win" ? "W" : "L"}`
+                  : "—"}
+              </p>
             </CardContent>
           </Card>
-          <Card className="border-border/50 bg-card/80">
-            <CardContent className="pt-4 pb-3 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-rl-purple/10 flex items-center justify-center">
-                <Trophy className="w-4 h-4 text-rl-purple" />
-              </div>
-              <div>
-                <div className="flex items-center gap-1">
-                  <p className="text-xs text-muted-foreground">Avg Contribution</p>
-                  <button onClick={() => setShowContribInfo(true)} className="text-muted-foreground hover:text-foreground transition-colors">
-                    <Info className="w-3 h-3" />
-                  </button>
-                </div>
-                <p className="font-display font-bold text-lg">
-                  {quickStats.avgContributionScore !== null
-                    ? quickStats.avgContributionScore.toFixed(1)
-                    : "—"}
-                </p>
-              </div>
+
+          {/* Avg Contribution */}
+          <Card className="relative overflow-hidden border-rl-purple/10 animate-fade-in-up">
+            <div className="absolute inset-0 bg-gradient-to-br from-rl-purple/10 via-rl-purple/5 to-transparent" />
+            <CardContent className="pt-4 pb-3 relative">
+              <button onClick={() => setShowContribInfo(true)} className="absolute top-3 right-3 text-muted-foreground/40 hover:text-muted-foreground transition-colors">
+                <Info className="w-4 h-4" />
+              </button>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Avg Contrib</p>
+              <p className="font-display font-bold text-3xl mt-0.5 text-rl-purple">
+                {quickStats.avgContributionScore !== null ? quickStats.avgContributionScore.toFixed(1) : "—"}
+              </p>
             </CardContent>
           </Card>
         </div>
 
         {/* Recent Form */}
         {recentStreak.length > 0 && (
-          <Card className="border-border/50 bg-card/80">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-display">Recent Form</CardTitle>
-            </CardHeader>
-            <CardContent className="flex items-center gap-2">
+          <Card>
+            <CardContent className="pt-3 pb-3 flex items-center gap-2">
+              <span className="text-[10px] text-muted-foreground uppercase tracking-wider mr-1">Form</span>
               {recentStreak.map((r, i) => (
                 <span
                   key={i}
-                  className={`w-8 h-8 rounded-md flex items-center justify-center text-xs font-bold ${
-                    r === "W" ? "bg-rl-green/20 text-rl-green" : "bg-rl-red/20 text-rl-red"
-                  }`}
+                  className={cn(
+                    "w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold font-display transition-all",
+                    r === "W"
+                      ? "bg-rl-green/20 text-rl-green border border-rl-green/30 shadow-[0_0_10px_hsl(var(--rl-green)/0.2)]"
+                      : "bg-rl-red/20 text-rl-red border border-rl-red/30 shadow-[0_0_10px_hsl(var(--rl-red)/0.2)]"
+                  )}
                 >
                   {r}
                 </span>
               ))}
               <Link to="/stats" className="ml-auto">
-                <Button variant="ghost" size="sm" className="text-xs text-muted-foreground gap-1">
-                  View Stats <ChevronRight className="w-3 h-3" />
+                <Button variant="ghost" size="sm" className="text-xs text-muted-foreground gap-1 h-7">
+                  All Stats <ChevronRight className="w-3 h-3" />
                 </Button>
               </Link>
             </CardContent>
@@ -589,15 +585,33 @@ const Dashboard = () => {
                 });
 
                 return (
-                  <Card key={game.id} className="border-border/50 bg-card/80 overflow-hidden">
+                  <Card key={game.id} className={cn(
+                    "overflow-hidden transition-all duration-200",
+                    isWin ? "border-rl-green/20" : "border-rl-red/20"
+                  )}>
+                    {/* Colored top stripe */}
+                    <div className={cn(
+                      "h-0.5 w-full",
+                      isWin
+                        ? "bg-gradient-to-r from-rl-green/80 via-rl-green/40 to-transparent"
+                        : "bg-gradient-to-r from-rl-red/80 via-rl-red/40 to-transparent"
+                    )} />
                     {/* Main row */}
                     <CardContent className="py-3 px-4">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3 min-w-0">
-                          <span className={`w-2 h-8 rounded-full flex-shrink-0 ${isWin ? "bg-rl-green" : "bg-rl-red"}`} />
+                          <span className={cn(
+                            "w-1.5 h-8 rounded-full flex-shrink-0",
+                            isWin
+                              ? "bg-rl-green shadow-[0_0_8px_hsl(var(--rl-green)/0.6)]"
+                              : "bg-rl-red shadow-[0_0_8px_hsl(var(--rl-red)/0.6)]"
+                          )} />
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5 flex-nowrap">
-                              <span className="font-display font-bold text-sm flex-shrink-0">{isWin ? "WIN" : "LOSS"}</span>
+                              <span className={cn(
+                                "font-display font-bold text-sm flex-shrink-0",
+                                isWin ? "text-rl-green" : "text-rl-red"
+                              )}>{isWin ? "WIN" : "LOSS"}</span>
                               <Badge variant="outline" className="text-[10px] px-1.5 py-0 flex-shrink-0">{game.game_mode}</Badge>
                               {game.division_change && game.division_change !== "none" && (
                                 <Badge

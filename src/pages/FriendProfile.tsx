@@ -179,13 +179,15 @@ const FriendProfile = () => {
       <div className="space-y-5">
 
         {/* ── Unified profile card ── */}
-        <Card className="border-border/50 bg-card/80 overflow-hidden">
-          <div className="h-20 bg-gradient-to-br from-primary/20 via-secondary/10 to-transparent" />
+        <Card className="overflow-hidden">
+          <div className="h-24 bg-gradient-to-br from-primary/30 via-rl-purple/15 to-secondary/10 relative">
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,hsl(var(--primary)/0.2),transparent_60%)]" />
+          </div>
 
           {/* Identity zone */}
           <div className="px-5 pt-0 pb-4">
             <div className="flex items-end gap-4 -mt-10 mb-3">
-              <div className="w-20 h-20 rounded-full border-4 border-card bg-muted/40 overflow-hidden shrink-0">
+              <div className="w-20 h-20 rounded-full border-[3px] border-primary/40 bg-muted/40 overflow-hidden shrink-0 shadow-[0_0_20px_hsl(var(--primary)/0.25)]">
                 {profile.avatar_url ? (
                   <img src={profile.avatar_url} alt={displayName} className="w-full h-full object-cover" />
                 ) : (

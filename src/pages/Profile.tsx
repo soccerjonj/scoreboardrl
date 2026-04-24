@@ -408,13 +408,15 @@ const Profile = () => {
         <div className="space-y-4">
 
           {/* ── Unified profile card ── */}
-          <Card className="border-border/50 bg-card/80 overflow-hidden">
-            <div className="h-20 bg-gradient-to-br from-primary/20 via-secondary/10 to-transparent" />
+          <Card className="overflow-hidden">
+            <div className="h-24 bg-gradient-to-br from-primary/30 via-rl-purple/15 to-secondary/10 relative">
+              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,hsl(var(--primary)/0.2),transparent_60%)]" />
+            </div>
 
             {/* Identity zone */}
             <div className="px-5 pt-0 pb-4">
               <div className="flex items-end gap-4 -mt-10 mb-3">
-                <div className="w-20 h-20 rounded-full border-4 border-card bg-muted/40 overflow-hidden shrink-0">
+                <div className="w-20 h-20 rounded-full border-[3px] border-primary/40 bg-muted/40 overflow-hidden shrink-0 shadow-[0_0_20px_hsl(var(--primary)/0.25)]">
                   {avatarUrl
                     ? <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
                     : <div className="w-full h-full flex items-center justify-center"><User className="w-9 h-9 text-muted-foreground/60" /></div>
@@ -441,13 +443,16 @@ const Profile = () => {
 
             {/* Stats shelf — full-bleed */}
             {profileStats && profileStats.totalGames > 0 && (
-              <div className="border-t border-border/40 bg-muted/20">
+              <div className="border-t border-white/[0.06] bg-white/[0.02]">
                 {/* W/L + form */}
                 <div className="px-5 py-3 flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <span className="font-display font-bold text-sm text-rl-green">W {profileStats.wins}</span>
-                    <span className="text-muted-foreground/40">·</span>
-                    <span className="font-display font-bold text-sm text-rl-red">L {profileStats.losses}</span>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rl-green/10 border border-rl-green/20">
+                      <span className="font-display font-bold text-sm text-rl-green">{profileStats.wins}W</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rl-red/10 border border-rl-red/20">
+                      <span className="font-display font-bold text-sm text-rl-red">{profileStats.losses}L</span>
+                    </div>
                     {winRate !== null && (
                       <span className="text-xs text-muted-foreground font-mono">{winRate}%</span>
                     )}
@@ -456,22 +461,24 @@ const Profile = () => {
                     <div className="flex items-center gap-1">
                       {profileStats.recentForm.map((result, i) => (
                         <div key={i} className={`w-5 h-5 rounded text-[9px] font-bold flex items-center justify-center ${
-                          result === "W" ? "bg-rl-green/20 text-rl-green" : "bg-rl-red/20 text-rl-red"
+                          result === "W"
+                            ? "bg-rl-green/20 text-rl-green border border-rl-green/30"
+                            : "bg-rl-red/20 text-rl-red border border-rl-red/30"
                         }`}>{result}</div>
                       ))}
                     </div>
                   )}
                 </div>
                 {/* Row 1: Games · Avg Score · Contrib · MVP Rate */}
-                <div className="border-t border-border/30 grid grid-cols-4 divide-x divide-border/30">
+                <div className="border-t border-white/[0.05] grid grid-cols-4 divide-x divide-white/[0.05]">
                   {[
-                    { label: "Games",     value: profileStats.totalGames,      fmt: (v: number) => String(v) },
-                    { label: "Avg Score", value: profileStats.avgScore,        fmt: (v: number) => v.toFixed(1) },
-                    { label: "Contrib",   value: profileStats.avgContribution, fmt: (v: number) => `${v.toFixed(1)}%` },
-                    { label: "MVP Rate",  value: profileStats.mvpRate,         fmt: (v: number) => `${Math.round(v)}%` },
-                  ].map(({ label, value, fmt }) => (
+                    { label: "Games",    value: profileStats.totalGames,      fmt: (v: number) => String(v),         color: "text-primary" },
+                    { label: "Avg Score",value: profileStats.avgScore,        fmt: (v: number) => v.toFixed(0),      color: "text-secondary" },
+                    { label: "Contrib",  value: profileStats.avgContribution, fmt: (v: number) => `${v.toFixed(1)}%`,color: "text-rl-purple" },
+                    { label: "MVP Rate", value: profileStats.mvpRate,         fmt: (v: number) => `${Math.round(v)}%`,color: "text-yellow-400" },
+                  ].map(({ label, value, fmt, color }) => (
                     <div key={label} className="py-3 text-center">
-                      <p className="font-display font-bold text-base leading-tight">
+                      <p className={`font-display font-bold text-lg leading-tight ${color}`}>
                         {value !== null ? fmt(value) : <span className="text-muted-foreground">—</span>}
                       </p>
                       <p className="text-[10px] text-muted-foreground mt-0.5">{label}</p>
@@ -479,7 +486,7 @@ const Profile = () => {
                   ))}
                 </div>
                 {/* Row 2: Goals · Assists · Saves · Shots */}
-                <div className="border-t border-border/30 grid grid-cols-4 divide-x divide-border/30">
+                <div className="border-t border-white/[0.05] grid grid-cols-4 divide-x divide-white/[0.05]">
                   {[
                     { label: "Goals",   value: profileStats.avgGoals,   fmt: (v: number) => v.toFixed(2) },
                     { label: "Assists", value: profileStats.avgAssists, fmt: (v: number) => v.toFixed(2) },
@@ -487,7 +494,7 @@ const Profile = () => {
                     { label: "Shots",   value: profileStats.avgShots,   fmt: (v: number) => v.toFixed(2) },
                   ].map(({ label, value, fmt }) => (
                     <div key={label} className="py-3 text-center">
-                      <p className="font-display font-bold text-sm leading-tight">
+                      <p className="font-display font-bold text-sm leading-tight text-foreground/90">
                         {value !== null ? fmt(value) : <span className="text-muted-foreground">—</span>}
                       </p>
                       <p className="text-[10px] text-muted-foreground mt-0.5">{label}</p>
