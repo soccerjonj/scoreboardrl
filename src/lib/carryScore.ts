@@ -92,3 +92,15 @@ export function calculateContributionScores(players: PlayerStats[]): Map<string,
 
 // Alias for backward compatibility
 export const calculateCarryScores = calculateContributionScores;
+
+/**
+ * Normalize a raw contribution score (team %) so that equal contribution = 100,
+ * regardless of team size. Returns null for 1v1 (meaningless).
+ *   2v2: equal=50% → normalized 100
+ *   3v3: equal=33% → normalized 100
+ *   >100 = carried, <100 = below average
+ */
+export function normalizeContribution(raw: number, teamSize: number): number | null {
+  if (teamSize <= 1) return null;
+  return Math.round(raw * teamSize);
+}

@@ -290,8 +290,9 @@ const Dashboard = () => {
       totalScore += userRow.score;
       totalGoals += userRow.goals;
       if (userRow.is_mvp) mvps++;
+      const ts = game.game_mode === "1v1" ? 1 : game.game_mode === "2v2" ? 2 : 3;
       const cs = userRow.contribution_score ?? 0;
-      if (cs > 0) { totalContrib += cs; contribGames++; }
+      if (cs > 0 && ts > 1) { totalContrib += cs * ts; contribGames++; }
       results.push(game.result);
     });
 
@@ -508,7 +509,7 @@ const Dashboard = () => {
               </button>
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Avg Contrib</p>
               <p className="font-display font-bold text-3xl mt-0.5 text-rl-purple">
-                {quickStats.avgContributionScore !== null ? quickStats.avgContributionScore.toFixed(1) : "—"}
+                {quickStats.avgContributionScore !== null ? Math.round(quickStats.avgContributionScore) : "—"}
               </p>
             </CardContent>
           </Card>

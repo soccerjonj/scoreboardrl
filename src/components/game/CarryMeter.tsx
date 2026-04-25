@@ -5,17 +5,15 @@ interface ContributionMeterProps {
 }
 
 const ContributionMeter = ({ score, teamSize = 2, size = "md" }: ContributionMeterProps) => {
-  if (!score || score < 1) return null;
+  if (!score || score < 1 || teamSize <= 1) return null;
 
-  // "Above average" threshold depends on team size (equal split = 100/teamSize)
-  const equalShare = Math.round(100 / teamSize);
-  const highThreshold = equalShare + 20; // notably above average
-  const midThreshold  = equalShare - 5;  // roughly average or above
+  // Normalized: equal contribution = 100, regardless of team size
+  const normalized = Math.round(score * teamSize);
 
   const color =
-    score >= highThreshold
+    normalized >= 120
       ? "bg-rl-purple"
-      : score >= midThreshold
+      : normalized >= 90
       ? "bg-primary"
       : "bg-muted-foreground";
 
@@ -30,7 +28,7 @@ const ContributionMeter = ({ score, teamSize = 2, size = "md" }: ContributionMet
           style={{ width: `${score}%` }}
         />
       </div>
-      <span className="text-xs font-mono text-muted-foreground">{score}%</span>
+      <span className="text-xs font-mono text-muted-foreground">{normalized}</span>
     </div>
   );
 };

@@ -215,7 +215,7 @@ const Profile = () => {
               saves:        t.saves        + safeNum(row.saves),
               shots:        t.shots        + safeNum(row.shots),
               mvps:         t.mvps         + ((row as any).is_mvp ? 1 : 0),
-              contribution: t.contribution + safeNum(row.contribution_score),
+              contribution: t.contribution + safeNum(row.contribution_score), // raw; normalized after gamesData fetch
               contribGames: t.contribGames + (safeNum(row.contribution_score) > 0 ? 1 : 0),
             },
           }),
@@ -228,7 +228,7 @@ const Profile = () => {
         // Fetch game results + all players in those games
         const { data: gamesData } = await supabase
           .from("games")
-          .select("id, result, played_at, game_players(user_id, player_name)")
+          .select("id, result, played_at, game_mode, game_players(user_id, player_name)")
           .in("id", gameIds)
           .order("played_at", { ascending: false });
 
@@ -270,7 +270,17 @@ const Profile = () => {
           avgAssists:      n > 0 ? totals.assists  / n : 0,
           avgSaves:        n > 0 ? totals.saves    / n : 0,
           avgShots:        n > 0 ? totals.shots    / n : 0,
-          avgContribution: totals.contribGames > 0 ? totals.contribution / totals.contribGames : null,
+          avgContribution: (() => {
+            const modeMap = new Map((gamesData ?? []).map((g) => [g.id, g.game_mode as string]));
+            let normTotal = 0, normCount = 0;
+            myPlayerRows.forEach((row) => {
+              const mode = modeMap.get(row.game_id);
+              const ts = mode === "1v1" ? 1 : mode === "2v2" ? 2 : 3;
+              const cs = safeNum(row.contribution_score);
+              if (cs > 0 && ts > 1) { normTotal += cs * ts; normCount++; }
+            });
+            return normCount > 0 ? normTotal / normCount : null;
+          })(),
           mvpRate:         n > 0 ? (totals.mvps / n) * 100 : 0,
           ...records,
           topTeammates,
@@ -474,7 +484,7 @@ const Profile = () => {
                   {[
                     { label: "Games",    value: profileStats.totalGames,      fmt: (v: number) => String(v),         color: "text-primary" },
                     { label: "Avg Score",value: profileStats.avgScore,        fmt: (v: number) => v.toFixed(0),      color: "text-secondary" },
-                    { label: "Contrib",  value: profileStats.avgContribution, fmt: (v: number) => `${v.toFixed(1)}%`,color: "text-rl-purple" },
+                    { label: "Contrib",  value: profileStats.avgContribution, fmt: (v: number) => Math.round(v).toString(), color: "text-rl-purple" },
                     { label: "MVP Rate", value: profileStats.mvpRate,         fmt: (v: number) => `${Math.round(v)}%`,color: "text-yellow-400" },
                   ].map(({ label, value, fmt, color }) => (
                     <div key={label} className="py-3 text-center">
