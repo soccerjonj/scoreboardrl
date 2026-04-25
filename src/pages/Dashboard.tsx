@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -17,6 +17,25 @@ import { CarryMeter } from "@/components/game/CarryMeter";
 import { calculateContributionScores } from "@/lib/carryScore";
 import { getRankIcon } from "@/lib/rankIcons";
 import AppLayout from "@/components/layout/AppLayout";
+
+// ─── CountUp component ────────────────────────────────────────────────────────
+const CountUp = ({ to, decimals = 0, suffix = "", duration = 700 }: { to: number; decimals?: number; suffix?: string; duration?: number }) => {
+  const [val, setVal] = useState(0);
+  const rafRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    const start = performance.now();
+    const step = (now: number) => {
+      const p = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - p, 3); // ease-out cubic
+      setVal(parseFloat((eased * to).toFixed(decimals)));
+      if (p < 1) rafRef.current = requestAnimationFrame(step);
+    };
+    rafRef.current = requestAnimationFrame(step);
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+  }, [to, decimals, duration]);
+  return <>{val.toFixed(decimals)}{suffix}</>;
+};
 
 type GameMode     = Database["public"]["Enums"]["game_mode"];
 type RankTier     = Database["public"]["Enums"]["rank_tier"];
@@ -440,7 +459,7 @@ const Dashboard = () => {
             <CardContent className="pt-4 pb-3 relative">
               <Target className="absolute top-3 right-3 w-4 h-4 text-primary/30" />
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Win Rate</p>
-              <p className="font-display font-bold text-3xl mt-0.5 text-primary">{quickStats.winRate}%</p>
+              <p className="font-display font-bold text-3xl mt-0.5 text-primary"><CountUp to={quickStats.winRate} suffix="%" /></p>
             </CardContent>
           </Card>
 
@@ -450,7 +469,7 @@ const Dashboard = () => {
             <CardContent className="pt-4 pb-3 relative">
               <TrendingUp className="absolute top-3 right-3 w-4 h-4 text-secondary/30" />
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Avg Score</p>
-              <p className="font-display font-bold text-3xl mt-0.5 text-secondary">{quickStats.avgScore}</p>
+              <p className="font-display font-bold text-3xl mt-0.5 text-secondary"><CountUp to={quickStats.avgScore} /></p>
             </CardContent>
           </Card>
 
@@ -460,7 +479,7 @@ const Dashboard = () => {
             <CardContent className="pt-4 pb-3 relative">
               <Zap className="absolute top-3 right-3 w-4 h-4 text-rl-green/30" />
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Goals / Game</p>
-              <p className="font-display font-bold text-3xl mt-0.5 text-rl-green">{quickStats.goalsPerGame.toFixed(2)}</p>
+              <p className="font-display font-bold text-3xl mt-0.5 text-rl-green"><CountUp to={quickStats.goalsPerGame} decimals={2} /></p>
             </CardContent>
           </Card>
 
@@ -470,7 +489,7 @@ const Dashboard = () => {
             <CardContent className="pt-4 pb-3 relative">
               <Trophy className="absolute top-3 right-3 w-4 h-4 text-rl-purple/30" />
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">MVP Rate</p>
-              <p className="font-display font-bold text-3xl mt-0.5 text-rl-purple">{quickStats.mvpRate}%</p>
+              <p className="font-display font-bold text-3xl mt-0.5 text-rl-purple"><CountUp to={quickStats.mvpRate} suffix="%" /></p>
             </CardContent>
           </Card>
 
@@ -509,7 +528,7 @@ const Dashboard = () => {
               </button>
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Avg Contrib</p>
               <p className="font-display font-bold text-3xl mt-0.5 text-rl-purple">
-                {quickStats.avgContributionScore !== null ? Math.round(quickStats.avgContributionScore) : "—"}
+                {quickStats.avgContributionScore !== null ? <CountUp to={Math.round(quickStats.avgContributionScore)} /> : "—"}
               </p>
             </CardContent>
           </Card>
