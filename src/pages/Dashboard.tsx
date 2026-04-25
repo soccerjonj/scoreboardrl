@@ -817,16 +817,14 @@ const Dashboard = () => {
             <DialogDescription asChild>
               <div className="space-y-3 text-sm text-muted-foreground pt-1">
                 <p>
-                  The Contribution Score shows how much you contributed to your team's performance in a game. It's calculated from your in-game score, goals, assists, and saves relative to your teammates.
+                  The Contribution Score shows how much you contributed to your team's performance. It's calculated from your in-game score, goals, assists, and saves relative to your teammates — then normalized so equal contribution always equals <span className="font-semibold text-foreground">100</span>, regardless of game mode.
                 </p>
-                <p>Equal contribution looks like this:</p>
                 <ul className="space-y-1 pl-4 list-disc">
-                  <li><span className="font-semibold text-foreground">1v1:</span> 100% — you're the whole team</li>
-                  <li><span className="font-semibold text-foreground">2v2:</span> 50% each means both players contributed equally</li>
-                  <li><span className="font-semibold text-foreground">3v3:</span> 33–34% each means all 3 contributed evenly</li>
-                  <li><span className="font-semibold text-foreground">4v4:</span> 25% each means all 4 contributed evenly</li>
+                  <li><span className="font-semibold text-foreground">100</span> — you pulled your exact weight</li>
+                  <li><span className="font-semibold text-foreground">&gt; 100</span> — you carried more than your share</li>
+                  <li><span className="font-semibold text-foreground">&lt; 100</span> — teammates picked up your slack</li>
                 </ul>
-                <p>A higher percentage means you carried more of the load for your team.</p>
+                <p>1v1 games don't show a contribution score since there are no teammates to compare against.</p>
               </div>
             </DialogDescription>
           </DialogHeader>
