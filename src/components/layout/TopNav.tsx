@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { useNotifications } from "@/hooks/useNotifications";
+import Logo from "@/components/ui/Logo";
 
 const tabs = [
   { to: "/dashboard", label: "Home",     icon: Home },
@@ -22,10 +23,7 @@ const TopNav = () => {
   return (
     <header className="hidden md:block sticky top-0 z-50 border-b border-border/50 bg-card/95 backdrop-blur-xl">
       <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
-        <NavLink to="/dashboard" className="font-display text-xl font-bold">
-          <span className="text-primary">Scoreboard</span>
-          <span className="text-secondary">RL</span>
-        </NavLink>
+        <NavLink to="/dashboard"><Logo size="md" /></NavLink>
 
         <nav className="flex items-center gap-1">
           {tabs.map((tab) => {

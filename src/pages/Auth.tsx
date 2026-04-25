@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "react-router-dom";
+import Logo from "@/components/ui/Logo";
 
 type AuthMode = "signin" | "signup" | "forgot";
 
@@ -69,10 +70,8 @@ const Auth = () => {
     >
       <div className="w-full max-w-md">
         <Link to="/" className="block text-center mb-8">
-          <span className="font-display text-3xl font-bold">
-            <span className="text-primary">Scoreboard</span>
-            <span className="text-secondary">RL</span>
-          </span>
+          <Logo size="lg" className="justify-center" />
+          <p className="text-sm text-muted-foreground mt-2">Rocket League stat tracker</p>
         </Link>
 
         <Card className="border-border/50 bg-card/80 backdrop-blur-sm">

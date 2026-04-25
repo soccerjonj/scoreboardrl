@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Camera, BarChart3, Users } from "lucide-react";
+import Logo from "@/components/ui/Logo";
 
 const Index = () => {
   const { user, loading, signIn } = useAuth();
@@ -53,10 +54,7 @@ const Index = () => {
           {/* Left: brand + pitch */}
           <div className="text-center lg:text-left">
             <Link to="/" className="inline-block mb-6">
-              <span className="font-display text-3xl sm:text-4xl font-bold">
-                <span className="text-primary">Scoreboard</span>
-                <span className="text-secondary">RL</span>
-              </span>
+              <Logo size="lg" />
             </Link>
             <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl font-bold leading-[1.05] mb-4">
               Track every <span className="text-gradient-hero">Rocket League</span> match.

@@ -5,6 +5,7 @@ import BottomNav from "./BottomNav";
 import TopNav from "./TopNav";
 import { useNotifications } from "@/hooks/useNotifications";
 import { cn } from "@/lib/utils";
+import Logo from "@/components/ui/Logo";
 
 const MobileHeader = () => {
   const location = useLocation();
@@ -16,10 +17,7 @@ const MobileHeader = () => {
       style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
     >
       <div className="h-12 px-4 flex items-center justify-between">
-        <NavLink to="/dashboard" className="font-display text-lg font-bold">
-          <span className="text-primary">Scoreboard</span>
-          <span className="text-secondary">RL</span>
-        </NavLink>
+        <NavLink to="/dashboard"><Logo size="sm" /></NavLink>
         <NavLink
           to="/notifications"
           className={cn(
