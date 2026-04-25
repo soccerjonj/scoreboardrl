@@ -485,11 +485,12 @@ const Stats = () => {
         const teamFor = players.filter((p) => p.team === userTeam).reduce((s, p) => s + safeNumber(p.goals), 0);
         const teamAgainst = players.filter((p) => p.team !== userTeam).reduce((s, p) => s + safeNumber(p.goals), 0);
         const uScore = safeNumber(userRow.score), uGoals = safeNumber(userRow.goals), uAssists = safeNumber(userRow.assists), uSaves = safeNumber(userRow.saves), uShots = safeNumber(userRow.shots), uContrib = safeNumber(userRow.contribution_score);
+        const gTeamSize = game.game_mode === "1v1" ? 1 : game.game_mode === "2v2" ? 2 : game.game_mode === "3v3" ? 3 : 4;
         ut.games++; ut.points += uScore; ut.goals += uGoals; ut.assists += uAssists; ut.saves += uSaves; ut.shots += uShots;
         ut.teamGoalsFor += teamFor; ut.teamGoalsAgainst += teamAgainst;
         if (game.result === "win") ut.wins++;
         if (userRow.is_mvp) ut.mvp++;
-        if (uContrib > 0) { ut.carryTotal += uContrib; ut.carryGames++; }
+        if (uContrib > 0 && gTeamSize > 1) { ut.carryTotal += uContrib * gTeamSize; ut.carryGames++; }
         uGames++; if (userRow.is_mvp) uMvp++;
         let teammateRow: GamePlayerRow | null = null;
         if (teammateTarget) {
@@ -502,7 +503,7 @@ const Stats = () => {
             tt.teamGoalsAgainst += players.filter((p) => p.team !== tTeam).reduce((s, p) => s + safeNumber(p.goals), 0);
             if (game.result === "win") tt.wins++;
             if (teammateRow.is_mvp) tt.mvp++;
-            if (tContrib > 0) { tt.carryTotal += tContrib; tt.carryGames++; }
+            if (tContrib > 0 && gTeamSize > 1) { tt.carryTotal += tContrib * gTeamSize; tt.carryGames++; }
             tGames++; if (teammateRow.is_mvp) tMvp++;
           }
         }
@@ -536,12 +537,13 @@ const Stats = () => {
           if (!userRow) return;
           const userTeam = userRow.team;
           const uScore = safeNumber(userRow.score), uGoals = safeNumber(userRow.goals), uAssists = safeNumber(userRow.assists), uSaves = safeNumber(userRow.saves), uShots = safeNumber(userRow.shots), uContrib = safeNumber(userRow.contribution_score);
+          const gTeamSize = game.game_mode === "1v1" ? 1 : game.game_mode === "2v2" ? 2 : game.game_mode === "3v3" ? 3 : 4;
           ut.games++; ut.points += uScore; ut.goals += uGoals; ut.assists += uAssists; ut.saves += uSaves; ut.shots += uShots;
           ut.teamGoalsFor += players.filter((p) => p.team === userTeam).reduce((s, p) => s + safeNumber(p.goals), 0);
           ut.teamGoalsAgainst += players.filter((p) => p.team !== userTeam).reduce((s, p) => s + safeNumber(p.goals), 0);
           if (game.result === "win") ut.wins++;
           if (userRow.is_mvp) ut.mvp++;
-          if (uContrib > 0) { ut.carryTotal += uContrib; ut.carryGames++; }
+          if (uContrib > 0 && gTeamSize > 1) { ut.carryTotal += uContrib * gTeamSize; ut.carryGames++; }
           uGames++; if (userRow.is_mvp) uMvp++;
           dayUScore += uScore; dayUGoals += uGoals; dayUAssists += uAssists; dayUSaves += uSaves; dayUShots += uShots; dayUContrib += uContrib; dayUValid++;
           if (teammateTarget) {
@@ -554,7 +556,7 @@ const Stats = () => {
               tt.teamGoalsAgainst += players.filter((p) => p.team !== tTeam).reduce((s, p) => s + safeNumber(p.goals), 0);
               if (game.result === "win") tt.wins++;
               if (tr.is_mvp) tt.mvp++;
-              if (tContrib > 0) { tt.carryTotal += tContrib; tt.carryGames++; }
+              if (tContrib > 0 && gTeamSize > 1) { tt.carryTotal += tContrib * gTeamSize; tt.carryGames++; }
               tGames++; if (tr.is_mvp) tMvp++;
               dayTScore += tScore; dayTGoals += tGoals; dayTAssists += tAssists; dayTSaves += tSaves; dayTShots += tShots; dayTValid++;
             }
