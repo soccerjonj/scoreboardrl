@@ -811,20 +811,20 @@ const Dashboard = () => {
       </div>
 
       <Dialog open={showContribInfo} onOpenChange={setShowContribInfo}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="w-[calc(100%-2rem)] max-w-sm rounded-2xl">
           <DialogHeader>
-            <DialogTitle>What is the Contribution Score?</DialogTitle>
+            <DialogTitle>Contribution Score</DialogTitle>
             <DialogDescription asChild>
               <div className="space-y-3 text-sm text-muted-foreground pt-1">
                 <p>
-                  The Contribution Score shows how much you contributed to your team's performance. It's calculated from your in-game score, goals, assists, and saves relative to your teammates — then normalized so equal contribution always equals <span className="font-semibold text-foreground">100</span>, regardless of game mode.
+                  Measures how much you contributed relative to your teammates — based on score, goals, assists, and saves. Normalized so <span className="font-semibold text-foreground">equal contribution = 100</span> in every game mode.
                 </p>
-                <ul className="space-y-1 pl-4 list-disc">
-                  <li><span className="font-semibold text-foreground">100</span> — you pulled your exact weight</li>
-                  <li><span className="font-semibold text-foreground">&gt; 100</span> — you carried more than your share</li>
-                  <li><span className="font-semibold text-foreground">&lt; 100</span> — teammates picked up your slack</li>
-                </ul>
-                <p>1v1 games don't show a contribution score since there are no teammates to compare against.</p>
+                <div className="space-y-1.5 rounded-lg bg-muted/30 p-3">
+                  <div className="flex justify-between"><span className="font-semibold text-foreground">{">"} 100</span><span>carried more than your share</span></div>
+                  <div className="flex justify-between"><span className="font-semibold text-foreground">100</span><span>pulled your exact weight</span></div>
+                  <div className="flex justify-between"><span className="font-semibold text-foreground">{"<"} 100</span><span>teammates covered your slack</span></div>
+                </div>
+                <p className="text-xs">Not shown in 1v1 — no teammates to compare against.</p>
               </div>
             </DialogDescription>
           </DialogHeader>
