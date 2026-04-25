@@ -25,7 +25,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
+import { CartesianGrid, Area, AreaChart, XAxis, YAxis } from "recharts";
 import AppLayout from "@/components/layout/AppLayout";
 
 type GameMode = Database["public"]["Enums"]["game_mode"];
@@ -238,33 +238,77 @@ const ComparisonTable = ({
 
 // ─── Chart card ───────────────────────────────────────────────────────────────
 
-const StatChart = ({ title, description, data, userKey, teammateKey, teammateLabel, yAxisFormatter, yAxisDomain }: {
+const TEAMMATE_COLOR = "hsl(25, 95%, 60%)";
+
+const StatChart = ({ title, description, data, userKey, teammateKey, teammateLabel, yAxisFormatter, yAxisDomain, accentColor = "hsl(212, 95%, 58%)" }: {
   title: string; description: string; data: ChartDatum[];
   userKey: keyof ChartDatum; teammateKey?: keyof ChartDatum;
-  teammateLabel?: string; yAxisFormatter?: (v: number) => string; yAxisDomain?: [number, number];
+  teammateLabel?: string; yAxisFormatter?: (v: number) => string;
+  yAxisDomain?: [number, number]; accentColor?: string;
 }) => {
-  const chartConfig = {
-    [userKey]: { label: "You", color: "hsl(var(--rl-blue))" },
-    ...(teammateKey && teammateLabel ? { [teammateKey]: { label: teammateLabel, color: "hsl(var(--rl-orange))" } } : {}),
-  };
   const hasTeammate = Boolean(teammateKey && teammateLabel);
+  const gradId = `grad-${String(userKey)}`;
+  const gradIdTeam = `grad-team-${String(teammateKey)}`;
+  const chartConfig = {
+    [userKey]: { label: "You", color: accentColor },
+    ...(teammateKey && teammateLabel ? { [teammateKey]: { label: teammateLabel, color: TEAMMATE_COLOR } } : {}),
+  };
+
   return (
     <Card className="overflow-hidden animate-fade-in-up">
-      <CardHeader className="pb-2">
+      {/* Colored accent line */}
+      <div className="h-[2px] w-full" style={{ background: `linear-gradient(to right, ${accentColor}, transparent)` }} />
+      <CardHeader className="pb-2 pt-3">
         <CardTitle className="text-base font-display">{title}</CardTitle>
         <CardDescription className="text-xs">{description}</CardDescription>
       </CardHeader>
-      <CardContent className="overflow-hidden">
+      <CardContent className="overflow-hidden pt-0">
         <ChartContainer config={chartConfig} className="h-52 w-full max-w-full">
-          <LineChart data={data} margin={{ left: 6, right: 12, top: 8, bottom: 0 }}>
-            <CartesianGrid vertical={false} strokeDasharray="4 4" stroke="hsl(var(--border)/0.3)" />
+          <AreaChart data={data} margin={{ left: 6, right: 12, top: 8, bottom: 0 }}>
+            <defs>
+              <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={accentColor} stopOpacity={0.25} />
+                <stop offset="90%" stopColor={accentColor} stopOpacity={0} />
+              </linearGradient>
+              {hasTeammate && (
+                <linearGradient id={gradIdTeam} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={TEAMMATE_COLOR} stopOpacity={0.2} />
+                  <stop offset="90%" stopColor={TEAMMATE_COLOR} stopOpacity={0} />
+                </linearGradient>
+              )}
+            </defs>
+            <CartesianGrid vertical={false} strokeDasharray="4 4" stroke="hsl(var(--border)/0.25)" />
             <XAxis dataKey="label" hide />
             <YAxis tickLine={false} axisLine={false} width={40} tickFormatter={yAxisFormatter} domain={yAxisDomain} tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
             <ChartTooltip content={<ChartTooltipContent labelFormatter={(_, payload) => payload?.[0]?.payload?.fullLabel ?? ""} />} />
-            <Line type="monotone" dataKey={userKey} stroke={`var(--color-${String(userKey)})`} strokeWidth={2.5} dot={false} />
-            {hasTeammate && <Line type="monotone" dataKey={teammateKey} stroke={`var(--color-${String(teammateKey)})`} strokeWidth={2.5} dot={false} />}
+            <Area
+              type="monotone"
+              dataKey={userKey}
+              stroke={accentColor}
+              strokeWidth={2.5}
+              fill={`url(#${gradId})`}
+              dot={false}
+              activeDot={{ r: 5, strokeWidth: 2, stroke: accentColor, fill: "hsl(var(--background))", style: { filter: `drop-shadow(0 0 6px ${accentColor})` } }}
+              isAnimationActive={true}
+              animationDuration={900}
+              animationEasing="ease-out"
+            />
+            {hasTeammate && (
+              <Area
+                type="monotone"
+                dataKey={teammateKey}
+                stroke={TEAMMATE_COLOR}
+                strokeWidth={2.5}
+                fill={`url(#${gradIdTeam})`}
+                dot={false}
+                activeDot={{ r: 5, strokeWidth: 2, stroke: TEAMMATE_COLOR, fill: "hsl(var(--background))", style: { filter: `drop-shadow(0 0 6px ${TEAMMATE_COLOR})` } }}
+                isAnimationActive={true}
+                animationDuration={900}
+                animationEasing="ease-out"
+              />
+            )}
             {hasTeammate && <ChartLegend content={<ChartLegendContent />} />}
-          </LineChart>
+          </AreaChart>
         </ChartContainer>
       </CardContent>
     </Card>
@@ -582,13 +626,13 @@ const Stats = () => {
   }, [rangeFilteredGames, teammateTarget, userTarget]);
 
   const chartDefinitions = [
-    { id: "points",     title: "Points",       description: "Score output per match.",       userKey: "points"     as const, teammateKey: "teammatePoints"   as const },
-    { id: "goals",      title: "Goals",        description: "Finishing stats per match.",    userKey: "goals"      as const, teammateKey: "teammateGoals"    as const },
-    { id: "assists",    title: "Assists",       description: "Playmaking trend.",             userKey: "assists"    as const, teammateKey: "teammateAssists"  as const },
-    { id: "saves",      title: "Saves",        description: "Defensive stops.",              userKey: "saves"      as const, teammateKey: "teammateSaves"    as const },
-    { id: "shots",      title: "Shots",        description: "Shot volume.",                  userKey: "shots"      as const, teammateKey: "teammateShots"    as const },
-    { id: "mvpRate",    title: "MVP Rate",     description: "Cumulative MVP %.",             userKey: "mvpRate"    as const, teammateKey: "teammateMvpRate"  as const, yAxisFormatter: (v: number) => `${Math.round(v)}%`, yAxisDomain: [0, 100] as [number, number] },
-    { id: "carryScore", title: "Contribution", description: "Contribution score per game.",  userKey: "carryScore" as const, yAxisDomain: [0, 100] as [number, number] },
+    { id: "points",     title: "Points",       description: "Score output per match.",       userKey: "points"     as const, teammateKey: "teammatePoints"   as const, accentColor: "hsl(212, 95%, 58%)"  },
+    { id: "goals",      title: "Goals",        description: "Finishing stats per match.",    userKey: "goals"      as const, teammateKey: "teammateGoals"    as const, accentColor: "hsl(25, 95%, 60%)"   },
+    { id: "assists",    title: "Assists",       description: "Playmaking trend.",             userKey: "assists"    as const, teammateKey: "teammateAssists"  as const, accentColor: "hsl(160, 60%, 50%)"  },
+    { id: "saves",      title: "Saves",        description: "Defensive stops.",              userKey: "saves"      as const, teammateKey: "teammateSaves"    as const, accentColor: "hsl(270, 70%, 65%)"  },
+    { id: "shots",      title: "Shots",        description: "Shot volume.",                  userKey: "shots"      as const, teammateKey: "teammateShots"    as const, accentColor: "hsl(48, 95%, 58%)"   },
+    { id: "mvpRate",    title: "MVP Rate",     description: "Cumulative MVP %.",             userKey: "mvpRate"    as const, teammateKey: "teammateMvpRate"  as const, accentColor: "hsl(48, 95%, 58%)",  yAxisFormatter: (v: number) => `${Math.round(v)}%`, yAxisDomain: [0, 100] as [number, number] },
+    { id: "carryScore", title: "Contribution", description: "Contribution score per game.",  userKey: "carryScore" as const, accentColor: "hsl(270, 70%, 65%)", yAxisDomain: [0, 100] as [number, number] },
   ];
 
   const bestContributionGames = useMemo(() =>
@@ -807,25 +851,44 @@ const Stats = () => {
                   teammateLabel={selectedFriend?.label}
                   yAxisFormatter={c.yAxisFormatter}
                   yAxisDomain={c.yAxisDomain}
+                  accentColor={c.accentColor}
                 />
               ))}
             </div>
 
             {mmrHistory.length >= 2 && (
               <Card className="overflow-hidden animate-fade-in-up">
-                <CardHeader className="pb-2">
+                <div className="h-[2px] w-full" style={{ background: "linear-gradient(to right, hsl(212, 95%, 58%), transparent)" }} />
+                <CardHeader className="pb-2 pt-3">
                   <CardTitle className="text-base font-display">MMR History</CardTitle>
                   <CardDescription className="text-xs">Competitive MMR progression over time</CardDescription>
                 </CardHeader>
-                <CardContent className="overflow-hidden">
-                  <ChartContainer config={{ mmr: { label: "MMR", color: "hsl(var(--rl-blue))" } }} className="h-52 w-full max-w-full">
-                    <LineChart data={mmrHistory} margin={{ left: 6, right: 12, top: 8, bottom: 0 }}>
-                      <CartesianGrid vertical={false} strokeDasharray="4 4" stroke="hsl(var(--border)/0.3)" />
+                <CardContent className="overflow-hidden pt-0">
+                  <ChartContainer config={{ mmr: { label: "MMR", color: "hsl(212, 95%, 58%)" } }} className="h-52 w-full max-w-full">
+                    <AreaChart data={mmrHistory} margin={{ left: 6, right: 12, top: 8, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="grad-mmr" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="hsl(212, 95%, 58%)" stopOpacity={0.25} />
+                          <stop offset="90%" stopColor="hsl(212, 95%, 58%)" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid vertical={false} strokeDasharray="4 4" stroke="hsl(var(--border)/0.25)" />
                       <XAxis dataKey="label" hide />
                       <YAxis tickLine={false} axisLine={false} width={50} domain={["auto", "auto"]} tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
                       <ChartTooltip content={<ChartTooltipContent labelFormatter={(_, payload) => payload?.[0]?.payload?.fullLabel ?? ""} />} />
-                      <Line type="monotone" dataKey="mmr" stroke="var(--color-mmr)" strokeWidth={2.5} dot={false} />
-                    </LineChart>
+                      <Area
+                        type="monotone"
+                        dataKey="mmr"
+                        stroke="hsl(212, 95%, 58%)"
+                        strokeWidth={2.5}
+                        fill="url(#grad-mmr)"
+                        dot={false}
+                        activeDot={{ r: 5, strokeWidth: 2, stroke: "hsl(212, 95%, 58%)", fill: "hsl(var(--background))", style: { filter: "drop-shadow(0 0 6px hsl(212, 95%, 58%))" } }}
+                        isAnimationActive={true}
+                        animationDuration={900}
+                        animationEasing="ease-out"
+                      />
+                    </AreaChart>
                   </ChartContainer>
                 </CardContent>
               </Card>
