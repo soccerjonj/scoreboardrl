@@ -17,10 +17,10 @@ const BottomNav = () => {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-50 md:hidden"
+      className="fixed bottom-0 left-0 right-0 z-50 md:hidden border-t border-white/[0.07] bg-[hsl(224_22%_6%/0.88)] backdrop-blur-2xl"
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >
-      <div className="border-t border-white/[0.07] bg-[hsl(224_22%_6%/0.88)] backdrop-blur-2xl">
+      <div>
         <div className="flex items-center justify-around h-16 max-w-lg mx-auto px-2">
           {tabs.map((tab) => {
             const active = location.pathname === tab.to;
