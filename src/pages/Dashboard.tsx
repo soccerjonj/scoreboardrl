@@ -37,7 +37,7 @@ const rankDisplayName = (tier: RankTier): string =>
     ? "Unranked"
     : tier.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
 
-const gameModeLabels: Record<GameMode, string> = { "1v1": "1v1", "2v2": "2v2", "3v3": "3v3" };
+const gameModeLabels: Record<GameMode, string> = { "1v1": "1v1", "2v2": "2v2", "3v3": "3v3", "4v4": "4v4" };
 const normalizeName  = (v?: string | null) => v?.trim().toLowerCase() ?? "";
 
 type PlayerEditValues = { score: number; goals: number; assists: number; saves: number; shots: number };
@@ -290,7 +290,7 @@ const Dashboard = () => {
       totalScore += userRow.score;
       totalGoals += userRow.goals;
       if (userRow.is_mvp) mvps++;
-      const ts = game.game_mode === "1v1" ? 1 : game.game_mode === "2v2" ? 2 : 3;
+      const ts = game.game_mode === "1v1" ? 1 : game.game_mode === "2v2" ? 2 : game.game_mode === "3v3" ? 3 : 4;
       const cs = userRow.contribution_score ?? 0;
       if (cs > 0 && ts > 1) { totalContrib += cs * ts; contribGames++; }
       results.push(game.result);
@@ -393,7 +393,7 @@ const Dashboard = () => {
               {/* Expanded rank grid */}
               {ranksExpanded && (
                 <div className="grid grid-cols-3 gap-3">
-                  {(["1v1", "2v2", "3v3"] as GameMode[]).map((mode) => {
+                  {(["1v1", "2v2", "3v3", "4v4"] as GameMode[]).map((mode) => {
                     const rank = ranks.find((r) => r.game_mode === mode);
                     const tier = rank?.rank_tier ?? "unranked";
                     const div  = rank?.rank_division;
@@ -576,7 +576,7 @@ const Dashboard = () => {
                 const isExpanded = expandedGameId === game.id;
                 const isEditing  = editingGameId === game.id;
                 const userCarry  = userRow?.contribution_score ?? 0;
-                const teamSize   = game.game_mode === "1v1" ? 1 : game.game_mode === "2v2" ? 2 : 3;
+                const teamSize   = game.game_mode === "1v1" ? 1 : game.game_mode === "2v2" ? 2 : game.game_mode === "3v3" ? 3 : 4;
 
                 // Sort players: blue team first, then orange; highest contribution first within team
                 const sortedPlayers = [...players].sort((a, b) => {

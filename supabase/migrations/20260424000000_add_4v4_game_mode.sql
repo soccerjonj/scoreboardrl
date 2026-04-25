@@ -1,0 +1,1 @@
+ALTER TYPE public.game_mode ADD VALUE IF NOT EXISTS '4v4';

@@ -296,7 +296,7 @@ const BestContributionCard = ({
         const userRow  = findPlayer(game.game_players || [], userTarget);
         const isWin    = game.result === "win";
         const isOpen   = expandedGameId === game.id;
-        const teamSize = game.game_mode === "1v1" ? 1 : game.game_mode === "2v2" ? 2 : 3;
+        const teamSize = game.game_mode === "1v1" ? 1 : game.game_mode === "2v2" ? 2 : game.game_mode === "3v3" ? 3 : 4;
         const sortedPlayers = [...(game.game_players || [])].sort((a, b) => {
           if ((a.team ?? "blue") < (b.team ?? "orange")) return -1;
           if ((a.team ?? "blue") > (b.team ?? "orange")) return  1;

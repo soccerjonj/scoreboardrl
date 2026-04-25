@@ -18,7 +18,7 @@ interface ParsedPlayer {
 }
 
 interface ParsedScoreboard {
-  game_mode: "1v1" | "2v2" | "3v3";
+  game_mode: "1v1" | "2v2" | "3v3" | "4v4";
   game_type: "competitive" | "casual";
   result?: "win" | "loss";
   division_change?: "up" | "down" | "none";

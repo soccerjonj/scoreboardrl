@@ -46,8 +46,8 @@ type ProfileStats = {
   topTeammates: Array<{ userId: string; name: string; games: number; wins: number }>;
 };
 
-const gameModes: GameMode[] = ["1v1", "2v2", "3v3"];
-const gameModeLabels: Record<GameMode, string> = { "1v1": "1v1", "2v2": "2v2", "3v3": "3v3" };
+const gameModes: GameMode[] = ["1v1", "2v2", "3v3", "4v4"];
+const gameModeLabels: Record<GameMode, string> = { "1v1": "1v1", "2v2": "2v2", "3v3": "3v3", "4v4": "4v4" };
 const BIO_MAX = 140;
 
 const rankTierOptions: { value: RankTier; label: string }[] = [
@@ -275,7 +275,7 @@ const Profile = () => {
             let normTotal = 0, normCount = 0;
             myPlayerRows.forEach((row) => {
               const mode = modeMap.get(row.game_id);
-              const ts = mode === "1v1" ? 1 : mode === "2v2" ? 2 : 3;
+              const ts = mode === "1v1" ? 1 : mode === "2v2" ? 2 : mode === "3v3" ? 3 : 4;
               const cs = safeNum(row.contribution_score);
               if (cs > 0 && ts > 1) { normTotal += cs * ts; normCount++; }
             });

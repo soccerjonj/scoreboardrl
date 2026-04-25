@@ -57,7 +57,7 @@ const rankTierLabel: Record<string, string> = {
   supersonic_legend: "Supersonic Legend",
 };
 
-const gameModes: GameMode[] = ["1v1", "2v2", "3v3"];
+const gameModes: GameMode[] = ["1v1", "2v2", "3v3", "4v4"];
 
 const FriendProfile = () => {
   const { userId } = useParams<{ userId: string }>();
@@ -159,7 +159,7 @@ const FriendProfile = () => {
       saves:        t.saves        + safeN(r.saves),
       shots:        t.shots        + safeN(r.shots),
       mvps:         t.mvps         + (r.is_mvp ? 1 : 0),
-      contrib:      t.contrib      + (() => { const ts = r.games?.game_mode === "1v1" ? 1 : r.games?.game_mode === "2v2" ? 2 : 3; return ts > 1 ? safeN(r.contribution_score) * ts : 0; })(),
+      contrib:      t.contrib      + (() => { const ts = r.games?.game_mode === "1v1" ? 1 : r.games?.game_mode === "2v2" ? 2 : r.games?.game_mode === "3v3" ? 3 : 4; return ts > 1 ? safeN(r.contribution_score) * ts : 0; })(),
       contribGames: t.contribGames + (safeN(r.contribution_score) > 0 && r.games?.game_mode !== "1v1" ? 1 : 0),
     }),
     { score: 0, goals: 0, assists: 0, saves: 0, shots: 0, mvps: 0, contrib: 0, contribGames: 0 }

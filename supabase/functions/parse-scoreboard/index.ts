@@ -42,7 +42,7 @@ RULES:
 1. Strip club tags in [brackets] from player names entirely.
 2. Blue team is on top, Orange team on bottom.
 3. Each row: Name, Score, Goals, Assists, Saves, Shots. MVP has a star/crown icon.
-4. Count players per team to determine game_mode: 1="1v1", 2="2v2", 3="3v3".
+4. Count players per team to determine game_mode: 1="1v1", 2="2v2", 3="3v3", 4="4v4".
 5. game_type is "competitive" if ANY rank/MMR/division info appears at the bottom. Otherwise "casual".
 6. ${user_rl_name ? `result: "win" if "${user_rl_name}"'s team has more goals, "loss" otherwise.` : 'Set result to "win" or "loss" based on which team has more goals for the top (blue) team.'}
 7. division_change: Look for an EXPLICIT rank-change indicator — an upward arrow (↑), "RANK UP", upward chevron, or similar for "up"; a downward arrow (↓), "RANK DOWN", downward chevron for "down". If NO such indicator is visible, use "none". Most games do NOT result in a rank change — default to "none" when unsure.

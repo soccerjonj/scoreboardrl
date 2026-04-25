@@ -519,7 +519,7 @@ const LogGame = () => {
                   variant="outline"
                   onClick={() => {
                     // Create empty players based on game mode
-                    const count = gameMode === "1v1" ? 1 : gameMode === "2v2" ? 2 : 3;
+                    const count = gameMode === "1v1" ? 1 : gameMode === "2v2" ? 2 : gameMode === "3v3" ? 3 : 4;
                     const emptyPlayers: PlayerStat[] = [];
                     for (let i = 0; i < count; i++) {
                       emptyPlayers.push({ name: "", team: "blue", score: 0, goals: 0, assists: 0, saves: 0, shots: 0, is_mvp: false });
@@ -557,6 +557,7 @@ const LogGame = () => {
                         <SelectItem value="1v1">1v1</SelectItem>
                         <SelectItem value="2v2">2v2</SelectItem>
                         <SelectItem value="3v3">3v3</SelectItem>
+                        <SelectItem value="4v4">4v4</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -714,7 +715,7 @@ const LogGame = () => {
                         {entries.map(([name, score]) => (
                           <div key={name} className="flex items-center justify-between">
                             <span className="text-sm font-medium">{name}</span>
-                            <CarryMeter score={score} teamSize={gameMode === "1v1" ? 1 : gameMode === "2v2" ? 2 : 3} size="sm" />
+                            <CarryMeter score={score} teamSize={gameMode === "1v1" ? 1 : gameMode === "2v2" ? 2 : gameMode === "3v3" ? 3 : 4} size="sm" />
                           </div>
                         ))}
                       </div>

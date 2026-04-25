@@ -264,7 +264,7 @@ export type Database = {
     }
     Enums: {
       friend_request_status: "pending" | "accepted" | "rejected"
-      game_mode: "1v1" | "2v2" | "3v3"
+      game_mode: "1v1" | "2v2" | "3v3" | "4v4"
       game_type: "competitive" | "casual"
       notification_type:
         | "game_shared"
@@ -425,7 +425,7 @@ export const Constants = {
   public: {
     Enums: {
       friend_request_status: ["pending", "accepted", "rejected"],
-      game_mode: ["1v1", "2v2", "3v3"],
+      game_mode: ["1v1", "2v2", "3v3", "4v4"],
       game_type: ["competitive", "casual"],
       notification_type: [
         "game_shared",
