@@ -554,7 +554,7 @@ const Stats = () => {
         data.push({
           label: `#${gameNum}`, fullLabel: `Game ${gameNum} · ${format(new Date(game.played_at), "MMM d, yyyy")}`,
           points: uScore, goals: uGoals, assists: uAssists, saves: uSaves, shots: uShots,
-          mvpRate: uGames ? (uMvp / uGames) * 100 : 0, carryScore: uContrib,
+          mvpRate: uGames ? (uMvp / uGames) * 100 : 0, carryScore: gTeamSize > 1 ? uContrib * gTeamSize : 0,
           teammatePoints: teammateRow ? safeNumber(teammateRow.score) : null,
           teammateGoals: teammateRow ? safeNumber(teammateRow.goals) : null,
           teammateAssists: teammateRow ? safeNumber(teammateRow.assists) : null,
@@ -573,7 +573,7 @@ const Stats = () => {
       let uGames = 0, uMvp = 0, tGames = 0, tMvp = 0;
       Array.from(dateMap.entries()).forEach(([dateKey, { games: dayGames }]) => {
         const date = new Date(dateKey); const count = dayGames.length;
-        let dayUScore = 0, dayUGoals = 0, dayUAssists = 0, dayUSaves = 0, dayUShots = 0, dayUContrib = 0, dayUValid = 0;
+        let dayUScore = 0, dayUGoals = 0, dayUAssists = 0, dayUSaves = 0, dayUShots = 0, dayUNormContrib = 0, dayUNormCount = 0, dayUValid = 0;
         let dayTScore = 0, dayTGoals = 0, dayTAssists = 0, dayTSaves = 0, dayTShots = 0, dayTValid = 0;
         dayGames.forEach((game) => {
           const players = game.game_players || [];
@@ -589,7 +589,8 @@ const Stats = () => {
           if (userRow.is_mvp) ut.mvp++;
           if (uContrib > 0 && gTeamSize > 1) { ut.carryTotal += uContrib * gTeamSize; ut.carryGames++; }
           uGames++; if (userRow.is_mvp) uMvp++;
-          dayUScore += uScore; dayUGoals += uGoals; dayUAssists += uAssists; dayUSaves += uSaves; dayUShots += uShots; dayUContrib += uContrib; dayUValid++;
+          dayUScore += uScore; dayUGoals += uGoals; dayUAssists += uAssists; dayUSaves += uSaves; dayUShots += uShots; dayUValid++;
+          if (uContrib > 0 && gTeamSize > 1) { dayUNormContrib += uContrib * gTeamSize; dayUNormCount++; }
           if (teammateTarget) {
             const tr = findPlayer(players, teammateTarget);
             if (tr) {
@@ -610,7 +611,7 @@ const Stats = () => {
         data.push({
           label: format(date, "MMM d"), fullLabel: format(date, "MMM d, yyyy") + (count > 1 ? ` (${count} games)` : ""),
           points: dayUScore / dayUValid, goals: dayUGoals / dayUValid, assists: dayUAssists / dayUValid,
-          saves: dayUSaves / dayUValid, shots: dayUShots / dayUValid, carryScore: dayUContrib / dayUValid,
+          saves: dayUSaves / dayUValid, shots: dayUShots / dayUValid, carryScore: dayUNormCount > 0 ? dayUNormContrib / dayUNormCount : 0,
           mvpRate: uGames ? (uMvp / uGames) * 100 : 0,
           teammatePoints: dayTValid > 0 ? dayTScore / dayTValid : null,
           teammateGoals: dayTValid > 0 ? dayTGoals / dayTValid : null,
@@ -632,7 +633,7 @@ const Stats = () => {
     { id: "saves",      title: "Saves",        description: "Defensive stops.",              userKey: "saves"      as const, teammateKey: "teammateSaves"    as const, accentColor: "hsl(270, 70%, 65%)"  },
     { id: "shots",      title: "Shots",        description: "Shot volume.",                  userKey: "shots"      as const, teammateKey: "teammateShots"    as const, accentColor: "hsl(48, 95%, 58%)"   },
     { id: "mvpRate",    title: "MVP Rate",     description: "Cumulative MVP %.",             userKey: "mvpRate"    as const, teammateKey: "teammateMvpRate"  as const, accentColor: "hsl(48, 95%, 58%)",  yAxisFormatter: (v: number) => `${Math.round(v)}%`, yAxisDomain: [0, 100] as [number, number] },
-    { id: "carryScore", title: "Contribution", description: "Contribution score per game.",  userKey: "carryScore" as const, accentColor: "hsl(270, 70%, 65%)", yAxisDomain: [0, 100] as [number, number] },
+    { id: "carryScore", title: "Contribution", description: "Contribution score per game. 100 = equal share.", userKey: "carryScore" as const, accentColor: "hsl(270, 70%, 65%)", yAxisDomain: [0, 200] as [number, number] },
   ];
 
   const bestContributionGames = useMemo(() =>
