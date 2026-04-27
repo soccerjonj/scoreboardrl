@@ -144,12 +144,14 @@ const Dashboard = () => {
   const backfillCarryScores = useCallback(async (loadedGames: GameWithPlayers[]) => {
     if (!user) return;
 
-    // Always recalculate every game so algorithm changes are reflected immediately
     const needsBackfill = loadedGames.filter((game) =>
       (game.game_players ?? []).every((p) => p.team != null)
     );
 
     if (needsBackfill.length === 0) return;
+
+    // Build a flat map of player_row_id → new contribution_score
+    const playerScoreUpdates = new Map<string, number>();
 
     for (const game of needsBackfill) {
       const playersForCalc = (game.game_players ?? []).map((p) => ({
@@ -164,10 +166,10 @@ const Dashboard = () => {
 
       const contributionMap = calculateContributionScores(playersForCalc);
 
-      // Batch-update each player row
       await Promise.all(
         (game.game_players ?? []).map((row) => {
           const contributionScore = contributionMap.get(normalizeName(row.player_name)) ?? 1;
+          playerScoreUpdates.set(row.id, contributionScore);
           return supabase
             .from("game_players")
             .update({ contribution_score: contributionScore })
@@ -176,35 +178,16 @@ const Dashboard = () => {
       );
     }
 
-    // Refresh games so contribution scores render immediately — use same OR logic as initial load
-    const { data: playerGameRows2 } = await supabase
-      .from("game_players")
-      .select("game_id")
-      .eq("user_id", user.id);
-
-    const linkedGameIds2 = (playerGameRows2 || []).map((r) => r.game_id);
-    const allIds2 = Array.from(new Set([...linkedGameIds2]));
-
-    let refreshRes;
-    if (allIds2.length > 0) {
-      refreshRes = await supabase
-        .from("games")
-        .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, contribution_score, submission_status, submitted_by, created_at, game_id)")
-        .or(`created_by.eq.${user.id},id.in.(${allIds2.join(",")})`)
-
-        .order("played_at", { ascending: false })
-        .limit(20);
-    } else {
-      refreshRes = await supabase
-        .from("games")
-        .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, contribution_score, submission_status, submitted_by, created_at, game_id)")
-        .eq("created_by", user.id)
-
-        .order("played_at", { ascending: false })
-        .limit(20);
-    }
-
-    if (refreshRes.data) setGames(refreshRes.data as GameWithPlayers[]);
+    // Patch in-memory state directly — no re-fetch, no dataset mismatch
+    setGames((prev) =>
+      prev.map((game) => ({
+        ...game,
+        game_players: (game.game_players ?? []).map((p) => {
+          const updated = playerScoreUpdates.get(p.id);
+          return updated !== undefined ? { ...p, contribution_score: updated } : p;
+        }),
+      }))
+    );
   }, [user]);
 
   useEffect(() => {
