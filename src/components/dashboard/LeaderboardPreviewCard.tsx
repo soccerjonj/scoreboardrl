@@ -8,7 +8,7 @@ interface LeaderEntry {
   user_id: string;
   rl_name: string;
   avatar_url: string | null;
-  game_count: number;
+  stat_value: number;
   rank: number;
 }
 
@@ -66,7 +66,7 @@ const LeaderboardPreviewCard = () => {
                 <span className="text-sm font-medium flex-1 truncate">{entry.rl_name || "Unknown"}</span>
                 <span className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
                   <Camera className="w-3 h-3" />
-                  {entry.game_count}
+                  {entry.stat_value}
                 </span>
               </div>
             ))

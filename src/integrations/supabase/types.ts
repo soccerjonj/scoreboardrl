@@ -324,12 +324,12 @@ export type Database = {
     }
     Functions: {
       get_leaderboard: {
-        Args: { p_window: string }
+        Args: { p_window: string; p_stat?: string }
         Returns: Array<{
           user_id: string
           rl_name: string
           avatar_url: string | null
-          game_count: number
+          stat_value: number
           rank: number
         }>
       }
