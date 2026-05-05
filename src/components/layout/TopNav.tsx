@@ -31,42 +31,34 @@ const TopNav = () => {
       <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
         <NavLink to="/dashboard"><Logo size="md" /></NavLink>
 
-        <nav className="flex items-center gap-1">
+        <nav className="flex items-center gap-0.5">
           {tabs.map((tab) => {
             const active = location.pathname === tab.to;
-            const showBadge = false; // badge lives on the bell icon instead
             return (
               <NavLink
                 key={tab.to}
                 to={tab.to}
                 className={cn(
-                  "flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors relative",
+                  "flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm font-medium transition-colors relative",
                   active
                     ? "bg-primary/10 text-primary"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                 )}
               >
-                <div className="relative">
-                  <tab.icon className="w-4 h-4" />
-                  {showBadge && (
-                    <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] rounded-full bg-rl-red text-[9px] font-bold text-white flex items-center justify-center px-0.5 leading-none">
-                      {unreadCount > 9 ? "9+" : unreadCount}
-                    </span>
-                  )}
-                </div>
+                <tab.icon className="w-4 h-4 shrink-0" />
                 {tab.label}
               </NavLink>
             );
           })}
         </nav>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           {quota.tier === "free" && !quota.isLoading && (
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setShowUpgrade(true)}
-              className="gap-1.5 text-muted-foreground hover:text-primary text-xs"
+              className="gap-1.5 text-muted-foreground hover:text-primary text-xs px-2.5"
             >
               <Zap className="w-3.5 h-3.5" />
               Go Pro
@@ -75,7 +67,7 @@ const TopNav = () => {
           <NavLink
             to="/notifications"
             className={cn(
-              "relative flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+              "relative flex items-center justify-center w-9 h-9 rounded-md transition-colors",
               location.pathname === "/notifications"
                 ? "bg-primary/10 text-primary"
                 : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
@@ -89,12 +81,10 @@ const TopNav = () => {
                 </span>
               )}
             </div>
-            Notifications
           </NavLink>
 
-          <Button variant="ghost" size="sm" onClick={() => signOut()} className="gap-2 text-muted-foreground">
+          <Button variant="ghost" size="icon" onClick={() => signOut()} className="text-muted-foreground w-9 h-9">
             <LogOut className="w-4 h-4" />
-            Sign Out
           </Button>
         </div>
       </div>
