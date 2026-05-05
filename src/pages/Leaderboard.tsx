@@ -2,25 +2,35 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
-import { Loader2, Trophy, Medal, Camera } from "lucide-react";
+import { Loader2, Trophy, Medal, Camera, Target, HandMetal, Shield, Star, Swords } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import AppLayout from "@/components/layout/AppLayout";
 import { cn } from "@/lib/utils";
 
 type Window = "7d" | "28d" | "all";
+type Stat   = "games" | "wins" | "goals" | "assists" | "saves" | "score";
 
 interface LeaderEntry {
-  user_id: string;
-  rl_name: string;
+  user_id:    string;
+  rl_name:    string;
   avatar_url: string | null;
-  game_count: number;
-  rank: number;
+  stat_value: number;
+  rank:       number;
 }
 
 const WINDOWS: { value: Window; label: string }[] = [
-  { value: "7d",  label: "7 Days" },
-  { value: "28d", label: "28 Days" },
+  { value: "7d",  label: "7 Days"   },
+  { value: "28d", label: "28 Days"  },
   { value: "all", label: "All Time" },
+];
+
+const STATS: { value: Stat; label: string; icon: React.ElementType; unit: string }[] = [
+  { value: "games",   label: "Games",   icon: Camera,    unit: "games"   },
+  { value: "wins",    label: "Wins",    icon: Trophy,    unit: "wins"    },
+  { value: "goals",   label: "Goals",   icon: Target,    unit: "goals"   },
+  { value: "assists", label: "Assists", icon: HandMetal, unit: "assists" },
+  { value: "saves",   label: "Saves",   icon: Shield,    unit: "saves"   },
+  { value: "score",   label: "Points",  icon: Star,      unit: "pts"     },
 ];
 
 const rankColors = ["text-yellow-400", "text-slate-300", "text-amber-600"];
@@ -30,6 +40,7 @@ const Leaderboard = () => {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [window, setWindow] = useState<Window>("7d");
+  const [stat,   setStat]   = useState<Stat>("games");
   const [entries, setEntries] = useState<LeaderEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -42,7 +53,10 @@ const Leaderboard = () => {
     const fetch = async () => {
       setLoading(true);
       try {
-        const { data, error } = await supabase.rpc("get_leaderboard", { p_window: window });
+        const { data, error } = await supabase.rpc("get_leaderboard", {
+          p_window: window,
+          p_stat:   stat,
+        } as any);
         if (error) throw error;
         setEntries((data ?? []) as LeaderEntry[]);
       } catch (err: any) {
@@ -52,9 +66,10 @@ const Leaderboard = () => {
       }
     };
     fetch();
-  }, [user, window]);
+  }, [user, window, stat]);
 
-  const myEntry = entries.find((e) => e.user_id === user?.id);
+  const myEntry   = entries.find((e) => e.user_id === user?.id);
+  const activeStat = STATS.find((s) => s.value === stat)!;
 
   if (authLoading) return (
     <AppLayout>
@@ -73,7 +88,10 @@ const Leaderboard = () => {
             <Trophy className="w-6 h-6 text-yellow-400" />
             Leaderboard
           </h1>
-          <p className="text-sm text-muted-foreground">Most games logged via photo scan</p>
+          <p className="text-sm text-muted-foreground flex items-center gap-1">
+            <Camera className="w-3.5 h-3.5" />
+            Photo-parsed games only
+          </p>
         </div>
 
         {/* Window tabs */}
@@ -94,6 +112,25 @@ const Leaderboard = () => {
           ))}
         </div>
 
+        {/* Stat category tabs */}
+        <div className="flex gap-1.5 flex-wrap animate-fade-in-up">
+          {STATS.map(({ value, label, icon: Icon }) => (
+            <button
+              key={value}
+              onClick={() => setStat(value)}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors",
+                stat === value
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-card text-muted-foreground border-border/50 hover:text-foreground hover:border-border"
+              )}
+            >
+              <Icon className="w-3 h-3" />
+              {label}
+            </button>
+          ))}
+        </div>
+
         {/* My position callout (if not in top 10) */}
         {myEntry && myEntry.rank > 10 && (
           <Card className="border-primary/20 bg-primary/5 animate-fade-in-up">
@@ -103,8 +140,8 @@ const Leaderboard = () => {
                 <span className="text-sm font-medium">Your position</span>
               </div>
               <span className="text-sm text-muted-foreground flex items-center gap-1.5">
-                <Camera className="w-3.5 h-3.5" />
-                {myEntry.game_count} games
+                <activeStat.icon className="w-3.5 h-3.5" />
+                {myEntry.stat_value} {activeStat.unit}
               </span>
             </CardContent>
           </Card>
@@ -113,10 +150,12 @@ const Leaderboard = () => {
         {/* Leaderboard list */}
         <Card className="border-border/50 bg-card/80 animate-fade-in-up overflow-hidden">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-display">Rankings</CardTitle>
-            <CardDescription className="text-xs flex items-center gap-1">
-              <Camera className="w-3 h-3" />
-              Photo-parsed games only
+            <CardTitle className="text-base font-display flex items-center gap-2">
+              <activeStat.icon className="w-4 h-4 text-primary" />
+              Most {activeStat.label}
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Top 100 · {WINDOWS.find(w => w.value === window)?.label}
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
@@ -135,7 +174,7 @@ const Leaderboard = () => {
             ) : (
               <div className="divide-y divide-border/30">
                 {entries.map((entry, i) => {
-                  const isMe = entry.user_id === user?.id;
+                  const isMe   = entry.user_id === user?.id;
                   const isTop3 = i < 3;
                   return (
                     <div
@@ -143,7 +182,7 @@ const Leaderboard = () => {
                       className={cn(
                         "flex items-center gap-3 px-4 py-3 transition-colors",
                         isMe && "bg-primary/5",
-                        isTop3 && !isMe && "hover:bg-muted/20"
+                        !isMe && "hover:bg-muted/20"
                       )}
                     >
                       {/* Rank */}
@@ -180,12 +219,13 @@ const Leaderboard = () => {
                         </p>
                       </div>
 
-                      {/* Count */}
+                      {/* Stat value */}
                       <div className="flex items-center gap-1 shrink-0">
-                        <Camera className="w-3 h-3 text-muted-foreground" />
+                        <activeStat.icon className="w-3 h-3 text-muted-foreground" />
                         <span className="font-display font-bold text-sm">
-                          {entry.game_count}
+                          {entry.stat_value.toLocaleString()}
                         </span>
+                        <span className="text-[10px] text-muted-foreground">{activeStat.unit}</span>
                       </div>
                     </div>
                   );
