@@ -1,8 +1,11 @@
 -- ── Subscription tier enum ────────────────────────────────────────────────────
-CREATE TYPE public.subscription_tier AS ENUM ('free', 'pro', 'lifetime');
+DO $$ BEGIN
+  CREATE TYPE public.subscription_tier AS ENUM ('free', 'pro', 'lifetime');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- ── Subscriptions table ────────────────────────────────────────────────────────
-CREATE TABLE public.subscriptions (
+CREATE TABLE IF NOT EXISTS public.subscriptions (
   id                     uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id                uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   tier                   public.subscription_tier NOT NULL DEFAULT 'free',
@@ -15,11 +18,14 @@ CREATE TABLE public.subscriptions (
   UNIQUE (user_id)
 );
 ALTER TABLE public.subscriptions ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Users read own subscription"
-  ON public.subscriptions FOR SELECT USING (auth.uid() = user_id);
+DO $$ BEGIN
+  CREATE POLICY "Users read own subscription"
+    ON public.subscriptions FOR SELECT USING (auth.uid() = user_id);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- ── Parse usage tracking ──────────────────────────────────────────────────────
-CREATE TABLE public.parse_usage (
+CREATE TABLE IF NOT EXISTS public.parse_usage (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id     uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   month       date NOT NULL,
@@ -27,8 +33,11 @@ CREATE TABLE public.parse_usage (
   UNIQUE (user_id, month)
 );
 ALTER TABLE public.parse_usage ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Users read own usage"
-  ON public.parse_usage FOR SELECT USING (auth.uid() = user_id);
+DO $$ BEGIN
+  CREATE POLICY "Users read own usage"
+    ON public.parse_usage FOR SELECT USING (auth.uid() = user_id);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- ── Atomic increment RPC ─────────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION public.increment_parse_count(
@@ -56,9 +65,12 @@ BEGIN
   RETURN NEW;
 END; $$;
 
-CREATE TRIGGER on_auth_user_created_subscription
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user_subscription();
+DO $$ BEGIN
+  CREATE TRIGGER on_auth_user_created_subscription
+    AFTER INSERT ON auth.users
+    FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user_subscription();
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- ── Backfill existing users ───────────────────────────────────────────────────
 INSERT INTO public.subscriptions (user_id, tier)
