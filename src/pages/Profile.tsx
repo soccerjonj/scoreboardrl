@@ -421,6 +421,7 @@ const Profile = () => {
   // ── VIEW MODE ─────────────────────────────────────────────────────────────
   if (!isEditing) {
     return (
+      <>
       <AppLayout>
         <div className="space-y-4">
 
@@ -695,6 +696,7 @@ const Profile = () => {
         parsesUsed={quota.parsesUsed}
         quota={quota.quota}
       />
+      </>
     );
   }
 
