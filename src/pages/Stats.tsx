@@ -27,8 +27,6 @@ import {
 } from "@/components/ui/chart";
 import { CartesianGrid, Area, AreaChart, XAxis, YAxis } from "recharts";
 import AppLayout from "@/components/layout/AppLayout";
-import CarbonAd from "@/components/billing/CarbonAd";
-import { useQuota } from "@/hooks/useQuota";
 
 type GameMode = Database["public"]["Enums"]["game_mode"];
 type GameType = Database["public"]["Enums"]["game_type"];
@@ -431,7 +429,7 @@ const Stats = () => {
 
   const [loading, setLoading] = useState(true);
   const [games, setGames] = useState<GameWithPlayers[]>([]);
-  const quota = useQuota();
+
   const [friends, setFriends] = useState<FriendProfile[]>([]);
   const [userRlName, setUserRlName] = useState<string | null>(null);
   const [selectedMode, setSelectedMode] = useState<GameMode | "all">("all");
@@ -680,8 +678,6 @@ const Stats = () => {
           <h1 className="text-2xl font-display font-bold">Stats</h1>
           <p className="text-sm text-muted-foreground">Performance analytics</p>
         </div>
-
-        <CarbonAd tier={quota.tier} />
 
         {/* ── Filter + view toggle bar ── */}
         <div className="space-y-3 animate-fade-in-up">
