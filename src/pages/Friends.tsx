@@ -7,21 +7,25 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Search, UserPlus, Users2, X, CheckCircle2 } from "lucide-react";
+import { Loader2, Search, UserPlus, Users, Users2, X, CheckCircle2 } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 import AppLayout from "@/components/layout/AppLayout";
 import { cn } from "@/lib/utils";
+import SquadTab from "@/components/friends/SquadTab";
 
 type FriendRequest = Database["public"]["Tables"]["friend_requests"]["Row"];
 type FriendProfile = { user_id: string; username: string; rl_account_name: string | null };
 
 const getDisplayName = (p?: FriendProfile | null) => p?.rl_account_name?.trim() || p?.username || "Unknown";
 
+type PageTab = "friends" | "squad";
+
 const Friends = () => {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  const [pageTab, setPageTab] = useState<PageTab>("friends");
   const [loading, setLoading] = useState(true);
   const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
   const [friendProfiles, setFriendProfiles] = useState<FriendProfile[]>([]);
@@ -174,6 +178,15 @@ const Friends = () => {
     return { profile: p, status, request: req };
   }), [searchResults, friendRequests, user?.id]);
 
+  const squadFriends = useMemo(
+    () => accepted.map((req) => {
+      const otherId = req.sender_id === user?.id ? req.receiver_id : req.sender_id;
+      const p = profileMap.get(otherId);
+      return { userId: otherId, rlName: getDisplayName(p), avatarUrl: null };
+    }),
+    [accepted, profileMap, user?.id]
+  );
+
   if (authLoading || loading) {
     return <AppLayout><div className="flex items-center justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div></AppLayout>;
   }
@@ -183,18 +196,40 @@ const Friends = () => {
   return (
     <AppLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-display font-bold">Friends</h1>
-            <p className="text-sm text-muted-foreground">Connect with teammates to compare stats</p>
-          </div>
-          <Link to="/squad">
-            <Button variant="outline" size="sm" className="gap-1.5 shrink-0">
-              <Users2 className="w-4 h-4" />
-              View Squad →
-            </Button>
-          </Link>
+        <div>
+          <h1 className="text-2xl font-display font-bold">Friends</h1>
+          <p className="text-sm text-muted-foreground">Connect with teammates and track squad stats</p>
         </div>
+
+        {/* Tab switcher */}
+        <div className="flex gap-1 p-1 rounded-lg bg-muted/40 border border-border/50 w-fit">
+          <button
+            onClick={() => setPageTab("friends")}
+            className={cn(
+              "flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-colors",
+              pageTab === "friends" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Users className="w-4 h-4" />
+            Friends
+          </button>
+          <button
+            onClick={() => setPageTab("squad")}
+            className={cn(
+              "flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-colors",
+              pageTab === "squad" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Users2 className="w-4 h-4" />
+            Squad
+          </button>
+        </div>
+
+        {pageTab === "squad" && (
+          <SquadTab friends={squadFriends} loadingFriends={loading} />
+        )}
+
+        {pageTab === "friends" && (<>
 
         {/* Search */}
         <Card className="border-border/50 bg-card/80">
@@ -311,8 +346,6 @@ const Friends = () => {
               accepted.map((req) => {
                 const otherId = req.sender_id === user.id ? req.receiver_id : req.sender_id;
                 const p = profileMap.get(otherId);
-                const isSender = req.sender_id === user.id;
-                const autoApprove = false; // auto-approve not yet implemented
                 return (
                   <div key={req.id} className="flex items-center justify-between gap-2 rounded-lg border border-border/60 bg-background/60 p-3">
                     <Link to={`/profile/${otherId}`} className="hover:underline min-w-0">
@@ -328,6 +361,7 @@ const Friends = () => {
             )}
           </CardContent>
         </Card>
+        </>)}
       </div>
     </AppLayout>
   );
