@@ -118,6 +118,7 @@ export type Database = {
           game_mode: Database["public"]["Enums"]["game_mode"]
           game_type: Database["public"]["Enums"]["game_type"]
           id: string
+          logged_via_photo: boolean
           played_at: string
           result: string
           screenshot_url: string | null
@@ -130,6 +131,7 @@ export type Database = {
           game_mode: Database["public"]["Enums"]["game_mode"]
           game_type?: Database["public"]["Enums"]["game_type"]
           id?: string
+          logged_via_photo?: boolean
           played_at?: string
           result: string
           screenshot_url?: string | null
@@ -142,6 +144,7 @@ export type Database = {
           game_mode?: Database["public"]["Enums"]["game_mode"]
           game_type?: Database["public"]["Enums"]["game_type"]
           id?: string
+          logged_via_photo?: boolean
           played_at?: string
           result?: string
           screenshot_url?: string | null
@@ -189,12 +192,70 @@ export type Database = {
         }
         Relationships: []
       }
+      parse_usage: {
+        Row: {
+          id: string
+          user_id: string
+          month: string
+          parse_count: number
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          month: string
+          parse_count?: number
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          month?: string
+          parse_count?: number
+        }
+        Relationships: []
+      }
+      subscriptions: {
+        Row: {
+          id: string
+          user_id: string
+          tier: Database["public"]["Enums"]["subscription_tier"]
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          current_period_end: string | null
+          cancel_at_period_end: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          tier?: Database["public"]["Enums"]["subscription_tier"]
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          current_period_end?: string | null
+          cancel_at_period_end?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          tier?: Database["public"]["Enums"]["subscription_tier"]
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          current_period_end?: string | null
+          cancel_at_period_end?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
           created_at: string
           id: string
           rl_account_name: string | null
+          show_on_leaderboard: boolean
           updated_at: string
           user_id: string
           username: string
@@ -204,6 +265,7 @@ export type Database = {
           created_at?: string
           id?: string
           rl_account_name?: string | null
+          show_on_leaderboard?: boolean
           updated_at?: string
           user_id: string
           username: string
@@ -213,6 +275,7 @@ export type Database = {
           created_at?: string
           id?: string
           rl_account_name?: string | null
+          show_on_leaderboard?: boolean
           updated_at?: string
           user_id?: string
           username?: string
@@ -260,10 +323,24 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_leaderboard: {
+        Args: { p_window: string }
+        Returns: Array<{
+          user_id: string
+          rl_name: string
+          avatar_url: string | null
+          game_count: number
+          rank: number
+        }>
+      }
+      increment_parse_count: {
+        Args: { p_user_id: string; p_month: string; p_quota: number }
+        Returns: { allowed: boolean; count: number }
+      }
     }
     Enums: {
       friend_request_status: "pending" | "accepted" | "rejected"
+      subscription_tier: "free" | "pro" | "lifetime"
       game_mode: "1v1" | "2v2" | "3v3" | "4v4"
       game_type: "competitive" | "casual"
       notification_type:

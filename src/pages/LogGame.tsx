@@ -142,6 +142,7 @@ const LogGame = () => {
   const [mmr, setMmr] = useState<number | null>(null);
   const [mmrChange, setMmrChange] = useState<number | null>(null);
   const [conflictGame, setConflictGame] = useState<GameWithPlayers | null>(null);
+  const [wasPhotoParsed, setWasPhotoParsed] = useState(false);
 
   const { sendNotification } = useNotifications();
 
@@ -192,6 +193,7 @@ const LogGame = () => {
     setGameType(data.game_type);
     setPlayers(data.players);
     setImageFile(file);
+    setWasPhotoParsed(true);
     setStep("review");
 
     // Use AI-detected result if available, otherwise fall back to goal comparison
@@ -331,7 +333,7 @@ const LogGame = () => {
           result,
           division_change: gameType === "competitive" ? divisionChange : null,
           screenshot_url: screenshotUrl,
-          // duplicate_of not yet in schema
+          logged_via_photo: wasPhotoParsed,
         })
         .select()
         .single();

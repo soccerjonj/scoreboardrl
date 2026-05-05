@@ -16,6 +16,7 @@ import FriendProfile from "./pages/FriendProfile.tsx";
 import ResetPassword from "./pages/ResetPassword.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import Onboarding from "./pages/Onboarding.tsx";
+import Leaderboard from "./pages/Leaderboard.tsx";
 
 const queryClient = new QueryClient();
 
@@ -36,6 +37,7 @@ const App = () => (
             <Route path="/profile" element={<Profile />} />
             <Route path="/profile/:userId" element={<FriendProfile />} />
             <Route path="/squad" element={<Navigate to="/friends" replace />} />
+            <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/onboarding" element={<Onboarding />} />

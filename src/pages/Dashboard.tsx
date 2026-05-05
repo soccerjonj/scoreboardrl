@@ -3,6 +3,9 @@ import { useNavigate, Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { Plus, Loader2, Trophy, Target, TrendingUp, ChevronRight, Zap, ChevronDown, ChevronUp, Pencil, Check, X as XIcon, Trash2, Info } from "lucide-react";
+import CarbonAd from "@/components/billing/CarbonAd";
+import LeaderboardPreviewCard from "@/components/dashboard/LeaderboardPreviewCard";
+import { useQuota } from "@/hooks/useQuota";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -69,6 +72,7 @@ const Dashboard = () => {
   const [loading, setLoading]             = useState(true);
   const [ranks, setRanks]                 = useState<RankData[]>([]);
   const [games, setGames]                 = useState<GameWithPlayers[]>([]);
+  const quota = useQuota();
   const [ranksExpanded, setRanksExpanded] = useState(false);
   const [rlName, setRlName]               = useState<string | null>(null);
   const [expandedGameId, setExpandedGameId] = useState<string | null>(null);
@@ -516,6 +520,10 @@ const Dashboard = () => {
             </CardContent>
           </Card>
         </div>
+
+        {/* Leaderboard preview + ad */}
+        <LeaderboardPreviewCard />
+        <CarbonAd tier={quota.tier} />
 
         {/* Recent Form */}
         {recentStreak.length > 0 && (

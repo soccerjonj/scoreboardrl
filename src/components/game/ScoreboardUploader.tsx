@@ -3,6 +3,9 @@ import { Camera, Upload, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useQuota } from "@/hooks/useQuota";
+import QuotaMeter from "@/components/billing/QuotaMeter";
+import UpgradeSheet from "@/components/billing/UpgradeSheet";
 
 interface ParsedPlayer {
   name: string;
@@ -34,9 +37,11 @@ const ScoreboardUploader = ({ userRlName, onParsed }: ScoreboardUploaderProps) =
   const [preview, setPreview] = useState<string | null>(null);
   const [parsing, setParsing] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [showUpgradeSheet, setShowUpgradeSheet] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const quota = useQuota();
 
   const compressImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -79,8 +84,14 @@ const ScoreboardUploader = ({ userRlName, onParsed }: ScoreboardUploaderProps) =
       });
 
       if (error) throw error;
+      if (data?.error === "quota_exceeded") {
+        quota.refetch();
+        setShowUpgradeSheet(true);
+        return;
+      }
       if (data.error) throw new Error(data.error);
 
+      quota.refetch();
       onParsed(data, originalFile);
       toast({ title: "Scoreboard parsed!", description: `Found ${data.players.length} players in a ${data.game_mode} ${data.game_type} game.` });
     } catch (err: any) {
@@ -156,7 +167,10 @@ const ScoreboardUploader = ({ userRlName, onParsed }: ScoreboardUploaderProps) =
     if (cameraInputRef.current) cameraInputRef.current.value = "";
   };
 
+  const isBlocked = quota.isOverLimit && !quota.isLoading;
+
   return (
+    <>
     <div className="space-y-4">
       {!preview ? (
         <div className="border-2 border-dashed border-border/50 rounded-xl p-8 text-center space-y-4">
@@ -171,7 +185,7 @@ const ScoreboardUploader = ({ userRlName, onParsed }: ScoreboardUploaderProps) =
             <Button
               type="button"
               variant="hero"
-              onClick={() => cameraInputRef.current?.click()}
+              onClick={() => isBlocked ? setShowUpgradeSheet(true) : cameraInputRef.current?.click()}
               className="gap-2"
             >
               <Camera className="w-4 h-4" />
@@ -181,13 +195,15 @@ const ScoreboardUploader = ({ userRlName, onParsed }: ScoreboardUploaderProps) =
             <Button
               type="button"
               variant="outline"
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => isBlocked ? setShowUpgradeSheet(true) : fileInputRef.current?.click()}
               className="gap-2"
             >
               <Upload className="w-4 h-4" />
               Upload Image
             </Button>
           </div>
+
+          <QuotaMeter quota={quota} onUpgradeClick={() => setShowUpgradeSheet(true)} />
 
           <input
             ref={cameraInputRef}
@@ -247,6 +263,14 @@ const ScoreboardUploader = ({ userRlName, onParsed }: ScoreboardUploaderProps) =
         </div>
       )}
     </div>
+    <UpgradeSheet
+      open={showUpgradeSheet}
+      onOpenChange={setShowUpgradeSheet}
+      currentTier={quota.tier}
+      parsesUsed={quota.parsesUsed}
+      quota={quota.quota}
+    />
+    </>
   );
 };
 

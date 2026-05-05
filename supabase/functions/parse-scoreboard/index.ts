@@ -16,6 +16,8 @@ const fail = (message: string) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
+const TIER_QUOTAS: Record<string, number> = { free: 100, pro: 1000, lifetime: Infinity };
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -25,6 +27,42 @@ Deno.serve(async (req) => {
     const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
     if (!GEMINI_API_KEY) return fail("GEMINI_API_KEY is not configured");
 
+    // ── Quota check ───────────────────────────────────────────────────────────
+    const authHeader = req.headers.get("authorization");
+    const jwt = authHeader?.replace("Bearer ", "");
+    if (jwt) {
+      const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
+      const admin = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+      );
+      const { data: { user } } = await admin.auth.getUser(jwt);
+      if (user) {
+        const { data: sub } = await admin
+          .from("subscriptions")
+          .select("tier")
+          .eq("user_id", user.id)
+          .single();
+        const tier = sub?.tier ?? "free";
+        const quota = TIER_QUOTAS[tier] ?? 100;
+        if (isFinite(quota)) {
+          const today = new Date();
+          const monthStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
+          const { data: usage } = await admin.rpc("increment_parse_count", {
+            p_user_id: user.id,
+            p_month: monthStr,
+            p_quota: quota,
+          });
+          if (usage && !usage.allowed) {
+            return new Response(
+              JSON.stringify({ error: "quota_exceeded", used: usage.count, quota }),
+              { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+        }
+      }
+    }
+    // ── End quota check ───────────────────────────────────────────────────────
 
     let body: { image_base64?: string; user_rl_name?: string; mime_type?: string };
     try {
