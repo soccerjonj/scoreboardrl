@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { X, Camera, CheckCircle2 } from "lucide-react";
+import { X, Camera, CheckCircle2, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const STORAGE_KEY = "srl_photo_guide_dismissed";
@@ -40,7 +40,23 @@ const PhotoGuide = () => {
     setVisible(false);
   };
 
-  if (!visible) return null;
+  const reopen = () => {
+    localStorage.removeItem(STORAGE_KEY);
+    setVisible(true);
+  };
+
+  if (!visible) return (
+    <div className="flex justify-end">
+      <button
+        onClick={reopen}
+        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+        aria-label="Show photo guide"
+      >
+        <Info className="w-3.5 h-3.5" />
+        Photo tips
+      </button>
+    </div>
+  );
 
   return (
     <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3 animate-fade-in-up">
