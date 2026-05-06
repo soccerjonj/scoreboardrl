@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "ScoreboardRL Companion",
+  "version": "1.0.0",
+  "description": "Auto-log Rocket League games to ScoreboardRL",
+  "permissions": ["storage", "notifications"],
+  "host_permissions": [
+    "ws://localhost:49123/",
+    "https://hnzrshgdhtukxgmlcjpw.supabase.co/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "ScoreboardRL Companion"
+  }
+}

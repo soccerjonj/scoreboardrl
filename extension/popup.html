@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ScoreboardRL Companion</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      width: 320px;
+      min-height: 200px;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #1e1b4b 0%, #0f1117 100%);
+      padding: 14px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .header-title { font-size: 15px; font-weight: 700; color: #f8fafc; }
+    .header-sub   { font-size: 11px; color: #64748b; }
+
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+      margin-left: auto;
+    }
+    .status-dot.connected    { background: #22c55e; box-shadow: 0 0 6px #22c55e88; }
+    .status-dot.disconnected { background: #ef4444; }
+
+    .section { padding: 14px 16px; }
+    .section + .section { border-top: 1px solid rgba(255,255,255,0.07); }
+
+    label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 6px;
+    }
+
+    input[type="email"], input[type="password"] {
+      width: 100%;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 8px;
+      padding: 8px 10px;
+      color: #f1f5f9;
+      font-size: 13px;
+      outline: none;
+      margin-bottom: 8px;
+      transition: border-color 0.15s;
+    }
+    input:focus { border-color: #6366f1; }
+
+    .btn {
+      width: 100%;
+      padding: 9px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: opacity 0.15s;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary  { background: #6366f1; color: #fff; }
+    .btn-ghost    { background: rgba(255,255,255,0.07); color: #94a3b8; margin-top: 6px; }
+
+    .error { color: #f87171; font-size: 12px; margin-bottom: 8px; }
+
+    .info-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 13px;
+    }
+    .info-row .value { color: #f1f5f9; font-weight: 600; }
+
+    .status-label {
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: #94a3b8;
+    }
+    .status-label.ok  { color: #22c55e; }
+    .status-label.bad { color: #ef4444; }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 13px;
+      margin-top: 10px;
+    }
+    .toggle {
+      position: relative;
+      width: 36px; height: 20px;
+    }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute; inset: 0;
+      background: rgba(255,255,255,0.12);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .slider:before {
+      content: "";
+      position: absolute;
+      width: 14px; height: 14px;
+      left: 3px; top: 3px;
+      background: white;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+    input:checked + .slider { background: #6366f1; }
+    input:checked + .slider:before { transform: translateX(16px); }
+
+    .setup-box {
+      background: rgba(99,102,241,0.08);
+      border: 1px solid rgba(99,102,241,0.2);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 12px;
+      color: #94a3b8;
+      line-height: 1.6;
+    }
+    .setup-box code {
+      font-family: monospace;
+      background: rgba(255,255,255,0.08);
+      padding: 1px 4px;
+      border-radius: 3px;
+      color: #c4b5fd;
+      font-size: 11px;
+    }
+    .setup-box p + p { margin-top: 6px; }
+
+    #view-auth    { display: block; }
+    #view-main    { display: none; }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <div>
+      <div class="header-title">ScoreboardRL</div>
+      <div class="header-sub">PC Companion</div>
+    </div>
+    <span class="status-dot disconnected" id="statusDot"></span>
+  </div>
+
+  <!-- Auth view -->
+  <div id="view-auth">
+    <div class="section">
+      <label>Sign in to ScoreboardRL</label>
+      <input type="email"    id="email"    placeholder="Email" autocomplete="email" />
+      <input type="password" id="password" placeholder="Password" autocomplete="current-password" />
+      <div class="error" id="authError" style="display:none"></div>
+      <button class="btn btn-primary" id="signInBtn">Sign In</button>
+    </div>
+  </div>
+
+  <!-- Main view -->
+  <div id="view-main">
+    <div class="section">
+      <div class="info-row" style="margin-bottom:10px">
+        <span style="color:#94a3b8;font-size:13px">Signed in as</span>
+        <span class="value" id="rlNameDisplay">—</span>
+      </div>
+      <div class="info-row">
+        <span style="color:#94a3b8;font-size:13px">RL Stats API</span>
+        <span class="status-label bad" id="connLabel">Disconnected</span>
+      </div>
+      <div class="toggle-row">
+        <span style="color:#94a3b8;font-size:13px">Default game type</span>
+        <div style="display:flex;align-items:center;gap:8px;font-size:12px">
+          <span id="typeLabel" style="color:#94a3b8">Competitive</span>
+          <label class="toggle">
+            <input type="checkbox" id="gameTypeToggle" />
+            <span class="slider"></span>
+          </label>
+          <span style="color:#94a3b8">Casual</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <label>Setup (one-time)</label>
+      <div class="setup-box">
+        <p>Edit <code>DefaultStatsAPI.ini</code> in your Rocket League install folder:</p>
+        <p><code>[StatsAPI]</code><br/><code>PacketSendRate=60</code></p>
+        <p>Path: <code>…\TAGame\Config\DefaultStatsAPI.ini</code></p>
+        <p>Restart Rocket League after saving.</p>
+      </div>
+    </div>
+
+    <div class="section">
+      <button class="btn btn-ghost" id="signOutBtn">Sign Out</button>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
