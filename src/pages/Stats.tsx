@@ -440,6 +440,7 @@ const Stats = () => {
   const [viewMode, setViewMode] = useState<ViewMode>("summary");
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [expandedContribGameId, setExpandedContribGameId] = useState<string | null>(null);
+  const [pageTab, setPageTab] = useState<"stats" | "leaderboard">("stats");
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/auth");
@@ -669,8 +670,6 @@ const Stats = () => {
     { value: "30d", label: "30D" },
     { value: "all", label: "All" },
   ];
-
-  const [pageTab, setPageTab] = useState<"stats" | "leaderboard">("stats");
 
   return (
     <AppLayout>
