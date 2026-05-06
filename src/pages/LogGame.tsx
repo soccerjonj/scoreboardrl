@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Save, Loader2, AlertTriangle, ClipboardList } from "lucide-react";
 import { CarryMeter } from "@/components/game/CarryMeter";
 import ScoreboardUploader from "@/components/game/ScoreboardUploader";
+import PhotoGuide from "@/components/game/PhotoGuide";
 import PlayerStatsEditor from "@/components/game/PlayerStatsEditor";
 import { calculateContributionScores } from "@/lib/carryScore";
 import { useNotifications } from "@/hooks/useNotifications";
@@ -513,7 +514,8 @@ const LogGame = () => {
             <CardHeader>
               <CardTitle className="font-display text-xl">Upload Scoreboard</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
+              <PhotoGuide />
               <ScoreboardUploader userRlName={rlName} onParsed={handleParsed} />
 
               <div className="mt-4 text-center">
