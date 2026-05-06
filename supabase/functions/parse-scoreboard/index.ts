@@ -85,17 +85,18 @@ RULES:
 6. ${user_rl_name ? `result: "win" if "${user_rl_name}"'s team has more goals, "loss" otherwise.` : 'Set result to "win" or "loss" based on which team has more goals for the top (blue) team.'}
 7. division_change: Look for an EXPLICIT rank-change indicator — an upward arrow (↑), "RANK UP", upward chevron, or similar for "up"; a downward arrow (↓), "RANK DOWN", downward chevron for "down". If NO such indicator is visible, use "none". Most games do NOT result in a rank change — default to "none" when unsure.
 8. MMR: two numbers left of each player avatar — [mmr_change] [mmr]. Set to null if not visible.
-9. new_rank_tier + new_rank_division: Read the CURRENT TIER shown at the bottom of the screen AFTER the match (e.g. "CURRENT TIER: PLATINUM III"). This is the rank the player IS NOW at. Map it exactly:
-   - "Bronze 1"→"bronze_1", "Bronze 2"→"bronze_2", "Bronze 3"→"bronze_3"
-   - "Silver 1"→"silver_1", "Silver 2"→"silver_2", "Silver 3"→"silver_3"
-   - "Gold 1"→"gold_1", "Gold 2"→"gold_2", "Gold 3"→"gold_3"
-   - "Platinum 1"→"platinum_1", "Platinum 2"→"platinum_2", "Platinum 3"→"platinum_3"
-   - "Diamond 1"→"diamond_1", "Diamond 2"→"diamond_2", "Diamond 3"→"diamond_3"
-   - "Champion 1"→"champion_1", "Champion 2"→"champion_2", "Champion 3"→"champion_3"
-   - "Grand Champion 1"→"grand_champion_1", "Grand Champion 2"→"grand_champion_2", "Grand Champion 3"→"grand_champion_3"
-   - "Supersonic Legend"→"supersonic_legend" (no division)
-   For new_rank_division read the division indicator (I, II, III, IV). Set both to null if not visible.
+9. new_rank_tier + new_rank_division: Read the CURRENT TIER shown at the bottom of the screen AFTER the match (e.g. "CURRENT TIER: PLATINUM III"). This is the rank the player IS NOW at. Use the same mapping as rule 10. Set both to null if not visible.
    IMPORTANT: This is the RESULTING rank after this game, not the rank before. A player can skip multiple divisions in one game.
+10. Per-player rank_tier + rank_division: Each player row has a small rank badge/icon. Read it for every player and map it using:
+   - Bronze 1→"bronze_1", Bronze 2→"bronze_2", Bronze 3→"bronze_3"
+   - Silver 1→"silver_1", Silver 2→"silver_2", Silver 3→"silver_3"
+   - Gold 1→"gold_1", Gold 2→"gold_2", Gold 3→"gold_3"
+   - Platinum 1→"platinum_1", Platinum 2→"platinum_2", Platinum 3→"platinum_3"
+   - Diamond 1→"diamond_1", Diamond 2→"diamond_2", Diamond 3→"diamond_3"
+   - Champion 1→"champion_1", Champion 2→"champion_2", Champion 3→"champion_3"
+   - Grand Champion 1→"grand_champion_1", Grand Champion 2→"grand_champion_2", Grand Champion 3→"grand_champion_3"
+   - Supersonic Legend→"supersonic_legend" (rank_division: null)
+   Set rank_division to I, II, III, or IV from the badge. Set both to null if the badge is unreadable.
 
 Return ONLY valid JSON with no extra text or markdown:
 {
@@ -106,7 +107,7 @@ Return ONLY valid JSON with no extra text or markdown:
   "new_rank_tier": "diamond_1",
   "new_rank_division": "I",
   "players": [
-    {"name":"PlayerName","team":"blue","score":450,"goals":2,"assists":1,"saves":3,"shots":5,"is_mvp":true,"mmr":847,"mmr_change":12}
+    {"name":"PlayerName","team":"blue","score":450,"goals":2,"assists":1,"saves":3,"shots":5,"is_mvp":true,"mmr":847,"mmr_change":12,"rank_tier":"diamond_1","rank_division":"I"}
   ]
 }`;
 

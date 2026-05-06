@@ -121,6 +121,8 @@ interface PlayerStat {
   is_mvp: boolean;
   mmr?: number | null;
   mmr_change?: number | null;
+  rank_tier?: string | null;
+  rank_division?: string | null;
 }
 
 const LogGame = () => {
@@ -406,6 +408,8 @@ const LogGame = () => {
           contribution_score: contributionMap.get(p.name.toLowerCase()) ?? 1,
           mmr:                p.mmr ?? null,
           mmr_change:         p.mmr_change ?? null,
+          rank_tier:          (p.rank_tier as RankTier | null) ?? null,
+          rank_division:      (p.rank_division as RankDivision | null) ?? null,
           user_id:            matchedUserId || null,
           submitted_by:       user.id,
           submission_status:  (isCurrentUser || (isFriend && friendApproves)

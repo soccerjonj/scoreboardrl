@@ -56,7 +56,11 @@ export type Database = {
           goals: number
           id: string
           is_mvp: boolean
+          mmr: number | null
+          mmr_change: number | null
           player_name: string
+          rank_division: Database["public"]["Enums"]["rank_division"] | null
+          rank_tier: Database["public"]["Enums"]["rank_tier"] | null
           saves: number
           score: number
           shots: number
@@ -73,7 +77,11 @@ export type Database = {
           goals?: number
           id?: string
           is_mvp?: boolean
+          mmr?: number | null
+          mmr_change?: number | null
           player_name: string
+          rank_division?: Database["public"]["Enums"]["rank_division"] | null
+          rank_tier?: Database["public"]["Enums"]["rank_tier"] | null
           saves?: number
           score?: number
           shots?: number
@@ -90,7 +98,11 @@ export type Database = {
           goals?: number
           id?: string
           is_mvp?: boolean
+          mmr?: number | null
+          mmr_change?: number | null
           player_name?: string
+          rank_division?: Database["public"]["Enums"]["rank_division"] | null
+          rank_tier?: Database["public"]["Enums"]["rank_tier"] | null
           saves?: number
           score?: number
           shots?: number
