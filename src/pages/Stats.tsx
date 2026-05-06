@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/chart";
 import { CartesianGrid, Area, AreaChart, XAxis, YAxis } from "recharts";
 import AppLayout from "@/components/layout/AppLayout";
+import LeaderboardView from "@/components/leaderboard/LeaderboardView";
 
 type GameMode = Database["public"]["Enums"]["game_mode"];
 type GameType = Database["public"]["Enums"]["game_type"];
@@ -669,6 +670,8 @@ const Stats = () => {
     { value: "all", label: "All" },
   ];
 
+  const [pageTab, setPageTab] = useState<"stats" | "leaderboard">("stats");
+
   return (
     <AppLayout>
       <div className="space-y-5">
@@ -676,8 +679,33 @@ const Stats = () => {
         {/* ── Header ── */}
         <div className="animate-fade-in-up">
           <h1 className="text-2xl font-display font-bold">Stats</h1>
-          <p className="text-sm text-muted-foreground">Performance analytics</p>
         </div>
+
+        {/* ── Page tab switcher ── */}
+        <div className="flex gap-1 p-1 rounded-lg bg-muted/40 border border-border/50 w-fit animate-fade-in-up">
+          <button
+            onClick={() => setPageTab("stats")}
+            className={cn(
+              "px-4 py-1.5 rounded-md text-sm font-medium transition-colors",
+              pageTab === "stats" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            My Stats
+          </button>
+          <button
+            onClick={() => setPageTab("leaderboard")}
+            className={cn(
+              "px-4 py-1.5 rounded-md text-sm font-medium transition-colors",
+              pageTab === "leaderboard" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Leaderboard
+          </button>
+        </div>
+
+        {pageTab === "leaderboard" ? (
+          <LeaderboardView />
+        ) : (<>
 
         {/* ── Filter + view toggle bar ── */}
         <div className="space-y-3 animate-fade-in-up">
@@ -906,6 +934,7 @@ const Stats = () => {
             )}
           </div>
         )}
+        </>)}
       </div>
     </AppLayout>
   );
