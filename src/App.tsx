@@ -15,6 +15,7 @@ const LogGame = lazy(() => import("./pages/LogGame.tsx"));
 const Friends = lazy(() => import("./pages/Friends.tsx"));
 const Notifications = lazy(() => import("./pages/Notifications.tsx"));
 const Profile = lazy(() => import("./pages/Profile.tsx"));
+const Settings = lazy(() => import("./pages/Settings.tsx"));
 const FriendProfile = lazy(() => import("./pages/FriendProfile.tsx"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
@@ -45,6 +46,7 @@ const App = () => (
               <Route path="/log-game" element={<LogGame />} />
               <Route path="/friends" element={<Friends />} />
               <Route path="/profile" element={<Profile />} />
+              <Route path="/settings" element={<Settings />} />
               <Route path="/profile/:userId" element={<FriendProfile />} />
               <Route path="/squad" element={<Navigate to="/friends" replace />} />
               <Route path="/leaderboard" element={<Leaderboard />} />

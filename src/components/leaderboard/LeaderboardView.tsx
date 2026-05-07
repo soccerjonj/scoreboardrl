@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Trophy, Medal, Camera, Target, Shield, Star } from "lucide-react";
@@ -149,11 +150,13 @@ const LeaderboardView = () => {
               {entries.map((entry, i) => {
                 const isMe   = entry.user_id === user?.id;
                 const isTop3 = i < 3;
+                const profilePath = isMe ? "/profile" : `/profile/${entry.user_id}`;
                 return (
-                  <div
+                  <Link
                     key={entry.user_id}
+                    to={profilePath}
                     className={cn(
-                      "flex items-center gap-3 px-4 py-3 transition-colors",
+                      "flex items-center gap-3 px-4 py-3 transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-primary/60",
                       isMe && "bg-primary/5",
                       !isMe && "hover:bg-muted/20"
                     )}
@@ -194,7 +197,7 @@ const LeaderboardView = () => {
                       <span className="font-display font-bold text-sm">{entry.stat_value.toLocaleString()}</span>
                       <span className="text-[10px] text-muted-foreground">{activeStat.unit}</span>
                     </div>
-                  </div>
+                  </Link>
                 );
               })}
             </div>
