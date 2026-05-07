@@ -248,8 +248,8 @@ const Dashboard = () => {
         })
       );
 
-      // Re-link user_id for any rows whose name changed — look up matching profiles
-      const renamedRows = updatedPlayers.filter((p) => {
+      // Re-link user_id for any rows whose name changed — compare against original players
+      const renamedRows = players.filter((p) => {
         const newName = editValuesMap[p.id]?.player_name;
         return newName && newName.trim().toLowerCase() !== p.player_name.toLowerCase();
       });
