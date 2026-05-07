@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import {
   Camera, Check, Loader2,
-  LogOut, Pencil, Save, Settings, Star, Trophy, User, X as XIcon,
+  LogOut, Pencil, Save, Star, Trophy, User, X as XIcon,
 } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 import AppLayout from "@/components/layout/AppLayout";
@@ -594,24 +594,6 @@ const Profile = () => {
               </CardContent>
             </Card>
           )}
-
-          {/* Settings shortcut */}
-          <Card className="border-border/50 bg-card/80">
-            <CardContent className="pt-4 pb-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold">Settings</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">Manage leaderboard visibility, subscription, and PC companion.</p>
-                </div>
-                <Button asChild size="sm" variant="outline" className="gap-1.5">
-                  <Link to="/settings">
-                    <Settings className="w-3.5 h-3.5" />
-                    Open Settings
-                  </Link>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
 
           {/* Sign Out */}
           <div className="md:hidden">

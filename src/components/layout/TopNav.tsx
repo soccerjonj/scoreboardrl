@@ -1,7 +1,6 @@
-import { Home, PlusCircle, Users, User, LogOut, Bell, BarChart2, Trophy, Zap, Settings } from "lucide-react";
+import { Home, PlusCircle, Users, User, Bell, BarChart2, Trophy, Zap, Settings } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { useNotifications } from "@/hooks/useNotifications";
 import Logo from "@/components/ui/Logo";
@@ -20,7 +19,6 @@ const tabs = [
 
 const TopNav = () => {
   const location = useLocation();
-  const { signOut } = useAuth();
   const { unreadCount } = useNotifications();
   const quota = useQuota();
   const [showUpgrade, setShowUpgrade] = useState(false);
@@ -65,17 +63,6 @@ const TopNav = () => {
             </Button>
           )}
           <NavLink
-            to="/settings"
-            className={cn(
-              "relative flex items-center justify-center w-9 h-9 rounded-md transition-colors",
-              location.pathname === "/settings"
-                ? "bg-primary/10 text-primary"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-            )}
-          >
-            <Settings className="w-4 h-4" />
-          </NavLink>
-          <NavLink
             to="/notifications"
             className={cn(
               "relative flex items-center justify-center w-9 h-9 rounded-md transition-colors",
@@ -93,10 +80,18 @@ const TopNav = () => {
               )}
             </div>
           </NavLink>
+          <NavLink
+            to="/settings"
+            className={cn(
+              "relative flex items-center justify-center w-9 h-9 rounded-md transition-colors",
+              location.pathname === "/settings"
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+            )}
+          >
+            <Settings className="w-4 h-4" />
+          </NavLink>
 
-          <Button variant="ghost" size="icon" onClick={() => signOut()} className="text-muted-foreground w-9 h-9">
-            <LogOut className="w-4 h-4" />
-          </Button>
         </div>
       </div>
     </header>

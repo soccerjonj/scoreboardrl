@@ -22,17 +22,6 @@ const MobileHeader = () => {
         <NavLink to="/dashboard"><Logo size="sm" /></NavLink>
         <div className="flex items-center gap-1">
           <NavLink
-            to="/settings"
-            className={cn(
-              "p-2 rounded-md transition-colors",
-              location.pathname === "/settings"
-                ? "text-primary"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <Settings className="w-5 h-5" />
-          </NavLink>
-          <NavLink
             to="/notifications"
             className={cn(
               "relative p-2 rounded-md transition-colors",
@@ -47,6 +36,17 @@ const MobileHeader = () => {
                 {unreadCount > 9 ? "9+" : unreadCount}
               </span>
             )}
+          </NavLink>
+          <NavLink
+            to="/settings"
+            className={cn(
+              "p-2 rounded-md transition-colors",
+              location.pathname === "/settings"
+                ? "text-primary"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Settings className="w-5 h-5" />
           </NavLink>
         </div>
       </div>

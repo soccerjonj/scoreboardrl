@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ExternalLink, LayoutList, Loader2, Monitor, Zap } from "lucide-react";
+import { ExternalLink, LayoutList, Loader2, LogOut, Monitor, Zap } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,7 @@ import { useQuota } from "@/hooks/useQuota";
 import UpgradeSheet from "@/components/billing/UpgradeSheet";
 
 const Settings = () => {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, signOut } = useAuth();
   const navigate = useNavigate();
   const quota = useQuota();
 
@@ -162,6 +162,13 @@ const Settings = () => {
               </CardContent>
             </Card>
           )}
+
+          <div className="pt-1">
+            <Button variant="outline" className="w-full gap-2 text-muted-foreground" onClick={() => signOut()}>
+              <LogOut className="w-4 h-4" />
+              Sign Out
+            </Button>
+          </div>
         </div>
       </AppLayout>
       <UpgradeSheet
