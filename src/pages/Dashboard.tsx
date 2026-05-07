@@ -247,6 +247,29 @@ const Dashboard = () => {
         })
       );
 
+      // Re-link user_id for any rows whose name changed — look up matching profiles
+      const renamedRows = updatedPlayers.filter((p) => {
+        const newName = editValuesMap[p.id]?.player_name;
+        return newName && newName.trim().toLowerCase() !== p.player_name.toLowerCase();
+      });
+      const userIdUpdates = new Map<string, string | null>(); // game_player id → user_id
+      if (renamedRows.length > 0) {
+        const newNames = renamedRows.map((p) => editValuesMap[p.id]!.player_name.trim());
+        const { data: matchedProfiles } = await supabase
+          .from("profiles")
+          .select("user_id, rl_account_name")
+          .in("rl_account_name", newNames);
+        const nameToUserId = new Map((matchedProfiles ?? []).map((pr) => [pr.rl_account_name!.toLowerCase(), pr.user_id]));
+        await Promise.all(
+          renamedRows.map((p) => {
+            const newName = editValuesMap[p.id]!.player_name.trim();
+            const linkedUserId = nameToUserId.get(newName.toLowerCase()) ?? null;
+            userIdUpdates.set(p.id, linkedUserId);
+            return supabase.from("game_players").update({ user_id: linkedUserId }).eq("id", p.id);
+          })
+        );
+      }
+
       // Update local state
       setGames((prev) =>
         prev.map((g) =>
@@ -255,7 +278,8 @@ const Dashboard = () => {
             game_players: updatedPlayers.map((p) => {
               const newName = editValuesMap[p.id]?.player_name ?? p.player_name;
               const cs = contributionMap.get(newName.toLowerCase());
-              return { ...p, player_name: newName, ...(cs !== undefined ? { contribution_score: cs } : {}) };
+              const newUserId = userIdUpdates.has(p.id) ? userIdUpdates.get(p.id) : p.user_id;
+              return { ...p, player_name: newName, user_id: newUserId ?? p.user_id, ...(cs !== undefined ? { contribution_score: cs } : {}) };
             }),
           }
         )
