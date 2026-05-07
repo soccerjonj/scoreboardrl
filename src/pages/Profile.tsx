@@ -9,8 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import {
-  AlertTriangle, Camera, Check, Loader2,
-  Lock, LogOut, Pencil, Save, Star, Trophy, User, X as XIcon, Zap, LayoutList,
+  Camera, Check, Loader2,
+  LogOut, Pencil, Save, Star, Trophy, User, X as XIcon, Zap, LayoutList, Monitor, ExternalLink,
 } from "lucide-react";
 import { useQuota } from "@/hooks/useQuota";
 import UpgradeSheet from "@/components/billing/UpgradeSheet";
@@ -110,7 +110,6 @@ const Profile = () => {
   );
   const [rlAccountName, setRlAccountName]     = useState("");
   const [rlNameWasSet, setRlNameWasSet]       = useState(false);
-  const [rlNameLocked, setRlNameLocked]       = useState(false);
   const [bio, setBio]                         = useState("");
   const [favoriteCar, setFavoriteCar]         = useState<string | null>(null);
   const [ranks, setRanks]                     = useState<Record<GameMode, RankInput>>(createEmptyRanks());
@@ -131,9 +130,6 @@ const Profile = () => {
   useEffect(() => {
     if (!authLoading && !user) { navigate("/auth"); return; }
     if (!user) return;
-
-    const locked = localStorage.getItem(`rl_name_locked_${user.id}`) === "true";
-    setRlNameLocked(locked);
 
     const load = async () => {
       setLoading(true);
@@ -357,11 +353,6 @@ const Profile = () => {
     if (!user) return;
     setSaving(true);
 
-    if (rlNameWasSet && draftRlName !== rlAccountName) {
-      localStorage.setItem(`rl_name_locked_${user.id}`, "true");
-      setRlNameLocked(true);
-    }
-
     // Mirror bio to localStorage as fallback
     localStorage.setItem(`profile_bio_${user.id}`, draftBio);
 
@@ -412,7 +403,7 @@ const Profile = () => {
   }
   if (!user) return null;
 
-  const rlNameMode: 0 | 1 | 2 = !rlNameWasSet ? 0 : rlNameLocked ? 2 : 1;
+  const rlNameMode: 0 | 1 = !rlNameWasSet ? 0 : 1;
   const winRate = profileStats && profileStats.totalGames > 0
     ? Math.round((profileStats.wins / profileStats.totalGames) * 100)
     : null;
@@ -681,6 +672,40 @@ const Profile = () => {
             </CardContent>
           </Card>
 
+          {/* PC Companion — Pro/Lifetime only */}
+          {(quota.tier === "pro" || quota.tier === "lifetime") && (
+            <Card className="border-border/50 bg-card/80">
+              <CardContent className="p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Monitor className="w-4 h-4 text-primary" />
+                  <p className="text-sm font-semibold">PC Companion</p>
+                  <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">Pro</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Auto-log games directly from Rocket League on PC — no screenshot needed. Install the browser extension, sign in, and games are saved the moment a match ends.
+                </p>
+                <div className="space-y-1.5 text-xs text-muted-foreground">
+                  <p className="font-medium text-foreground/80">Setup:</p>
+                  <ol className="space-y-1 list-decimal list-inside">
+                    <li>Install the Chrome extension (see link below)</li>
+                    <li>Sign in with your ScoreboardRL credentials in the extension popup</li>
+                    <li>Edit <code className="bg-muted px-1 py-0.5 rounded text-[11px]">DefaultStatsAPI.ini</code> in your RL install folder and set <code className="bg-muted px-1 py-0.5 rounded text-[11px]">PacketSendRate=60</code></li>
+                    <li>Restart Rocket League — games log automatically</li>
+                  </ol>
+                </div>
+                <a
+                  href="https://github.com/soccerjonj/scoreboardrl/tree/main/extension"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline font-medium"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  View extension installation guide
+                </a>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Sign Out */}
           <div className="md:hidden">
             <Button variant="outline" className="w-full gap-2 text-muted-foreground" onClick={() => signOut()}>
@@ -759,26 +784,10 @@ const Profile = () => {
           )}
 
           {rlNameMode === 1 && editingRlName && (
-            <div className="space-y-2">
-              <div className="flex items-start gap-2 rounded-lg border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-400">
-                <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                <span>You can only change your RL username once. Choose carefully.</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Input autoFocus placeholder="e.g. Jstn" value={rlNameDraft} onChange={(e) => setRlNameDraft(e.target.value)} className="flex-1" />
-                <button type="button" onClick={confirmRlNameEdit} className="p-1.5 rounded-md text-green-400 hover:bg-green-400/10 transition-colors"><Check className="w-4 h-4" /></button>
-                <button type="button" onClick={() => setEditingRlName(false)} className="p-1.5 rounded-md text-muted-foreground hover:bg-muted/50 transition-colors"><XIcon className="w-4 h-4" /></button>
-              </div>
-            </div>
-          )}
-
-          {rlNameMode === 2 && (
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-background/60 px-4 py-2.5">
-                <span className="font-semibold text-sm truncate">{rlAccountName}</span>
-                <Lock className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-              </div>
-              <p className="text-xs text-muted-foreground px-1">Contact support to change your username.</p>
+            <div className="flex items-center gap-2">
+              <Input autoFocus placeholder="e.g. Jstn" value={rlNameDraft} onChange={(e) => setRlNameDraft(e.target.value)} className="flex-1" />
+              <button type="button" onClick={confirmRlNameEdit} className="p-1.5 rounded-md text-green-400 hover:bg-green-400/10 transition-colors"><Check className="w-4 h-4" /></button>
+              <button type="button" onClick={() => setEditingRlName(false)} className="p-1.5 rounded-md text-muted-foreground hover:bg-muted/50 transition-colors"><XIcon className="w-4 h-4" /></button>
             </div>
           )}
         </div>
