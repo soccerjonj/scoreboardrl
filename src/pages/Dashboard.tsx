@@ -60,7 +60,7 @@ const rankDisplayName = (tier: RankTier): string =>
 const gameModeLabels: Record<GameMode, string> = { "1v1": "1v1", "2v2": "2v2", "3v3": "3v3", "4v4": "4v4" };
 const normalizeName  = (v?: string | null) => v?.trim().toLowerCase() ?? "";
 
-type PlayerEditValues = { score: number; goals: number; assists: number; saves: number; shots: number };
+type PlayerEditValues = { player_name: string; score: number; goals: number; assists: number; saves: number; shots: number };
 
 const Dashboard = () => {
   const { user, loading: authLoading } = useAuth();
@@ -216,20 +216,21 @@ const Dashboard = () => {
           return supabase
             .from("game_players")
             .update({
-              score:   vals.score,
-              goals:   vals.goals,
-              assists: vals.assists,
-              saves:   vals.saves,
-              shots:   vals.shots,
+              player_name: vals.player_name,
+              score:       vals.score,
+              goals:       vals.goals,
+              assists:     vals.assists,
+              saves:       vals.saves,
+              shots:       vals.shots,
             })
             .eq("id", p.id);
         })
       );
 
-      // Recalculate contribution scores with updated stats
+      // Recalculate contribution scores with updated stats (use new names from editValuesMap)
       const contributionMap = calculateContributionScores(
         updatedPlayers.map((p) => ({
-          name:    p.player_name,
+          name:    editValuesMap[p.id]?.player_name ?? p.player_name,
           team:    (p.team ?? "blue") as "blue" | "orange",
           score:   p.score,
           goals:   p.goals,
@@ -240,7 +241,8 @@ const Dashboard = () => {
       );
       await Promise.all(
         updatedPlayers.map((row) => {
-          const contributionScore = contributionMap.get(row.player_name.toLowerCase()) ?? 1;
+          const name = (editValuesMap[row.id]?.player_name ?? row.player_name).toLowerCase();
+          const contributionScore = contributionMap.get(name) ?? 1;
           return supabase.from("game_players").update({ contribution_score: contributionScore }).eq("id", row.id);
         })
       );
@@ -251,8 +253,9 @@ const Dashboard = () => {
           g.id !== game.id ? g : {
             ...g,
             game_players: updatedPlayers.map((p) => {
-              const cs = contributionMap.get(p.player_name.toLowerCase());
-              return cs !== undefined ? { ...p, contribution_score: cs } : p;
+              const newName = editValuesMap[p.id]?.player_name ?? p.player_name;
+              const cs = contributionMap.get(newName.toLowerCase());
+              return { ...p, player_name: newName, ...(cs !== undefined ? { contribution_score: cs } : {}) };
             }),
           }
         )
@@ -694,18 +697,32 @@ const Dashboard = () => {
                                     <div key={p.id} className={`grid grid-cols-[1fr_2.5rem_2rem_2.5rem_2rem_2rem] gap-x-1 items-start py-1.5 px-2 rounded-md ${isUser ? "bg-primary/5" : ""}`}>
                                       {/* 1fr column: min-w-0 lets CSS grid shrink it; name wraps rather than overflowing */}
                                       <div className="min-w-0">
-                                        <div className="flex items-center gap-1.5 min-w-0">
-                                          <span className={`text-xs font-medium leading-snug break-words min-w-0 ${isUser ? "text-primary" : "text-foreground"}`}>
-                                            {p.player_name}
-                                          </span>
-                                          {p.is_mvp && (
-                                            <span className="text-[9px] text-yellow-400 font-bold leading-snug flex-shrink-0">MVP</span>
-                                          )}
-                                        </div>
-                                        {!isEditing && p.contribution_score != null && p.contribution_score > 0 && (
-                                          <div className="mt-0.5">
-                                            <CarryMeter score={p.contribution_score} teamSize={teamSize} size="sm" />
-                                          </div>
+                                        {isEditing ? (
+                                          <Input
+                                            value={editValuesMap[p.id]?.player_name ?? p.player_name}
+                                            onChange={(e) => setEditValuesMap((prev) => ({
+                                              ...prev,
+                                              [p.id]: { ...prev[p.id], player_name: e.target.value }
+                                            }))}
+                                            className="h-6 text-xs px-1"
+                                            placeholder="Player name"
+                                          />
+                                        ) : (
+                                          <>
+                                            <div className="flex items-center gap-1.5 min-w-0">
+                                              <span className={`text-xs font-medium leading-snug break-words min-w-0 ${isUser ? "text-primary" : "text-foreground"}`}>
+                                                {p.player_name}
+                                              </span>
+                                              {p.is_mvp && (
+                                                <span className="text-[9px] text-yellow-400 font-bold leading-snug flex-shrink-0">MVP</span>
+                                              )}
+                                            </div>
+                                            {p.contribution_score != null && p.contribution_score > 0 && (
+                                              <div className="mt-0.5">
+                                                <CarryMeter score={p.contribution_score} teamSize={teamSize} size="sm" />
+                                              </div>
+                                            )}
+                                          </>
                                         )}
                                       </div>
                                       {/* Stat columns — always top-aligned with the name line */}
@@ -767,7 +784,7 @@ const Dashboard = () => {
                                 setEditingGameId(game.id);
                                 const map: Record<string, PlayerEditValues> = {};
                                 (game.game_players ?? []).forEach((p) => {
-                                  map[p.id] = { score: p.score, goals: p.goals, assists: p.assists, saves: p.saves, shots: p.shots };
+                                  map[p.id] = { player_name: p.player_name, score: p.score, goals: p.goals, assists: p.assists, saves: p.saves, shots: p.shots };
                                 });
                                 setEditValuesMap(map);
                               }}
