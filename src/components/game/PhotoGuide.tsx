@@ -1,31 +1,154 @@
 import { useState, useEffect } from "react";
 import { X, Camera, CheckCircle2, Info } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 const STORAGE_KEY = "srl_photo_guide_dismissed";
 
+const CALLOUT_COLORS = ["#fbbf24", "#34d399", "#fb923c", "#a78bfa"];
+
 const tips = [
   {
-    icon: "📊",
     title: "Full scoreboard visible",
     detail: "All players' Score, Goals, Assists, Saves, and Shots columns must be readable.",
   },
   {
-    icon: "🏅",
     title: "MMR numbers at the bottom",
     detail: "The +/− MMR change next to each player's current MMR (e.g. +9 968) must be in frame.",
   },
   {
-    icon: "💎",
     title: "Rank badge on the right",
     detail: 'The "Current Tier" rank (e.g. Diamond II Division I) on the right side must be visible.',
   },
   {
-    icon: "📸",
     title: "Hold steady & fill the frame",
     detail: "Point your camera straight at the screen. Keep the phone still and get close enough that the scoreboard fills most of the shot.",
   },
 ];
+
+const ScoreboardIllustration = () => (
+  <svg
+    viewBox="0 0 360 192"
+    width="100%"
+    xmlns="http://www.w3.org/2000/svg"
+    style={{ display: "block" }}
+    aria-hidden="true"
+  >
+    {/* Background */}
+    <rect width="360" height="192" fill="#0b1121" />
+
+    {/* Top bar */}
+    <rect width="360" height="18" fill="#111827" />
+    <text x="180" y="12" textAnchor="middle" fill="#4b5e80" fontSize="7" fontFamily="sans-serif" letterSpacing="3">POST-MATCH</text>
+
+    {/* Column headers */}
+    <rect x="0" y="18" width="360" height="10" fill="#0e1520" />
+    <text x="25" y="26" fill="#3a4a66" fontSize="6" fontFamily="sans-serif">NAME</text>
+    <text x="163" y="26" textAnchor="middle" fill="#3a4a66" fontSize="6" fontFamily="sans-serif">SCR</text>
+    <text x="198" y="26" textAnchor="middle" fill="#3a4a66" fontSize="6" fontFamily="sans-serif">GLS</text>
+    <text x="233" y="26" textAnchor="middle" fill="#3a4a66" fontSize="6" fontFamily="sans-serif">AST</text>
+    <text x="268" y="26" textAnchor="middle" fill="#3a4a66" fontSize="6" fontFamily="sans-serif">SVS</text>
+    <text x="303" y="26" textAnchor="middle" fill="#3a4a66" fontSize="6" fontFamily="sans-serif">SHT</text>
+
+    {/* Blue team header */}
+    <rect x="0" y="28" width="360" height="11" fill="#1a3357" />
+    <text x="12" y="36.5" fill="#5b9bd5" fontSize="7" fontFamily="sans-serif" fontWeight="bold">BLUE  2 – 1  ORANGE</text>
+    <text x="196" y="36.5" fill="#4ade80" fontSize="7" fontFamily="sans-serif">▲ WIN</text>
+
+    {/* Blue player 1 */}
+    <rect x="0" y="39" width="360" height="20" fill="#172035" />
+    <rect x="6" y="42" width="14" height="14" rx="2" fill="#1d4ed8" />
+    <polygon points="13,44 17,48 13,52 9,48" fill="#60a5fa" />
+    <text x="25" y="52" fill="white" fontSize="8.5" fontFamily="sans-serif">Soccerjonj</text>
+    <text x="163" y="52" textAnchor="middle" fill="white" fontSize="8.5" fontFamily="sans-serif">450</text>
+    <text x="198" y="52" textAnchor="middle" fill="white" fontSize="8.5" fontFamily="sans-serif">2</text>
+    <text x="233" y="52" textAnchor="middle" fill="white" fontSize="8.5" fontFamily="sans-serif">1</text>
+    <text x="268" y="52" textAnchor="middle" fill="white" fontSize="8.5" fontFamily="sans-serif">3</text>
+    <text x="303" y="52" textAnchor="middle" fill="white" fontSize="8.5" fontFamily="sans-serif">5</text>
+    <text x="330" y="52" fill="#fbbf24" fontSize="11" fontFamily="sans-serif">★</text>
+
+    {/* Blue player 2 */}
+    <rect x="0" y="59" width="360" height="20" fill="#101828" />
+    <rect x="6" y="62" width="14" height="14" rx="2" fill="#1d4ed8" />
+    <polygon points="13,64 17,68 13,72 9,68" fill="#60a5fa" />
+    <text x="25" y="72" fill="#aac4ff" fontSize="8.5" fontFamily="sans-serif">Teammate</text>
+    <text x="163" y="72" textAnchor="middle" fill="#aac4ff" fontSize="8.5" fontFamily="sans-serif">290</text>
+    <text x="198" y="72" textAnchor="middle" fill="#aac4ff" fontSize="8.5" fontFamily="sans-serif">0</text>
+    <text x="233" y="72" textAnchor="middle" fill="#aac4ff" fontSize="8.5" fontFamily="sans-serif">2</text>
+    <text x="268" y="72" textAnchor="middle" fill="#aac4ff" fontSize="8.5" fontFamily="sans-serif">5</text>
+    <text x="303" y="72" textAnchor="middle" fill="#aac4ff" fontSize="8.5" fontFamily="sans-serif">2</text>
+
+    {/* Orange team header */}
+    <rect x="0" y="79" width="360" height="11" fill="#3d1c0a" />
+    <text x="12" y="87.5" fill="#f97316" fontSize="7" fontFamily="sans-serif" fontWeight="bold">ORANGE  1 – 2  BLUE</text>
+    <text x="196" y="87.5" fill="#f87171" fontSize="7" fontFamily="sans-serif">▼ LOSS</text>
+
+    {/* Orange player 1 */}
+    <rect x="0" y="90" width="360" height="20" fill="#1c1008" />
+    <rect x="6" y="93" width="14" height="14" rx="2" fill="#c2410c" />
+    <polygon points="13,95 17,99 13,103 9,99" fill="#fb923c" />
+    <text x="25" y="103" fill="#ffd0b0" fontSize="8.5" fontFamily="sans-serif">Opponent1</text>
+    <text x="163" y="103" textAnchor="middle" fill="#ffd0b0" fontSize="8.5" fontFamily="sans-serif">420</text>
+    <text x="198" y="103" textAnchor="middle" fill="#ffd0b0" fontSize="8.5" fontFamily="sans-serif">1</text>
+    <text x="233" y="103" textAnchor="middle" fill="#ffd0b0" fontSize="8.5" fontFamily="sans-serif">0</text>
+    <text x="268" y="103" textAnchor="middle" fill="#ffd0b0" fontSize="8.5" fontFamily="sans-serif">2</text>
+    <text x="303" y="103" textAnchor="middle" fill="#ffd0b0" fontSize="8.5" fontFamily="sans-serif">6</text>
+
+    {/* Orange player 2 */}
+    <rect x="0" y="110" width="360" height="20" fill="#150c05" />
+    <rect x="6" y="113" width="14" height="14" rx="2" fill="#c2410c" />
+    <polygon points="13,115 17,119 13,123 9,119" fill="#fb923c" />
+    <text x="25" y="123" fill="#ffb890" fontSize="8.5" fontFamily="sans-serif">Opponent2</text>
+    <text x="163" y="123" textAnchor="middle" fill="#ffb890" fontSize="8.5" fontFamily="sans-serif">310</text>
+    <text x="198" y="123" textAnchor="middle" fill="#ffb890" fontSize="8.5" fontFamily="sans-serif">0</text>
+    <text x="233" y="123" textAnchor="middle" fill="#ffb890" fontSize="8.5" fontFamily="sans-serif">1</text>
+    <text x="268" y="123" textAnchor="middle" fill="#ffb890" fontSize="8.5" fontFamily="sans-serif">4</text>
+    <text x="303" y="123" textAnchor="middle" fill="#ffb890" fontSize="8.5" fontFamily="sans-serif">3</text>
+
+    {/* Separator */}
+    <line x1="0" y1="130" x2="360" y2="130" stroke="#1e2d45" strokeWidth="1" />
+
+    {/* Bottom area background */}
+    <rect x="0" y="130" width="360" height="62" fill="#070d1a" />
+
+    {/* MMR per player */}
+    <text x="15" y="148" fill="#4ade80" fontSize="8" fontFamily="sans-serif">+9</text>
+    <text x="15" y="160" fill="#8899aa" fontSize="8" fontFamily="sans-serif">968</text>
+    <text x="55" y="148" fill="#4ade80" fontSize="8" fontFamily="sans-serif">+4</text>
+    <text x="55" y="160" fill="#8899aa" fontSize="8" fontFamily="sans-serif">893</text>
+    <text x="100" y="148" fill="#f87171" fontSize="8" fontFamily="sans-serif">−8</text>
+    <text x="100" y="160" fill="#8899aa" fontSize="8" fontFamily="sans-serif">921</text>
+    <text x="143" y="148" fill="#f87171" fontSize="8" fontFamily="sans-serif">−5</text>
+    <text x="143" y="160" fill="#8899aa" fontSize="8" fontFamily="sans-serif">804</text>
+
+    {/* Rank badge */}
+    <rect x="238" y="134" width="116" height="52" rx="4" fill="#121e33" stroke="#1e3050" strokeWidth="1" />
+    <text x="296" y="146" textAnchor="middle" fill="#4a5a80" fontSize="6" fontFamily="sans-serif" letterSpacing="1">CURRENT TIER</text>
+    <polygon points="254,162 260,156 266,162 260,168" fill="#3b82f6" />
+    <text x="296" y="163" textAnchor="middle" fill="white" fontSize="10" fontFamily="sans-serif" fontWeight="bold">DIAMOND II</text>
+    <text x="296" y="177" textAnchor="middle" fill="#6a7a99" fontSize="7.5" fontFamily="sans-serif">DIVISION I</text>
+
+    {/* ── CALLOUT ANNOTATIONS ── */}
+
+    {/* ① Stats columns (yellow) */}
+    <rect x="144" y="18" width="174" height="112" rx="2" fill="none" stroke="#fbbf24" strokeWidth="1.5" strokeDasharray="4,3" />
+    <circle cx="154" cy="18" r="7" fill="#fbbf24" />
+    <text x="154" y="22" textAnchor="middle" fill="#0b1121" fontSize="9" fontWeight="bold" fontFamily="sans-serif">1</text>
+
+    {/* ② MMR row (green) */}
+    <rect x="2" y="131" width="230" height="57" rx="2" fill="none" stroke="#34d399" strokeWidth="1.5" strokeDasharray="4,3" />
+    <circle cx="12" cy="141" r="7" fill="#34d399" />
+    <text x="12" y="145" textAnchor="middle" fill="#0b1121" fontSize="9" fontWeight="bold" fontFamily="sans-serif">2</text>
+
+    {/* ③ Rank badge (orange) */}
+    <rect x="234" y="131" width="124" height="57" rx="2" fill="none" stroke="#fb923c" strokeWidth="1.5" strokeDasharray="4,3" />
+    <circle cx="244" cy="141" r="7" fill="#fb923c" />
+    <text x="244" y="145" textAnchor="middle" fill="white" fontSize="9" fontWeight="bold" fontFamily="sans-serif">3</text>
+
+    {/* ④ Outer framing (purple) */}
+    <rect x="1" y="1" width="358" height="190" rx="7" fill="none" stroke="#a78bfa" strokeWidth="1.5" strokeDasharray="5,4" />
+    <circle cx="348" cy="10" r="7" fill="#a78bfa" />
+    <text x="348" y="14" textAnchor="middle" fill="white" fontSize="9" fontWeight="bold" fontFamily="sans-serif">4</text>
+  </svg>
+);
 
 const PhotoGuide = () => {
   const [visible, setVisible] = useState(false);
@@ -75,14 +198,27 @@ const PhotoGuide = () => {
         </button>
       </div>
 
+      {/* Illustration */}
+      <div className="rounded-lg overflow-hidden border border-border/30">
+        <ScoreboardIllustration />
+      </div>
+
       {/* Tips */}
       <div className="grid gap-2 sm:grid-cols-2">
-        {tips.map((tip) => (
+        {tips.map((tip, i) => (
           <div
             key={tip.title}
             className="flex gap-2.5 rounded-lg bg-card/60 border border-border/40 p-3"
           >
-            <span className="text-lg leading-none mt-0.5 shrink-0">{tip.icon}</span>
+            <span
+              className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold mt-0.5"
+              style={{
+                backgroundColor: CALLOUT_COLORS[i],
+                color: i < 2 ? "#0b1121" : "white",
+              }}
+            >
+              {i + 1}
+            </span>
             <div className="space-y-0.5 min-w-0">
               <p className="text-xs font-semibold text-foreground/90">{tip.title}</p>
               <p className="text-[11px] text-muted-foreground leading-relaxed">{tip.detail}</p>
