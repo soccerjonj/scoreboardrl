@@ -8,19 +8,19 @@ const CALLOUT_COLORS = ["#fbbf24", "#34d399", "#fb923c", "#a78bfa"];
 const tips = [
   {
     title: "Full scoreboard visible",
-    detail: "All players' Score, Goals, Assists, Saves, and Shots columns must be readable.",
+    detail: "All players Score, Goals, Assists, Saves, and Shots columns must be readable.",
   },
   {
-    title: "MMR numbers at the bottom",
+    title: "MMR numbers on the left",
     detail: "The +/− MMR change next to each player's current MMR (e.g. +9 968) must be in frame.",
   },
   {
-    title: "Rank badge on the right",
-    detail: 'The "Current Tier" rank (e.g. Diamond II Division I) on the right side must be visible.',
+    title: "Rank badge on the bottom",
+    detail: 'The "Current Tier" rank (e.g. Diamond II Division I) below the scoreboard must be visible.',
   },
   {
     title: "Hold steady & fill the frame",
-    detail: "Point your camera straight at the screen. Keep the phone still and get close enough that the scoreboard fills most of the shot.",
+    detail: "Point your camera straight at the screen. Keep the phone still and get close enough that the scoreboard fills most of the shot. If it is blurry, please retake it.",
   },
 ];
 
