@@ -270,6 +270,7 @@ const LogGame = () => {
       // Look for a game with the same mode/type logged by any of our linked
       // players within a 10-minute window of now.
       // Skip this check when the user has explicitly chosen "Use my version".
+      const norm = (v: string) => v.trim().toLowerCase();
       const playerNames   = players.map((p) => p.name);
       const { data: linkedProfiles } = await supabase
         .from("profiles")
@@ -278,7 +279,7 @@ const LogGame = () => {
 
       const nameToUserId = new Map<string, string>();
       (linkedProfiles || []).forEach((p) => {
-        if (p.rl_account_name) nameToUserId.set(p.rl_account_name.toLowerCase(), p.user_id);
+        if (p.rl_account_name) nameToUserId.set(norm(p.rl_account_name), p.user_id);
       });
 
       const linkedUserIds = Array.from(nameToUserId.values()).filter((id) => id !== user.id);
@@ -380,7 +381,7 @@ const LogGame = () => {
 
       const playerNameToUserId = new Map<string, string>();
       (profiles || []).forEach((p) => {
-        if (p.rl_account_name) playerNameToUserId.set(p.rl_account_name.toLowerCase(), p.user_id);
+        if (p.rl_account_name) playerNameToUserId.set(norm(p.rl_account_name), p.user_id);
       });
 
       // Calculate contribution scores before insert
@@ -390,7 +391,9 @@ const LogGame = () => {
 
       // Insert game players
       const gamePlayers = players.map((p) => {
-        const matchedUserId  = playerNameToUserId.get(p.name.toLowerCase());
+        const matchedUserId =
+          playerNameToUserId.get(norm(p.name)) ??
+          (rlName && norm(p.name) === norm(rlName) ? user.id : null);
         const isCurrentUser  = matchedUserId === user.id;
         const isFriend       = matchedUserId ? friendAutoApprove.has(matchedUserId) : false;
         const friendApproves = matchedUserId ? (friendAutoApprove.get(matchedUserId) ?? true) : false;
@@ -405,7 +408,7 @@ const LogGame = () => {
           saves:              p.saves,
           shots:              p.shots,
           is_mvp:             p.is_mvp,
-          contribution_score: contributionMap.get(p.name.toLowerCase()) ?? 1,
+          contribution_score: contributionMap.get(norm(p.name)) ?? 1,
           mmr:                p.mmr ?? null,
           mmr_change:         p.mmr_change ?? null,
           rank_tier:          (p.rank_tier as RankTier | null) ?? null,
