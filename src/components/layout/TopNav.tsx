@@ -1,4 +1,4 @@
-import { Home, PlusCircle, Users, User, LogOut, Bell, BarChart2, Trophy, Zap } from "lucide-react";
+import { Home, PlusCircle, Users, User, LogOut, Bell, BarChart2, Trophy, Zap, Settings } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -64,6 +64,17 @@ const TopNav = () => {
               Go Pro
             </Button>
           )}
+          <NavLink
+            to="/settings"
+            className={cn(
+              "relative flex items-center justify-center w-9 h-9 rounded-md transition-colors",
+              location.pathname === "/settings"
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+            )}
+          >
+            <Settings className="w-4 h-4" />
+          </NavLink>
           <NavLink
             to="/notifications"
             className={cn(

@@ -1,6 +1,6 @@
 import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { Bell, ArrowDown, Loader2 } from "lucide-react";
+import { Bell, ArrowDown, Loader2, Settings } from "lucide-react";
 import BottomNav from "./BottomNav";
 import TopNav from "./TopNav";
 import { useNotifications } from "@/hooks/useNotifications";
@@ -20,22 +20,35 @@ const MobileHeader = () => {
     >
       <div className="h-12 px-4 flex items-center justify-between">
         <NavLink to="/dashboard"><Logo size="sm" /></NavLink>
-        <NavLink
-          to="/notifications"
-          className={cn(
-            "relative p-2 rounded-md transition-colors",
-            location.pathname === "/notifications"
-              ? "text-primary"
-              : "text-muted-foreground hover:text-foreground"
-          )}
-        >
-          <Bell className="w-5 h-5" />
-          {unreadCount > 0 && (
-            <span className="absolute top-1 right-1 min-w-[14px] h-[14px] rounded-full bg-rl-red text-[9px] font-bold text-white flex items-center justify-center px-0.5 leading-none">
-              {unreadCount > 9 ? "9+" : unreadCount}
-            </span>
-          )}
-        </NavLink>
+        <div className="flex items-center gap-1">
+          <NavLink
+            to="/settings"
+            className={cn(
+              "p-2 rounded-md transition-colors",
+              location.pathname === "/settings"
+                ? "text-primary"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Settings className="w-5 h-5" />
+          </NavLink>
+          <NavLink
+            to="/notifications"
+            className={cn(
+              "relative p-2 rounded-md transition-colors",
+              location.pathname === "/notifications"
+                ? "text-primary"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Bell className="w-5 h-5" />
+            {unreadCount > 0 && (
+              <span className="absolute top-1 right-1 min-w-[14px] h-[14px] rounded-full bg-rl-red text-[9px] font-bold text-white flex items-center justify-center px-0.5 leading-none">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
+          </NavLink>
+        </div>
       </div>
     </header>
   );
