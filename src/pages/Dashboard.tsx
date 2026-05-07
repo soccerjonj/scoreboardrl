@@ -78,6 +78,7 @@ const Dashboard = () => {
   const [editValuesMap, setEditValuesMap] = useState<Record<string, PlayerEditValues>>({});
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [showContribInfo, setShowContribInfo] = useState(false);
+  const [visibleCount, setVisibleCount]       = useState(5);
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/auth");
@@ -579,11 +580,9 @@ const Dashboard = () => {
         <div>
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-display font-bold text-lg">Recent Games</h2>
-            {games.length > 5 && (
-              <Link to="/stats">
-                <Button variant="ghost" size="sm" className="text-xs text-muted-foreground">View All</Button>
-              </Link>
-            )}
+            <Link to="/stats">
+              <Button variant="ghost" size="sm" className="text-xs text-muted-foreground">View All</Button>
+            </Link>
           </div>
 
           {games.length === 0 ? (
@@ -600,7 +599,7 @@ const Dashboard = () => {
             </Card>
           ) : (
             <div className="space-y-2">
-              {games.slice(0, 5).map((game) => {
+              {games.slice(0, visibleCount).map((game) => {
                 const players  = game.game_players ?? [];
                 const userRow  = players.find(
                   (p) => (userTarget.userId && p.user_id === userTarget.userId) || userTarget.names.includes(normalizeName(p.player_name))
@@ -852,6 +851,14 @@ const Dashboard = () => {
                   </Card>
                 );
               })}
+              {games.length > visibleCount && (
+                <button
+                  onClick={() => setVisibleCount((n) => n + 10)}
+                  className="w-full py-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Show more ({games.length - visibleCount} remaining)
+                </button>
+              )}
             </div>
           )}
         </div>
