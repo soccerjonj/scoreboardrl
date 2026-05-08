@@ -21,6 +21,7 @@ const ResetPassword = lazy(() => import("./pages/ResetPassword.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 const Onboarding = lazy(() => import("./pages/Onboarding.tsx"));
 const Leaderboard = lazy(() => import("./pages/Leaderboard.tsx"));
+const Tournaments = lazy(() => import("./pages/Tournaments.tsx"));
 
 const queryClient = new QueryClient();
 
@@ -50,6 +51,7 @@ const App = () => (
               <Route path="/profile/:userId" element={<FriendProfile />} />
               <Route path="/squad" element={<Navigate to="/friends" replace />} />
               <Route path="/leaderboard" element={<Leaderboard />} />
+              <Route path="/tournaments" element={<Tournaments />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/notifications" element={<Notifications />} />
               <Route path="/onboarding" element={<Onboarding />} />

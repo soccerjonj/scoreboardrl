@@ -1,4 +1,4 @@
-import { Home, PlusCircle, Users, User, Bell, BarChart2, Trophy, Zap, Settings } from "lucide-react";
+import { Home, PlusCircle, Users, User, Bell, BarChart2, Trophy, Medal, Zap, Settings } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -13,8 +13,9 @@ const tabs = [
   { to: "/stats",       label: "Stats",       icon: BarChart2 },
   { to: "/log-game",    label: "Log Game",    icon: PlusCircle },
   { to: "/friends",     label: "Friends",     icon: Users },
-  { to: "/leaderboard", label: "Leaderboard", icon: Trophy },
-  { to: "/profile",     label: "Profile",     icon: User },
+  { to: "/leaderboard",  label: "Leaderboard",  icon: Trophy },
+  { to: "/tournaments",  label: "Tournaments",  icon: Medal },
+  { to: "/profile",      label: "Profile",      icon: User },
 ];
 
 const TopNav = () => {

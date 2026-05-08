@@ -294,6 +294,81 @@ export type Database = {
         }
         Relationships: []
       }
+      tournament_games: {
+        Row: {
+          created_at: string
+          game_id: string
+          game_number: number
+          id: string
+          round: string
+          tournament_id: string
+        }
+        Insert: {
+          created_at?: string
+          game_id: string
+          game_number?: number
+          id?: string
+          round: string
+          tournament_id: string
+        }
+        Update: {
+          created_at?: string
+          game_id?: string
+          game_number?: number
+          id?: string
+          round?: string
+          tournament_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tournament_games_tournament_id_fkey"
+            columns: ["tournament_id"]
+            isOneToOne: false
+            referencedRelation: "tournaments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tournament_games_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: true
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tournaments: {
+        Row: {
+          created_at: string
+          current_round: string
+          game_mode: Database["public"]["Enums"]["game_mode"]
+          id: string
+          outcome: string | null
+          status: string
+          tournament_type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_round?: string
+          game_mode: Database["public"]["Enums"]["game_mode"]
+          id?: string
+          outcome?: string | null
+          status?: string
+          tournament_type?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          current_round?: string
+          game_mode?: Database["public"]["Enums"]["game_mode"]
+          id?: string
+          outcome?: string | null
+          status?: string
+          tournament_type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       ranks: {
         Row: {
           created_at: string
