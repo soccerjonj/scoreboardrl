@@ -140,7 +140,7 @@ export default function ProfileHeader({
       </div>
 
       {/* Avatar + action buttons row */}
-      <div className="px-4 -mt-10 flex items-end justify-between">
+      <div className="relative z-10 px-4 -mt-10 flex items-end justify-between">
         <div className="w-20 h-20 rounded-full border-[3px] border-background bg-muted/40 overflow-hidden shrink-0 shadow-[0_0_20px_hsl(var(--primary)/0.25)]">
           {avatarUrl ? (
             <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" />
