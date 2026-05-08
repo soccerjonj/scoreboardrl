@@ -264,7 +264,10 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          banner_url: string | null
+          bio: string | null
           created_at: string
+          favorite_car: string | null
           id: string
           rl_account_name: string | null
           show_on_leaderboard: boolean
@@ -274,7 +277,10 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          banner_url?: string | null
+          bio?: string | null
           created_at?: string
+          favorite_car?: string | null
           id?: string
           rl_account_name?: string | null
           show_on_leaderboard?: boolean
@@ -284,7 +290,10 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          banner_url?: string | null
+          bio?: string | null
           created_at?: string
+          favorite_car?: string | null
           id?: string
           rl_account_name?: string | null
           show_on_leaderboard?: boolean

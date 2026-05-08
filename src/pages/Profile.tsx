@@ -10,12 +10,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import {
   Camera, Check, Loader2,
-  LogOut, Pencil, Save, Star, Trophy, User, X as XIcon,
+  LogOut, Save, Star, User, X as XIcon, Pencil,
 } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 import AppLayout from "@/components/layout/AppLayout";
-import { CARS, CarBadge, CarPicker } from "@/components/profile/CarSilhouette";
+import { CARS, CarPicker } from "@/components/profile/CarSilhouette";
 import { getRankIcon } from "@/lib/rankIcons";
+import ProfileHeader from "@/components/profile/ProfileHeader";
+import AchievementBadges from "@/components/profile/AchievementBadges";
+import StatsShowcase from "@/components/profile/StatsShowcase";
+import TrophyShelf from "@/components/profile/TrophyShelf";
+import ActivityFeed from "@/components/profile/ActivityFeed";
+import { useProfileBadges } from "@/hooks/useProfileBadges";
+import { ROUND_ORDER } from "@/hooks/useTournamentSession";
+import type { RoundKey } from "@/hooks/useTournamentSession";
+import type { BestGame, ActivityGame, TournamentSummary, LeaderboardStanding } from "@/types/profile";
 
 type GameMode     = Database["public"]["Enums"]["game_mode"];
 type GameType     = Database["public"]["Enums"]["game_type"];
@@ -29,7 +38,6 @@ type ProfileStats = {
   wins: number;
   losses: number;
   recentForm: Array<"W" | "L">;
-  // per-game averages
   avgScore: number;
   avgGoals: number;
   avgAssists: number;
@@ -37,7 +45,6 @@ type ProfileStats = {
   avgShots: number;
   avgContribution: number | null;
   mvpRate: number;
-  // personal records
   bestScore: number;
   bestGoals: number;
   bestAssists: number;
@@ -48,7 +55,7 @@ type ProfileStats = {
 
 const gameModes: GameMode[] = ["1v1", "2v2", "3v3", "4v4"];
 const gameModeLabels: Record<GameMode, string> = { "1v1": "1v1", "2v2": "2v2", "3v3": "3v3", "4v4": "4v4" };
-const BIO_MAX = 140;
+const BIO_MAX = 160;
 
 const rankTierOptions: { value: RankTier; label: string }[] = [
   { value: "unranked", label: "Unranked" },
@@ -92,35 +99,41 @@ const Profile = () => {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ── UI mode ──────────────────────────────────────────────────────────────
   const [isEditing, setIsEditing] = useState(false);
 
-  // ── Profile data ─────────────────────────────────────────────────────────
+  // Profile data
   const [loading, setLoading]                 = useState(true);
   const [saving, setSaving]                   = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [uploadingBanner, setUploadingBanner] = useState(false);
   const [avatarUrl, setAvatarUrl]             = useState<string | null>(() =>
     user ? (localStorage.getItem(`avatar_url_${user.id}`) ?? null) : null
   );
+  const [bannerUrl, setBannerUrl]             = useState<string | null>(null);
   const [rlAccountName, setRlAccountName]     = useState("");
   const [rlNameWasSet, setRlNameWasSet]       = useState(false);
   const [bio, setBio]                         = useState("");
   const [favoriteCar, setFavoriteCar]         = useState<string | null>(null);
   const [ranks, setRanks]                     = useState<Record<GameMode, RankInput>>(createEmptyRanks());
   const [profileStats, setProfileStats]       = useState<ProfileStats | null>(null);
-  const [loadingStats, setLoadingStats]       = useState(false);
+
+  // New social data
+  const [tournamentData, setTournamentData]           = useState<TournamentSummary | null>(null);
+  const [activityGames, setActivityGames]             = useState<ActivityGame[]>([]);
+  const [bestGame, setBestGame]                       = useState<BestGame | null>(null);
+  const [leaderboardStanding, setLeaderboardStanding] = useState<LeaderboardStanding | null>(null);
 
   // Edit-mode draft state
-  const [draftRlName, setDraftRlName]         = useState("");
-  const [draftBio, setDraftBio]               = useState("");
-  const [draftFavoriteCar, setDraftFavoriteCar] = useState<string | null>(null);
-  const [draftRanks, setDraftRanks]           = useState<Record<GameMode, RankInput>>(createEmptyRanks());
-  const [editingRlName, setEditingRlName]     = useState(false);
-  const [rlNameDraft, setRlNameDraft]         = useState("");
-  const [editingMode, setEditingMode]         = useState<GameMode | null>(null);
-  const [editDraft, setEditDraft]             = useState<RankInput | null>(null);
+  const [draftRlName, setDraftRlName]             = useState("");
+  const [draftBio, setDraftBio]                   = useState("");
+  const [draftFavoriteCar, setDraftFavoriteCar]   = useState<string | null>(null);
+  const [draftRanks, setDraftRanks]               = useState<Record<GameMode, RankInput>>(createEmptyRanks());
+  const [editingRlName, setEditingRlName]         = useState(false);
+  const [rlNameDraft, setRlNameDraft]             = useState("");
+  const [editingMode, setEditingMode]             = useState<GameMode | null>(null);
+  const [editDraft, setEditDraft]                 = useState<RankInput | null>(null);
 
-  // ── Load profile ─────────────────────────────────────────────────────────
+  // ── Load profile ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (!authLoading && !user) { navigate("/auth"); return; }
     if (!user) return;
@@ -128,23 +141,29 @@ const Profile = () => {
     const load = async () => {
       setLoading(true);
       try {
-        // Select only the base columns that are guaranteed to exist.
-        // bio and favorite_car are fetched separately so a missing migration
-        // doesn't crash the whole profile load.
         const [profileRes, ranksRes] = await Promise.all([
-          supabase.from("profiles").select("rl_account_name, avatar_url").eq("user_id", user.id).single(),
+          supabase.from("profiles").select("rl_account_name, avatar_url, banner_url, bio, favorite_car").eq("user_id", user.id).single(),
           supabase.from("ranks").select("game_mode, rank_tier, rank_division, mmr").eq("user_id", user.id).eq("game_type", "competitive"),
         ]);
         if (profileRes.error) throw profileRes.error;
         if (ranksRes.error)   throw ranksRes.error;
 
-        const loadedName = profileRes.data?.rl_account_name ?? "";
+        const data = profileRes.data as any;
+        const loadedName = data?.rl_account_name ?? "";
         setRlAccountName(loadedName);
         setRlNameWasSet(Boolean(loadedName));
-        const freshAvatarUrl = profileRes.data?.avatar_url ?? null;
+
+        const freshAvatarUrl = data?.avatar_url ?? null;
         setAvatarUrl(freshAvatarUrl);
         if (freshAvatarUrl) localStorage.setItem(`avatar_url_${user.id}`, freshAvatarUrl);
         else localStorage.removeItem(`avatar_url_${user.id}`);
+
+        setBannerUrl(data?.banner_url ?? null);
+
+        const dbBio = data?.bio ?? "";
+        const lsBio = localStorage.getItem(`profile_bio_${user.id}`) ?? "";
+        setBio(dbBio || lsBio);
+        setFavoriteCar(data?.favorite_car ?? null);
 
         const next = createEmptyRanks();
         (ranksRes.data || []).forEach((r) => {
@@ -152,35 +171,36 @@ const Profile = () => {
         });
         setRanks(next);
 
-        if (!profileRes.data?.rl_account_name) setIsEditing(true);
-
-        // Try to load bio + favorite_car (may not exist if migration hasn't run)
-        try {
-          const { data: extData } = await supabase
-            .from("profiles")
-            .select("bio, favorite_car")
-            .eq("user_id", user.id)
-            .single();
-          const dbBio = extData?.bio ?? "";
-          const lsBio = localStorage.getItem(`profile_bio_${user.id}`) ?? "";
-          setBio(dbBio || lsBio);
-          setFavoriteCar(extData?.favorite_car ?? null);
-        } catch {
-          // Columns don't exist yet — use localStorage for bio
-          const lsBio = localStorage.getItem(`profile_bio_${user.id}`) ?? "";
-          setBio(lsBio);
-        }
+        if (!data?.rl_account_name) setIsEditing(true);
       } catch (err: any) {
         toast({ title: "Failed to load profile", description: err.message, variant: "destructive" });
       } finally { setLoading(false); }
     };
     load();
 
-    // Load game stats (win/loss, form, records, teammates)
-    const loadStats = async () => {
-      setLoadingStats(true);
+    // Load tournament data
+    const loadTournaments = async () => {
       try {
-        // Get all game_players rows for this user
+        const { data: tourneyData } = await supabase
+          .from("tournaments")
+          .select("outcome, current_round, status")
+          .eq("user_id", user.id);
+
+        const wins = (tourneyData ?? []).filter((t: any) => t.outcome === "winner").length;
+        const roundIndices = (tourneyData ?? []).map((t: any) => ROUND_ORDER.indexOf(t.current_round as RoundKey));
+        const highestIdx = roundIndices.length > 0 ? Math.max(...roundIndices) : -1;
+        setTournamentData({
+          totalEntered: tourneyData?.length ?? 0,
+          wins,
+          highestRoundReached: highestIdx >= 0 ? ROUND_ORDER[highestIdx] : null,
+        });
+      } catch { /* non-critical */ }
+    };
+    loadTournaments();
+
+    // Load game stats
+    const loadStats = async () => {
+      try {
         const { data: myPlayerRows } = await supabase
           .from("game_players")
           .select("game_id, score, goals, assists, saves, shots, is_mvp, contribution_score")
@@ -192,9 +212,8 @@ const Profile = () => {
         }
 
         const gameIds = myPlayerRows.map((r) => r.game_id);
-
-        // Compute personal records + totals for averages
         const n = myPlayerRows.length;
+
         const { records, totals } = myPlayerRows.reduce(
           ({ records: best, totals: t }, row) => ({
             records: {
@@ -211,7 +230,7 @@ const Profile = () => {
               saves:        t.saves        + safeNum(row.saves),
               shots:        t.shots        + safeNum(row.shots),
               mvps:         t.mvps         + ((row as any).is_mvp ? 1 : 0),
-              contribution: t.contribution + safeNum(row.contribution_score), // raw; normalized after gamesData fetch
+              contribution: t.contribution + safeNum(row.contribution_score),
               contribGames: t.contribGames + (safeNum(row.contribution_score) > 0 ? 1 : 0),
             },
           }),
@@ -221,10 +240,9 @@ const Profile = () => {
           }
         );
 
-        // Fetch game results + all players in those games
         const { data: gamesData } = await supabase
           .from("games")
-          .select("id, result, played_at, game_mode, game_players(user_id, player_name)")
+          .select("id, result, played_at, game_mode, game_type, game_players(user_id, player_name, score, goals, assists, saves, is_mvp)")
           .in("id", gameIds)
           .order("played_at", { ascending: false });
 
@@ -232,61 +250,96 @@ const Profile = () => {
 
         const totalGames = gamesData.length;
         const wins = gamesData.filter((g) => g.result === "win").length;
-        const recentForm: Array<"W" | "L"> = gamesData
-          .slice(0, 5)
-          .map((g) => (g.result === "win" ? "W" : "L"));
+        const recentForm: Array<"W" | "L"> = gamesData.slice(0, 5).map((g) => (g.result === "win" ? "W" : "L"));
 
-        // Compute top teammates (other users who appear most often in same games)
+        // Top teammates
         const teammateMap = new Map<string, { name: string; games: number; wins: number }>();
         gamesData.forEach((game) => {
           const isWin = game.result === "win";
-          (game.game_players || []).forEach((p) => {
+          ((game as any).game_players || []).forEach((p: any) => {
             if (!p.user_id || p.user_id === user.id) return;
             const prev = teammateMap.get(p.user_id);
-            teammateMap.set(p.user_id, {
-              name: p.player_name,
-              games: (prev?.games ?? 0) + 1,
-              wins:  (prev?.wins  ?? 0) + (isWin ? 1 : 0),
-            });
+            teammateMap.set(p.user_id, { name: p.player_name, games: (prev?.games ?? 0) + 1, wins: (prev?.wins ?? 0) + (isWin ? 1 : 0) });
           });
         });
+        const topTeammates = Array.from(teammateMap.entries()).map(([userId, d]) => ({ userId, ...d })).sort((a, b) => b.games - a.games).slice(0, 3);
 
-        const topTeammates = Array.from(teammateMap.entries())
-          .map(([userId, d]) => ({ userId, ...d }))
-          .sort((a, b) => b.games - a.games)
-          .slice(0, 3);
+        // Normalized contribution
+        const modeMap = new Map((gamesData ?? []).map((g) => [g.id, g.game_mode as string]));
+        let normTotal = 0, normCount = 0;
+        myPlayerRows.forEach((row) => {
+          const mode = modeMap.get(row.game_id);
+          const ts = mode === "1v1" ? 1 : mode === "2v2" ? 2 : mode === "3v3" ? 3 : 4;
+          const cs = safeNum(row.contribution_score);
+          if (cs > 0 && ts > 1) { normTotal += cs * ts; normCount++; }
+        });
 
         setProfileStats({
-          totalGames,
-          wins,
-          losses: totalGames - wins,
-          recentForm,
-          avgScore:        n > 0 ? totals.score    / n : 0,
-          avgGoals:        n > 0 ? totals.goals    / n : 0,
-          avgAssists:      n > 0 ? totals.assists  / n : 0,
-          avgSaves:        n > 0 ? totals.saves    / n : 0,
-          avgShots:        n > 0 ? totals.shots    / n : 0,
-          avgContribution: (() => {
-            const modeMap = new Map((gamesData ?? []).map((g) => [g.id, g.game_mode as string]));
-            let normTotal = 0, normCount = 0;
-            myPlayerRows.forEach((row) => {
-              const mode = modeMap.get(row.game_id);
-              const ts = mode === "1v1" ? 1 : mode === "2v2" ? 2 : mode === "3v3" ? 3 : 4;
-              const cs = safeNum(row.contribution_score);
-              if (cs > 0 && ts > 1) { normTotal += cs * ts; normCount++; }
-            });
-            return normCount > 0 ? normTotal / normCount : null;
-          })(),
+          totalGames, wins, losses: totalGames - wins, recentForm,
+          avgScore:        n > 0 ? totals.score   / n : 0,
+          avgGoals:        n > 0 ? totals.goals   / n : 0,
+          avgAssists:      n > 0 ? totals.assists / n : 0,
+          avgSaves:        n > 0 ? totals.saves   / n : 0,
+          avgShots:        n > 0 ? totals.shots   / n : 0,
+          avgContribution: normCount > 0 ? normTotal / normCount : null,
           mvpRate:         n > 0 ? (totals.mvps / n) * 100 : 0,
-          ...records,
-          topTeammates,
+          ...records, topTeammates,
         });
-      } catch { /* non-critical */ } finally { setLoadingStats(false); }
+
+        // Activity feed (last 10 games)
+        const activity: ActivityGame[] = gamesData.slice(0, 10).map((game) => {
+          const myRow = ((game as any).game_players ?? []).find((p: any) => p.user_id === user.id);
+          return {
+            id: game.id,
+            result: game.result === "win" ? "win" : "loss",
+            gameMode: game.game_mode,
+            gameType: (game as any).game_type ?? "competitive",
+            playedAt: game.played_at,
+            score:   safeNum(myRow?.score),
+            goals:   safeNum(myRow?.goals),
+            assists: safeNum(myRow?.assists),
+            saves:   safeNum(myRow?.saves),
+            isMvp:   myRow?.is_mvp ?? false,
+          };
+        });
+        setActivityGames(activity);
+
+        // Best game (highest contribution_score)
+        if (myPlayerRows.length > 0) {
+          const bestRow = myPlayerRows.reduce((best, row) =>
+            safeNum(row.contribution_score) > safeNum(best.contribution_score) ? row : best
+          , myPlayerRows[0]);
+          const bestGameData = gamesData.find((g) => g.id === bestRow.game_id);
+          if (bestGameData) {
+            const myRow = ((bestGameData as any).game_players ?? []).find((p: any) => p.user_id === user.id);
+            setBestGame({
+              date: bestGameData.played_at,
+              gameMode: bestGameData.game_mode,
+              gameType: (bestGameData as any).game_type ?? "competitive",
+              score:   safeNum(myRow?.score),
+              goals:   safeNum(myRow?.goals),
+              assists: safeNum(myRow?.assists),
+              saves:   safeNum(myRow?.saves),
+              contributionScore: safeNum(bestRow.contribution_score),
+              isMvp: myRow?.is_mvp ?? false,
+            });
+          }
+        }
+
+        // Leaderboard standing (non-blocking)
+        try {
+          const { data: lbData } = await (supabase as any).rpc("get_leaderboard", { p_window: "7d", p_stat: "goals" });
+          const myEntry = (lbData ?? []).find((e: any) => e.user_id === user.id);
+          if (myEntry && myEntry.rank <= 20) {
+            setLeaderboardStanding({ stat: "Goals", rank: myEntry.rank, window: "7d" });
+          }
+        } catch { /* non-critical */ }
+      } catch { /* non-critical */ }
     };
     loadStats();
   }, [authLoading, user, navigate, toast]);
 
-  // ── Enter / cancel edit mode ──────────────────────────────────────────────
+  // ── Enter / cancel edit ────────────────────────────────────────────────────
   const enterEditMode = () => {
     setDraftRlName(rlAccountName);
     setDraftBio(bio);
@@ -304,7 +357,7 @@ const Profile = () => {
     setEditDraft(null);
   };
 
-  // ── Avatar upload ─────────────────────────────────────────────────────────
+  // ── Avatar upload ──────────────────────────────────────────────────────────
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
@@ -315,7 +368,7 @@ const Profile = () => {
       const { error: uploadError } = await supabase.storage.from("screenshots").upload(path, file, { upsert: true });
       if (uploadError) throw uploadError;
       const { data: urlData } = supabase.storage.from("screenshots").getPublicUrl(path);
-      await supabase.from("profiles").update({ avatar_url: urlData.publicUrl }).eq("user_id", user.id);
+      await supabase.from("profiles").update({ avatar_url: urlData.publicUrl } as any).eq("user_id", user.id);
       setAvatarUrl(urlData.publicUrl);
       localStorage.setItem(`avatar_url_${user.id}`, urlData.publicUrl);
       toast({ title: "Avatar updated" });
@@ -327,13 +380,31 @@ const Profile = () => {
     }
   };
 
-  // ── RL name confirm ───────────────────────────────────────────────────────
+  // ── Banner upload ──────────────────────────────────────────────────────────
+  const handleBannerFileSelected = async (file: File) => {
+    if (!user) return;
+    const ext = file.name.split(".").pop() ?? "jpg";
+    const path = `banners/${user.id}/${Date.now()}.${ext}`;
+    setUploadingBanner(true);
+    try {
+      const { error: uploadError } = await supabase.storage.from("screenshots").upload(path, file, { upsert: true });
+      if (uploadError) throw uploadError;
+      const { data: urlData } = supabase.storage.from("screenshots").getPublicUrl(path);
+      await supabase.from("profiles").update({ banner_url: urlData.publicUrl } as any).eq("user_id", user.id);
+      setBannerUrl(urlData.publicUrl);
+      toast({ title: "Banner updated" });
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+    } finally { setUploadingBanner(false); }
+  };
+
+  // ── RL name confirm ────────────────────────────────────────────────────────
   const confirmRlNameEdit = () => {
     setDraftRlName(rlNameDraft.trim());
     setEditingRlName(false);
   };
 
-  // ── Rank confirm ──────────────────────────────────────────────────────────
+  // ── Rank confirm ───────────────────────────────────────────────────────────
   const confirmRankEdit = () => {
     if (!editingMode || !editDraft) return;
     setDraftRanks((prev) => ({ ...prev, [editingMode]: editDraft }));
@@ -341,14 +412,11 @@ const Profile = () => {
     setEditDraft(null);
   };
 
-  // ── Save ─────────────────────────────────────────────────────────────────
+  // ── Save ───────────────────────────────────────────────────────────────────
   const handleSave = async () => {
     if (!user) return;
     setSaving(true);
-
-    // Mirror bio to localStorage as fallback
     localStorage.setItem(`profile_bio_${user.id}`, draftBio);
-
     try {
       const trimmedName = draftRlName.trim();
       const rankPayload = gameModes.map((mode) => ({
@@ -358,25 +426,16 @@ const Profile = () => {
         mmr: draftRanks[mode].mmr ?? null,
       }));
 
-      // Always save base fields; try extended fields separately
       const [profileRes, ranksRes] = await Promise.all([
         supabase.from("profiles").update({
           rl_account_name: trimmedName || null,
-        }).eq("user_id", user.id),
+          bio: draftBio || null,
+          favorite_car: draftFavoriteCar,
+        } as any).eq("user_id", user.id),
         supabase.from("ranks").upsert(rankPayload, { onConflict: "user_id,game_mode,game_type" }),
       ]);
       if (profileRes.error) throw profileRes.error;
       if (ranksRes.error)   throw ranksRes.error;
-
-      // Try saving bio + favorite_car (requires migration to have been run)
-      try {
-        await supabase.from("profiles").update({
-          bio: draftBio || null,
-          favorite_car: draftFavoriteCar,
-        }).eq("user_id", user.id);
-      } catch {
-        // Columns not yet migrated — bio is already in localStorage
-      }
 
       setRlAccountName(trimmedName);
       setRlNameWasSet(Boolean(trimmedName));
@@ -390,124 +449,61 @@ const Profile = () => {
     } finally { setSaving(false); }
   };
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // ── Badges ─────────────────────────────────────────────────────────────────
+  const { badges, earnedCount, totalCount } = useProfileBadges({
+    stats: profileStats,
+    ranks,
+    tournaments: tournamentData,
+  });
+
+  // ── Render ─────────────────────────────────────────────────────────────────
   if (authLoading || loading) {
     return <AppLayout><div className="flex items-center justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div></AppLayout>;
   }
   if (!user) return null;
 
   const rlNameMode: 0 | 1 = !rlNameWasSet ? 0 : 1;
-  const winRate = profileStats && profileStats.totalGames > 0
-    ? Math.round((profileStats.wins / profileStats.totalGames) * 100)
-    : null;
-  const favoriteCarObj = favoriteCar ? CARS.find((c) => c.name === favoriteCar) ?? null : null;
 
-  // ── VIEW MODE ─────────────────────────────────────────────────────────────
+  // ── VIEW MODE ──────────────────────────────────────────────────────────────
   if (!isEditing) {
     return (
-      <>
       <AppLayout>
         <div className="space-y-4">
-
-          {/* ── Unified profile card ── */}
-          <Card className="overflow-hidden">
-            <div className="h-24 bg-gradient-to-br from-primary/30 via-rl-purple/15 to-secondary/10 relative">
-              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,hsl(var(--primary)/0.2),transparent_60%)]" />
-            </div>
-
-            {/* Identity zone */}
-            <div className="px-5 pt-0 pb-4">
-              <div className="flex items-end gap-4 -mt-10 mb-3">
-                <div className="w-20 h-20 rounded-full border-[3px] border-primary/40 bg-muted/40 overflow-hidden shrink-0 shadow-[0_0_20px_hsl(var(--primary)/0.25)]">
-                  {avatarUrl
-                    ? <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
-                    : <div className="w-full h-full flex items-center justify-center"><User className="w-9 h-9 text-muted-foreground/60" /></div>
-                  }
-                </div>
-                <div className="pb-1 min-w-0 flex-1 flex items-end justify-between gap-2">
-                  <h2 className="font-display font-bold text-xl truncate">{rlAccountName || "—"}</h2>
-                  <button
-                    onClick={enterEditMode}
-                    className="mb-0.5 p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors shrink-0"
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-              {bio && <p className="text-sm text-muted-foreground mb-2">{bio}</p>}
-              {favoriteCarObj && (
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Favorite Car</span>
-                  <CarBadge car={favoriteCarObj} />
-                </div>
-              )}
-            </div>
-
-            {/* Stats shelf — full-bleed */}
-            {profileStats && profileStats.totalGames > 0 && (
-              <div className="border-t border-white/[0.06] bg-white/[0.02]">
-                {/* W/L + form */}
-                <div className="px-5 py-3 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rl-green/10 border border-rl-green/20">
-                      <span className="font-display font-bold text-sm text-rl-green">{profileStats.wins}W</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rl-red/10 border border-rl-red/20">
-                      <span className="font-display font-bold text-sm text-rl-red">{profileStats.losses}L</span>
-                    </div>
-                    {winRate !== null && (
-                      <span className="text-xs text-muted-foreground font-mono">{winRate}%</span>
-                    )}
-                  </div>
-                  {profileStats.recentForm.length > 0 && (
-                    <div className="flex items-center gap-1">
-                      {profileStats.recentForm.map((result, i) => (
-                        <div key={i} className={`w-5 h-5 rounded text-[9px] font-bold flex items-center justify-center ${
-                          result === "W"
-                            ? "bg-rl-green/20 text-rl-green border border-rl-green/30"
-                            : "bg-rl-red/20 text-rl-red border border-rl-red/30"
-                        }`}>{result}</div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                {/* Row 1: Games · Avg Score · Contrib · MVP Rate */}
-                <div className="border-t border-white/[0.05] grid grid-cols-4 divide-x divide-white/[0.05]">
-                  {[
-                    { label: "Games",    value: profileStats.totalGames,      fmt: (v: number) => String(v),         color: "text-primary" },
-                    { label: "Avg Score",value: profileStats.avgScore,        fmt: (v: number) => v.toFixed(0),      color: "text-secondary" },
-                    { label: "Contrib",  value: profileStats.avgContribution, fmt: (v: number) => Math.round(v).toString(), color: "text-rl-purple" },
-                    { label: "MVP Rate", value: profileStats.mvpRate,         fmt: (v: number) => `${Math.round(v)}%`,color: "text-yellow-400" },
-                  ].map(({ label, value, fmt, color }) => (
-                    <div key={label} className="py-3 text-center">
-                      <p className={`font-display font-bold text-lg leading-tight ${color}`}>
-                        {value !== null ? fmt(value) : <span className="text-muted-foreground">—</span>}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground mt-0.5">{label}</p>
-                    </div>
-                  ))}
-                </div>
-                {/* Row 2: Goals · Assists · Saves · Shots */}
-                <div className="border-t border-white/[0.05] grid grid-cols-4 divide-x divide-white/[0.05]">
-                  {[
-                    { label: "Goals",   value: profileStats.avgGoals,   fmt: (v: number) => v.toFixed(2) },
-                    { label: "Assists", value: profileStats.avgAssists, fmt: (v: number) => v.toFixed(2) },
-                    { label: "Saves",   value: profileStats.avgSaves,   fmt: (v: number) => v.toFixed(2) },
-                    { label: "Shots",   value: profileStats.avgShots,   fmt: (v: number) => v.toFixed(2) },
-                  ].map(({ label, value, fmt }) => (
-                    <div key={label} className="py-3 text-center">
-                      <p className="font-display font-bold text-sm leading-tight text-foreground/90">
-                        {value !== null ? fmt(value) : <span className="text-muted-foreground">—</span>}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground mt-0.5">{label}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+          {/* Profile Header (banner + avatar + identity) */}
+          <Card className="overflow-hidden p-0">
+            <ProfileHeader
+              displayName={rlAccountName || "—"}
+              avatarUrl={avatarUrl}
+              bannerUrl={bannerUrl}
+              bio={bio}
+              favoriteCar={favoriteCar}
+              ranks={ranks}
+              profileUserId={user.id}
+              onEdit={enterEditMode}
+              onBannerFileSelected={handleBannerFileSelected}
+              uploadingBanner={uploadingBanner}
+            />
           </Card>
 
-          {/* ── Ranks ── */}
+          {/* Achievement Badges */}
+          <AchievementBadges badges={badges} earnedCount={earnedCount} totalCount={totalCount} />
+
+          {/* Stats Showcase */}
+          {profileStats && profileStats.totalGames > 0 && (
+            <StatsShowcase
+              stats={profileStats}
+              bestGame={bestGame}
+              leaderboardStanding={leaderboardStanding}
+            />
+          )}
+
+          {/* Tournament Trophy Shelf */}
+          <TrophyShelf tournaments={tournamentData} isOwnProfile={true} />
+
+          {/* Activity Feed */}
+          <ActivityFeed games={activityGames} />
+
+          {/* Competitive Ranks */}
           <Card className="border-border/50 bg-card/80">
             <CardContent className="pt-4 pb-3 space-y-1">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Competitive Ranks</p>
@@ -518,54 +514,21 @@ const Profile = () => {
                   <div key={mode} className="flex items-center justify-between py-2 px-3 rounded-lg bg-background/60">
                     <span className="font-display font-bold text-sm text-muted-foreground w-8">{gameModeLabels[mode]}</span>
                     <div className="flex items-center gap-2 flex-1 ml-2">
-                      <img
-                        src={getRankIcon(rank.rank_tier)}
-                        alt={getRankLabel(rank.rank_tier)}
-                        className="w-8 h-8 object-contain"
-                      />
+                      <img src={getRankIcon(rank.rank_tier)} alt={getRankLabel(rank.rank_tier)} className="w-8 h-8 object-contain" />
                       <span className={`font-semibold text-sm ${colorClass}`}>
                         {getRankLabel(rank.rank_tier)}
                         {rank.rank_division && rank.rank_tier !== "unranked" && rank.rank_tier !== "supersonic_legend" ? ` ${rank.rank_division}` : ""}
                       </span>
                     </div>
-                    {rank.mmr != null && (
-                      <span className="text-xs text-muted-foreground font-mono">{rank.mmr} MMR</span>
-                    )}
+                    {rank.mmr != null && <span className="text-xs text-muted-foreground font-mono">{rank.mmr} MMR</span>}
                   </div>
                 );
               })}
             </CardContent>
           </Card>
 
-          {/* ── Personal records ── */}
-          {profileStats && profileStats.totalGames > 0 && (
-            <Card className="border-border/50 bg-card/80">
-              <CardContent className="pt-4 pb-3">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
-                  <Trophy className="w-3.5 h-3.5 text-yellow-400" /> Personal Records
-                </p>
-                <div className="grid grid-cols-5 gap-2">
-                  {[
-                    { label: "Score",  value: profileStats.bestScore },
-                    { label: "Goals",  value: profileStats.bestGoals },
-                    { label: "Assists",value: profileStats.bestAssists },
-                    { label: "Saves",  value: profileStats.bestSaves },
-                    { label: "Contribution", value: profileStats.bestContributionScore > 0 ? profileStats.bestContributionScore : null },
-                  ].map(({ label, value }) => (
-                    <div key={label} className="flex flex-col items-center gap-0.5 py-2 px-1 rounded-lg bg-background/60">
-                      <span className="font-display font-bold text-lg leading-none">
-                        {value !== null ? value : <span className="text-muted-foreground text-sm">—</span>}
-                      </span>
-                      <span className="text-[10px] text-muted-foreground leading-none">{label}</span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* ── Most played with ── */}
-          {!loadingStats && profileStats && profileStats.topTeammates.length > 0 && (
+          {/* Most Played With */}
+          {profileStats && profileStats.topTeammates.length > 0 && (
             <Card className="border-border/50 bg-card/80">
               <CardContent className="pt-4 pb-3">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
@@ -603,11 +566,10 @@ const Profile = () => {
           </div>
         </div>
       </AppLayout>
-      </>
     );
   }
 
-  // ── EDIT MODE ─────────────────────────────────────────────────────────────
+  // ── EDIT MODE ──────────────────────────────────────────────────────────────
   return (
     <AppLayout>
       <div className="space-y-5">
