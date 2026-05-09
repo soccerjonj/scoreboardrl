@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Trophy, Medal, Camera, Target, Shield, Star, Globe, Users } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 type Window = "season" | "7d" | "28d" | "all";
@@ -133,56 +133,49 @@ const LeaderboardView = ({ currentUserId, friendUserIds = [] }: Props) => {
     : WINDOWS.find((w) => w.value === window)?.label ?? window;
 
   return (
-    <div className="space-y-4">
-      {/* Scope toggle — only shown when friend data is available */}
-      {hasFriends && (
-        <div className="flex gap-1 p-1 rounded-lg bg-muted/40 border border-border/50 w-fit">
-          <button
-            onClick={() => setScope("global")}
-            className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
-              scope === "global"
-                ? "bg-card text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <Globe className="w-3.5 h-3.5" />
-            Global
-          </button>
-          <button
-            onClick={() => setScope("friends")}
-            className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
-              scope === "friends"
-                ? "bg-card text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <Users className="w-3.5 h-3.5" />
-            Friends
-          </button>
-        </div>
-      )}
+    <div className="space-y-3">
 
-      {/* Window tabs */}
-      <div className="flex gap-1 p-1 rounded-lg bg-muted/40 border border-border/50 w-fit">
-        {WINDOWS.map(({ value, label }) => (
-          <button
-            key={value}
-            onClick={() => setWindow(value)}
-            className={cn(
-              "px-4 py-1.5 rounded-md text-sm font-medium transition-colors",
-              window === value
-                ? "bg-card text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            {value === "season" ? seasonLabel : label}
-          </button>
-        ))}
+      {/* ── Row 1: scope toggle (if friends) + window picker ── */}
+      <div className="flex items-center gap-2">
+        {hasFriends && (
+          <div className="flex p-0.5 rounded-lg bg-muted/50 border border-border/40 shrink-0">
+            <button
+              onClick={() => setScope("global")}
+              className={cn(
+                "flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
+                scope === "global" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Globe className="w-3 h-3" /> Global
+            </button>
+            <button
+              onClick={() => setScope("friends")}
+              className={cn(
+                "flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
+                scope === "friends" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Users className="w-3 h-3" /> Friends
+            </button>
+          </div>
+        )}
+        <div className="flex p-0.5 rounded-lg bg-muted/50 border border-border/40 flex-1">
+          {WINDOWS.map(({ value, label }) => (
+            <button
+              key={value}
+              onClick={() => setWindow(value)}
+              className={cn(
+                "flex-1 px-2 py-1 rounded-md text-xs font-medium transition-colors text-center",
+                window === value ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {value === "season" ? seasonLabel : label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Season ending soon banner — only shown when ends_at is set and within 14 days */}
+      {/* Season ending soon banner */}
       {showEndingSoon && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-400/10 border border-yellow-400/25 text-xs text-yellow-300">
           <span>⚠</span>
@@ -190,14 +183,14 @@ const LeaderboardView = ({ currentUserId, friendUserIds = [] }: Props) => {
         </div>
       )}
 
-      {/* Stat category pills */}
-      <div className="flex gap-1.5 flex-wrap">
+      {/* ── Row 2: stat pills (single scrollable row) ── */}
+      <div className="flex gap-1.5 overflow-x-auto pb-0.5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         {STATS.map(({ value, label, icon: Icon }) => (
           <button
             key={value}
             onClick={() => setStat(value)}
             className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors",
+              "flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors shrink-0",
               stat === value
                 ? "bg-primary text-primary-foreground border-primary"
                 : "bg-card text-muted-foreground border-border/50 hover:text-foreground hover:border-border"
@@ -211,16 +204,16 @@ const LeaderboardView = ({ currentUserId, friendUserIds = [] }: Props) => {
 
       {/* Rankings card */}
       <Card className="border-border/50 bg-card/80 overflow-hidden">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base font-display flex items-center gap-2">
-            <activeStat.icon className="w-4 h-4 text-primary" />
+        <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/30">
+          <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+            <activeStat.icon className="w-3.5 h-3.5 text-primary" />
             Most {activeStat.label}
-          </CardTitle>
-          <CardDescription className="text-xs flex items-center gap-1">
-            <Camera className="w-3 h-3" />
-            Photo-parsed games · {activeWindowLabel}
-          </CardDescription>
-        </CardHeader>
+          </span>
+          <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+            <Camera className="w-2.5 h-2.5" />
+            {activeWindowLabel}
+          </span>
+        </div>
         <CardContent className="p-0">
           {loading ? (
             <div className="flex items-center justify-center py-12">

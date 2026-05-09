@@ -734,28 +734,28 @@ const Stats = () => {
       <div className="space-y-5">
 
         {/* ── Page tab switcher ── */}
-        <div className="grid grid-cols-2 gap-2 animate-fade-in-up">
+        <div className="flex p-1 rounded-xl bg-muted/50 border border-border/40 animate-fade-in-up">
           <button
             onClick={() => setPageTab("stats")}
             className={cn(
-              "flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm transition-all",
+              "flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold transition-all",
               pageTab === "stats"
-                ? "bg-primary text-primary-foreground shadow-sm shadow-primary/30"
-                : "bg-muted/50 text-muted-foreground hover:text-foreground border border-border/40"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
             )}
           >
-            <BarChart2 className="w-4 h-4" /> My Stats
+            <BarChart2 className="w-3.5 h-3.5" /> My Stats
           </button>
           <button
             onClick={() => setPageTab("leaderboard")}
             className={cn(
-              "flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm transition-all",
+              "flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold transition-all",
               pageTab === "leaderboard"
-                ? "bg-yellow-400/20 text-yellow-300 border border-yellow-400/40 shadow-sm shadow-yellow-400/20"
-                : "bg-yellow-400/8 text-yellow-400 border border-yellow-400/20 hover:bg-yellow-400/15"
+                ? "bg-yellow-400/15 text-yellow-300 shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
             )}
           >
-            <Trophy className="w-4 h-4" /> Leaderboard
+            <Trophy className="w-3.5 h-3.5" /> Leaderboard
           </button>
         </div>
 
