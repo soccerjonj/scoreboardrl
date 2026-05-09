@@ -225,9 +225,6 @@ function TournamentCard({ tournament, userId }: { tournament: Tournament; userId
          : 3;
   })();
 
-  const teamAvgContrib = teamTotals.contribCount > 0
-    ? teamTotals.contribTotal / teamTotals.contribCount
-    : null;
 
   return (
     <Card className={cn(
@@ -313,72 +310,87 @@ function TournamentCard({ tournament, userId }: { tournament: Tournament; userId
             {/* Section 2 — Team Stats */}
             {games.length > 0 && aggregatedPlayers.length > 0 && (
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Your Team's Stats This Tournament</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Your Team's Stats This Tournament</p>
 
-                {/* Team total card */}
-                <div className="rounded-lg border border-primary/30 bg-primary/8 px-3 py-2.5 mb-2">
-                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                {/* Team total — hero card with big stat tiles */}
+                <div className="rounded-xl border border-primary/30 bg-gradient-to-br from-primary/10 to-primary/5 p-4 mb-3">
+                  <div className="flex items-center justify-between gap-2 mb-3">
                     <span className="text-xs font-display font-bold uppercase tracking-wider text-primary">
                       Team Total
                     </span>
-                    <span className="text-[10px] text-muted-foreground font-mono shrink-0">
-                      {totalGames} game{totalGames === 1 ? "" : "s"} · {wins}W {totalGames - wins}L
+                    <span className="text-[11px] text-muted-foreground font-mono shrink-0">
+                      {totalGames} game{totalGames === 1 ? "" : "s"} · <span className="text-rl-green">{wins}W</span> <span className="text-rl-red">{totalGames - wins}L</span>
                     </span>
                   </div>
-                  <div className="flex items-center gap-3 font-mono text-xs">
-                    <span className="font-bold text-foreground/90">{teamTotals.score}</span>
-                    <span className="text-rl-orange">{teamTotals.goals}G</span>
-                    <span className="text-rl-blue">{teamTotals.assists}A</span>
-                    <span className="text-cyan-400">{teamTotals.saves}SV</span>
-                    <span className="text-muted-foreground">{teamTotals.shots}SH</span>
-                    {teamAvgContrib !== null && (
-                      <span className="text-yellow-400 ml-auto">avg {teamAvgContrib.toFixed(1)}</span>
-                    )}
+                  <div className="grid grid-cols-5 gap-2">
+                    {[
+                      { label: "Score",   value: teamTotals.score,   color: "text-foreground" },
+                      { label: "Goals",   value: teamTotals.goals,   color: "text-rl-orange" },
+                      { label: "Assists", value: teamTotals.assists, color: "text-rl-blue" },
+                      { label: "Saves",   value: teamTotals.saves,   color: "text-cyan-400" },
+                      { label: "Shots",   value: teamTotals.shots,   color: "text-muted-foreground" },
+                    ].map(({ label, value, color }) => (
+                      <div key={label} className="flex flex-col items-center justify-center py-2 rounded-lg bg-background/50">
+                        <span className={cn("font-display font-bold text-xl leading-none", color)}>{value}</span>
+                        <span className="text-[9px] uppercase tracking-wider text-muted-foreground mt-1">{label}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
 
-                {/* Per-player stats (user's team only) */}
-                <div className="space-y-1.5">
+                {/* Per-player stats (user's team only) — bigger cards */}
+                <div className="space-y-2">
                   {aggregatedPlayers.map((p, i) => {
                     const avgContrib = p.contribCount > 0 ? p.contribTotal / p.contribCount : null;
                     return (
                       <div
                         key={i}
                         className={cn(
-                          "rounded-lg border px-3 py-2",
+                          "rounded-xl border p-3.5",
                           p.isUser
-                            ? "bg-primary/5 border-primary/40"
-                            : "bg-card/40 border-border/30"
+                            ? "bg-primary/5 border-primary/40 shadow-sm"
+                            : "bg-card/40 border-border/40"
                         )}
                       >
                         {/* Top row: name + games count */}
-                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <div className="flex items-center justify-between gap-2 mb-3">
                           <span className={cn(
-                            "text-sm font-display font-bold truncate min-w-0",
+                            "text-base font-display font-bold min-w-0 break-words",
                             p.isUser ? "text-primary" : "text-foreground"
                           )}>
                             {p.displayName || <span className="italic text-muted-foreground">Unknown</span>}
-                            {p.isUser && <span className="ml-1.5 text-[9px] font-sans uppercase tracking-wider text-primary/70">You</span>}
+                            {p.isUser && <span className="ml-2 text-[10px] font-sans uppercase tracking-wider text-primary/70 align-middle">You</span>}
                           </span>
-                          <span className="text-[10px] text-muted-foreground font-mono shrink-0">
+                          <span className="text-[11px] text-muted-foreground font-mono shrink-0">
                             {p.gamesCount} game{p.gamesCount === 1 ? "" : "s"}
                           </span>
                         </div>
-                        {/* Stats row */}
-                        <div className="flex items-center gap-3 font-mono text-xs">
-                          <span className="font-bold text-foreground/90">{p.score}</span>
-                          <span className="text-rl-orange">{p.goals}G</span>
-                          <span className="text-rl-blue">{p.assists}A</span>
-                          <span className="text-cyan-400">{p.saves}SV</span>
-                          <span className="text-muted-foreground">{p.shots}SH</span>
+
+                        {/* Stat tiles */}
+                        <div className="grid grid-cols-5 gap-1.5">
+                          {[
+                            { label: "Score",   value: p.score,   color: "text-foreground" },
+                            { label: "Goals",   value: p.goals,   color: "text-rl-orange" },
+                            { label: "Assists", value: p.assists, color: "text-rl-blue" },
+                            { label: "Saves",   value: p.saves,   color: "text-cyan-400" },
+                            { label: "Shots",   value: p.shots,   color: "text-muted-foreground" },
+                          ].map(({ label, value, color }) => (
+                            <div key={label} className="flex flex-col items-center justify-center py-1.5 rounded-md bg-background/50">
+                              <span className={cn("font-display font-bold text-lg leading-none", color)}>{value}</span>
+                              <span className="text-[9px] uppercase tracking-wider text-muted-foreground mt-1">{label}</span>
+                            </div>
+                          ))}
                         </div>
-                        {/* Average contribution score (carry meter) */}
+
+                        {/* Average carry score */}
                         {avgContrib !== null && teamSize > 1 && (
-                          <div className="mt-1.5 flex items-center gap-2">
-                            <span className="text-[9px] uppercase tracking-wider text-muted-foreground shrink-0">
-                              Avg Contrib
+                          <div className="mt-3 pt-3 border-t border-border/30 flex items-center gap-3">
+                            <span className="text-[10px] uppercase tracking-wider text-muted-foreground shrink-0">
+                              Avg Carry
                             </span>
-                            <CarryMeter score={avgContrib} teamSize={teamSize} size="sm" />
+                            <div className="flex-1 min-w-0">
+                              <CarryMeter score={avgContrib} teamSize={teamSize} size="sm" />
+                            </div>
                           </div>
                         )}
                       </div>
@@ -476,9 +488,9 @@ function TournamentCard({ tournament, userId }: { tournament: Tournament; userId
                                       )}
                                     >
                                       <div className="flex flex-col gap-0.5 min-w-0">
-                                        <div className="flex items-center gap-1.5 min-w-0">
+                                        <div className="flex items-start gap-1.5 flex-wrap">
                                           <span className={cn(
-                                            "truncate text-xs font-medium leading-snug",
+                                            "text-xs font-medium leading-snug break-words",
                                             isMe ? "text-primary font-semibold" : "text-foreground"
                                           )}>
                                             {p.player_name || "—"}
