@@ -317,15 +317,26 @@ const FriendProfile = () => {
           });
           setActivityGames(activity);
 
-          // Performance chart
-          const chartPoints: ChartPoint[] = gamesData
-            .slice(0, 30)
-            .reverse()
-            .map((game, i) => {
-              const myRow = ((game as any).game_players ?? []).find((p: any) => p.user_id === userId);
-              return { index: i + 1, score: safeNum(myRow?.score), date: game.played_at };
-            });
-          setChartData(chartPoints);
+          // Performance chart — MMR history
+          try {
+            const { data: mmrRows } = await supabase
+              .from("mmr_history" as any)
+              .select("mmr, game_mode, recorded_at")
+              .eq("user_id", userId)
+              .order("recorded_at", { ascending: true })
+              .limit(120);
+            if (mmrRows && (mmrRows as any[]).length > 0) {
+              const modeCounts = new Map<string, number>();
+              (mmrRows as any[]).forEach((r) => modeCounts.set(r.game_mode, (modeCounts.get(r.game_mode) ?? 0) + 1));
+              const preferredMode = (["2v2", "3v3", "1v1"] as GameMode[]).reduce((best, m) =>
+                (modeCounts.get(m) ?? 0) > (modeCounts.get(best) ?? 0) ? m : best
+              , "2v2");
+              const modeRows = (mmrRows as any[]).filter((r) => r.game_mode === preferredMode).slice(-30);
+              setChartData(modeRows.map((r, i) => ({ index: i + 1, score: r.mmr, date: r.recorded_at, gameMode: preferredMode })));
+            } else {
+              setChartData([]);
+            }
+          } catch { setChartData([]); }
 
           // Best game
           if (playerRows.length > 0) {

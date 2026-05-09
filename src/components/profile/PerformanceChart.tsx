@@ -13,7 +13,7 @@ function CustomTooltip({ active, payload }: any) {
   const point: ChartPoint = payload[0].payload;
   return (
     <div className="rounded-lg border border-border/60 bg-card/95 backdrop-blur-sm px-3 py-2 text-xs shadow-xl">
-      <p className="font-bold text-foreground font-display text-sm">{point.score}</p>
+      <p className="font-bold text-foreground font-display text-sm">{point.score} MMR</p>
       <p className="text-muted-foreground">{format(new Date(point.date), "MMM d, yyyy")}</p>
     </div>
   );
@@ -22,6 +22,7 @@ function CustomTooltip({ active, payload }: any) {
 export default function PerformanceChart({ data }: Props) {
   if (data.length < 3) return null;
 
+  const gameMode = data[0]?.gameMode ?? "";
   const scores = data.map((d) => d.score);
   const minScore = Math.max(0, Math.min(...scores) - 50);
   const maxScore = Math.max(...scores) + 50;
@@ -38,7 +39,7 @@ export default function PerformanceChart({ data }: Props) {
         <div className="flex items-center justify-between mb-3">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
             <TrendingUp className="w-3.5 h-3.5" />
-            Performance
+            MMR History{gameMode ? ` · ${gameMode}` : ""}
           </p>
           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
             trending
@@ -48,7 +49,7 @@ export default function PerformanceChart({ data }: Props) {
             {trending ? "▲ Trending up" : "▼ Trending down"}
           </span>
         </div>
-        <p className="text-[10px] text-muted-foreground mb-2">Score per game · last {data.length} games</p>
+        <p className="text-[10px] text-muted-foreground mb-2">MMR over time · last {data.length} updates</p>
         <div className="h-28">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={data} margin={{ top: 4, right: 4, left: -32, bottom: 0 }}>

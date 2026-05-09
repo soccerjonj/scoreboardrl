@@ -53,8 +53,9 @@ export type LeaderboardStanding = {
 
 export type ChartPoint = {
   index: number;
-  score: number;
+  score: number;  // repurposed as the y-axis value (MMR or score depending on context)
   date: string;
+  gameMode?: string; // which ranked mode this MMR point belongs to
 };
 
 export type TeammateProfile = {

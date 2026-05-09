@@ -172,6 +172,33 @@ const Profile = () => {
         });
         setRanks(next);
 
+        // MMR history chart — fetch all entries, pick the mode with most data
+        const { data: mmrRows } = await supabase
+          .from("mmr_history" as any)
+          .select("mmr, game_mode, recorded_at")
+          .eq("user_id", user.id)
+          .order("recorded_at", { ascending: true })
+          .limit(120);
+
+        if (mmrRows && mmrRows.length > 0) {
+          // Count entries per mode, pick the one with most history
+          const modeCounts = new Map<string, number>();
+          (mmrRows as any[]).forEach((r) => modeCounts.set(r.game_mode, (modeCounts.get(r.game_mode) ?? 0) + 1));
+          const preferredMode = (["2v2", "3v3", "1v1"] as GameMode[]).reduce((best, m) =>
+            (modeCounts.get(m) ?? 0) > (modeCounts.get(best) ?? 0) ? m : best
+          , "2v2");
+          const modeRows = (mmrRows as any[]).filter((r) => r.game_mode === preferredMode).slice(-30);
+          const points: ChartPoint[] = modeRows.map((r, i) => ({
+            index: i + 1,
+            score: r.mmr,
+            date: r.recorded_at,
+            gameMode: preferredMode,
+          }));
+          setChartData(points);
+        } else {
+          setChartData([]);
+        }
+
         if (!data?.rl_account_name) setIsEditing(true);
       } catch (err: any) {
         toast({ title: "Failed to load profile", description: err.message, variant: "destructive" });
@@ -339,16 +366,6 @@ const Profile = () => {
         });
         setActivityGames(activity);
 
-        // Performance chart: score per game, oldest → newest, last 30
-        const chartPoints: ChartPoint[] = gamesData
-          .slice(0, 30)
-          .reverse()
-          .map((game, i) => {
-            const myRow = ((game as any).game_players ?? []).find((p: any) => p.user_id === user.id);
-            return { index: i + 1, score: safeNum(myRow?.score), date: game.played_at };
-          });
-        setChartData(chartPoints);
-
         // Best game (highest contribution_score)
         if (myPlayerRows.length > 0) {
           const bestRow = myPlayerRows.reduce((best, row) =>
@@ -488,6 +505,30 @@ const Profile = () => {
       setFavoriteCar(draftFavoriteCar);
       setRanks(draftRanks);
       setIsEditing(false);
+
+      // Record MMR snapshot for each mode that has a value set
+      const mmrSnapshots = gameModes
+        .filter((mode) => draftRanks[mode].mmr != null)
+        .map((mode) => ({ user_id: user.id, game_mode: mode, mmr: draftRanks[mode].mmr as number }));
+      if (mmrSnapshots.length > 0) {
+        await supabase.from("mmr_history" as any).insert(mmrSnapshots);
+        // Refresh chart data with the new snapshots
+        const { data: mmrRows } = await supabase
+          .from("mmr_history" as any)
+          .select("mmr, game_mode, recorded_at")
+          .eq("user_id", user.id)
+          .order("recorded_at", { ascending: true })
+          .limit(120);
+        if (mmrRows && (mmrRows as any[]).length > 0) {
+          const modeCounts = new Map<string, number>();
+          (mmrRows as any[]).forEach((r) => modeCounts.set(r.game_mode, (modeCounts.get(r.game_mode) ?? 0) + 1));
+          const preferredMode = (["2v2", "3v3", "1v1"] as GameMode[]).reduce((best, m) =>
+            (modeCounts.get(m) ?? 0) > (modeCounts.get(best) ?? 0) ? m : best
+          , "2v2");
+          const modeRows = (mmrRows as any[]).filter((r) => r.game_mode === preferredMode).slice(-30);
+          setChartData(modeRows.map((r, i) => ({ index: i + 1, score: r.mmr, date: r.recorded_at, gameMode: preferredMode })));
+        }
+      }
       toast({ title: "Profile saved" });
     } catch (err: any) {
       toast({ title: "Failed to save", description: err.message, variant: "destructive" });
