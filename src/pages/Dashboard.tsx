@@ -668,6 +668,13 @@ const Dashboard = () => {
                                 "font-display font-bold text-sm flex-shrink-0",
                                 isWin ? "text-rl-green" : "text-rl-red"
                               )}>{isWin ? "WIN" : "LOSS"}</span>
+                              {hasScore && (
+                                <span className="font-display font-bold text-sm flex-shrink-0">
+                                  <span className={isWin ? "text-rl-green" : "text-rl-red"}>{teamGoals}</span>
+                                  <span className="text-muted-foreground mx-0.5">–</span>
+                                  <span className="text-muted-foreground">{oppGoals}</span>
+                                </span>
+                              )}
                               <Badge variant="outline" className="text-[10px] px-1.5 py-0 flex-shrink-0">{game.game_mode}</Badge>
                               {game.division_change && game.division_change !== "none" && (
                                 <Badge
@@ -694,13 +701,6 @@ const Dashboard = () => {
                         <div className="flex items-center gap-3">
                           {userRow && (
                             <div className="text-right">
-                              {hasScore && (
-                                <p className="font-display font-bold text-base leading-none text-right mb-0.5">
-                                  <span className={isWin ? "text-rl-green" : "text-rl-red"}>{teamGoals}</span>
-                                  <span className="text-muted-foreground mx-1">–</span>
-                                  <span className="text-muted-foreground">{oppGoals}</span>
-                                </p>
-                              )}
                               <p className="font-mono text-sm font-bold">{userRow.score} pts</p>
                               <p className="text-xs text-muted-foreground">
                                 {userRow.goals}G {userRow.assists}A {userRow.saves}SV {userRow.shots != null ? `${userRow.shots}SH` : ""}
