@@ -414,6 +414,36 @@ export type Database = {
         }
         Relationships: []
       }
+      seasons: {
+        Row: {
+          id: string
+          number: number
+          name: string
+          starts_at: string
+          ends_at: string | null
+          is_current: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          number: number
+          name: string
+          starts_at: string
+          ends_at?: string | null
+          is_current?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          number?: number
+          name?: string
+          starts_at?: string
+          ends_at?: string | null
+          is_current?: boolean
+          created_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

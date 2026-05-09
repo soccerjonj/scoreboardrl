@@ -20,7 +20,7 @@ const LeaderboardPreviewCard = () => {
 
   useEffect(() => {
     supabase
-      .rpc("get_leaderboard", { p_window: "7d" })
+      .rpc("get_leaderboard", { p_window: "season" })
       .then(({ data }) => {
         setEntries(((data ?? []) as LeaderEntry[]).slice(0, 3));
         setLoading(false);
@@ -35,7 +35,7 @@ const LeaderboardPreviewCard = () => {
         <div className="flex items-center justify-between">
           <CardTitle className="text-base font-display flex items-center gap-2">
             <Trophy className="w-4 h-4 text-yellow-400" />
-            This Week's Leaders
+            Season Leaders
           </CardTitle>
           <Link to="/leaderboard" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors">
             View all <ChevronRight className="w-3 h-3" />

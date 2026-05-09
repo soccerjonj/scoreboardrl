@@ -6,7 +6,7 @@ import { Loader2, Trophy, Medal, Camera, Target, Shield, Star } from "lucide-rea
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
-type Window = "7d" | "28d" | "all";
+type Window = "season" | "7d" | "28d" | "all";
 type Stat   = "games" | "wins" | "goals" | "assists" | "saves" | "score";
 
 interface LeaderEntry {
@@ -18,9 +18,10 @@ interface LeaderEntry {
 }
 
 const WINDOWS: { value: Window; label: string }[] = [
-  { value: "7d",  label: "7 Days"   },
-  { value: "28d", label: "28 Days"  },
-  { value: "all", label: "All Time" },
+  { value: "season", label: "This Season" }, // label overridden dynamically once season loads
+  { value: "7d",     label: "7 Days"      },
+  { value: "28d",    label: "28 Days"     },
+  { value: "all",    label: "All Time"    },
 ];
 
 const STATS: { value: Stat; label: string; icon: React.ElementType; unit: string }[] = [
@@ -37,10 +38,21 @@ const rankBg     = ["bg-yellow-400/10 border-yellow-400/20", "bg-slate-300/10 bo
 
 const LeaderboardView = () => {
   const { user } = useAuth();
-  const [window, setWindow] = useState<Window>("7d");
+  const [window, setWindow] = useState<Window>("season");
   const [stat,   setStat]   = useState<Stat>("games");
   const [entries, setEntries] = useState<LeaderEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentSeason, setCurrentSeason] = useState<{ name: string; ends_at: string | null } | null>(null);
+
+  // One-time fetch of the current season metadata
+  useEffect(() => {
+    supabase
+      .from("seasons")
+      .select("name, ends_at")
+      .eq("is_current", true)
+      .single()
+      .then(({ data }) => { if (data) setCurrentSeason(data); });
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -65,6 +77,21 @@ const LeaderboardView = () => {
   const myEntry    = entries.find((e) => e.user_id === user?.id);
   const activeStat = STATS.find((s) => s.value === stat)!;
 
+  // Dynamic season label — falls back to "This Season" while loading
+  const seasonLabel = currentSeason?.name ?? "This Season";
+
+  // "Ending soon" banner: only fires when ends_at is explicitly set AND within 14 days
+  const showEndingSoon = (() => {
+    if (!currentSeason?.ends_at) return false;
+    const days = (new Date(currentSeason.ends_at).getTime() - Date.now()) / 86_400_000;
+    return days > 0 && days <= 14;
+  })();
+
+  // Label used in the CardDescription
+  const activeWindowLabel = window === "season"
+    ? seasonLabel
+    : WINDOWS.find((w) => w.value === window)?.label ?? window;
+
   return (
     <div className="space-y-4">
       {/* Window tabs */}
@@ -80,10 +107,18 @@ const LeaderboardView = () => {
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
-            {label}
+            {value === "season" ? seasonLabel : label}
           </button>
         ))}
       </div>
+
+      {/* Season ending soon banner — only shown when ends_at is set and within 14 days */}
+      {showEndingSoon && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-400/10 border border-yellow-400/25 text-xs text-yellow-300">
+          <span>⚠</span>
+          <span>{currentSeason!.name} is ending soon — a new season will start shortly.</span>
+        </div>
+      )}
 
       {/* Stat category pills */}
       <div className="flex gap-1.5 flex-wrap">
@@ -129,7 +164,7 @@ const LeaderboardView = () => {
           </CardTitle>
           <CardDescription className="text-xs flex items-center gap-1">
             <Camera className="w-3 h-3" />
-            Photo-parsed games · {WINDOWS.find(w => w.value === window)?.label}
+            Photo-parsed games · {activeWindowLabel}
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">

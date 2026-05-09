@@ -70,7 +70,7 @@ type SummaryStats = {
   avgContributionScore: number | null;
 };
 
-type TimeRange = "7d" | "30d" | "all";
+type TimeRange = "season" | "7d" | "30d" | "all";
 type ViewMode = "summary" | "charts";
 
 const gameModes: Array<{ value: GameMode | "all"; label: string }> = [
@@ -436,15 +436,32 @@ const Stats = () => {
   const [selectedMode, setSelectedMode] = useState<GameMode | "all">("all");
   const [selectedType, setSelectedType] = useState<GameType | "all">("all");
   const [selectedFriendId, setSelectedFriendId] = useState<string>("all");
-  const [timeRange, setTimeRange] = useState<TimeRange>("all");
+  const [timeRange, setTimeRange] = useState<TimeRange>("season");
   const [viewMode, setViewMode] = useState<ViewMode>("summary");
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [expandedContribGameId, setExpandedContribGameId] = useState<string | null>(null);
   const [pageTab, setPageTab] = useState<"stats" | "leaderboard">("stats");
+  const [seasonStartsAt, setSeasonStartsAt] = useState<string | null>(null);
+  const [currentSeasonName, setCurrentSeasonName] = useState<string>("This Season");
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/auth");
   }, [user, authLoading, navigate]);
+
+  // One-time fetch of the current season (separate from game data — stable, no reruns)
+  useEffect(() => {
+    supabase
+      .from("seasons")
+      .select("name, starts_at")
+      .eq("is_current", true)
+      .single()
+      .then(({ data }) => {
+        if (data) {
+          setSeasonStartsAt(data.starts_at);
+          setCurrentSeasonName(data.name);
+        }
+      });
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -501,17 +518,22 @@ const Stats = () => {
 
   const rangeFilteredGames = useMemo(() => {
     if (timeRange === "all") return filteredGames;
+    if (timeRange === "season") {
+      if (!seasonStartsAt) return filteredGames; // fallback while season loads
+      const cutoff = new Date(seasonStartsAt);
+      return filteredGames.filter((g) => new Date(g.played_at) >= cutoff);
+    }
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - (timeRange === "7d" ? 7 : 30));
     return filteredGames.filter((g) => new Date(g.played_at) >= cutoff);
-  }, [filteredGames, timeRange]);
+  }, [filteredGames, timeRange, seasonStartsAt]);
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
     if (selectedMode !== "all") count++;
     if (selectedType !== "all") count++;
     if (selectedFriendId !== "all") count++;
-    if (timeRange !== "all") count++;
+    if (timeRange !== "all" && timeRange !== "season") count++;
     return count;
   }, [selectedMode, selectedType, selectedFriendId, timeRange]);
 
@@ -701,9 +723,10 @@ const Stats = () => {
   if (!user) return null;
 
   const timeRangePills: Array<{ value: TimeRange; label: string }> = [
-    { value: "7d", label: "7D" },
-    { value: "30d", label: "30D" },
-    { value: "all", label: "All" },
+    { value: "season", label: currentSeasonName },
+    { value: "7d",     label: "7D"              },
+    { value: "30d",    label: "30D"             },
+    { value: "all",    label: "All"             },
   ];
 
   return (
@@ -854,7 +877,13 @@ const Stats = () => {
             {selectedFriend && <Badge variant="outline" className="rounded-full">with {selectedFriend.label}</Badge>}
             {selectedMode !== "all" && <Badge variant="outline" className="rounded-full">{selectedMode}</Badge>}
             {selectedType !== "all" && <Badge variant="outline" className="rounded-full">{selectedType}</Badge>}
-            {timeRange !== "all" && <Badge variant="outline" className="rounded-full">{timeRange === "7d" ? "Last 7 days" : "Last 30 days"}</Badge>}
+            {timeRange !== "all" && (
+              <Badge variant="outline" className="rounded-full">
+                {timeRange === "season" ? currentSeasonName
+                 : timeRange === "7d"   ? "Last 7 days"
+                 :                       "Last 30 days"}
+              </Badge>
+            )}
           </div>
         )}
 
