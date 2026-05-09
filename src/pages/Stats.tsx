@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { format } from "date-fns";
 import {
-  Loader2, BarChart2, LineChart as LineChartIcon, FilterX, Filter,
+  Loader2, BarChart2, LineChart as LineChartIcon, FilterX,
   ChevronDown, ChevronUp, Trophy, Target, Shield, Zap, Star,
   TrendingUp, TrendingDown, Activity, Crosshair, ExternalLink,
 } from "lucide-react";
@@ -16,7 +16,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CarryMeter } from "@/components/game/CarryMeter";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   ChartContainer,
@@ -165,37 +164,76 @@ const STAT_ROWS: StatRowDef[] = [
   { key: "avgContributionScore",    label: "Avg Contribution",  formatter: (v) => v === null ? "--" : Math.round(v).toString(), highlight: "higher", icon: Activity, color: "text-rl-purple", bg: "from-rl-purple/15 to-transparent" },
 ];
 
-// ─── Solo summary grid ────────────────────────────────────────────────────────
+// ─── Solo summary list ────────────────────────────────────────────────────────
 
-const SoloSummaryGrid = ({ summary }: { summary: SummaryStats }) => (
-  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 stagger-children">
-    {STAT_ROWS.map((row) => {
-      const val = summary[row.key] as number | null;
-      const Icon = row.icon;
-      return (
-        <Card key={row.key} className={cn("relative overflow-hidden bg-gradient-to-br", row.bg, "animate-fade-in-up")}>
-          <CardContent className="pt-4 pb-3 px-4">
-            <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider mb-1">{row.label}</p>
-            <p className={cn("font-display font-bold text-2xl", row.color)}>{row.formatter(val)}</p>
-          </CardContent>
-          <Icon className={cn("absolute right-3 bottom-2.5 w-8 h-8 opacity-[0.07]", row.color)} />
-        </Card>
-      );
-    })}
-    {/* W/L card */}
-    <Card className="relative overflow-hidden bg-gradient-to-br from-primary/10 to-transparent animate-fade-in-up">
-      <CardContent className="pt-4 pb-3 px-4">
-        <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider mb-1">Record</p>
-        <p className="font-display font-bold text-2xl">
-          <span className="text-rl-green">{summary.wins}</span>
-          <span className="text-muted-foreground/50 mx-1 text-lg">–</span>
-          <span className="text-rl-red">{summary.games - summary.wins}</span>
-        </p>
-      </CardContent>
-      <Trophy className="absolute right-3 bottom-2.5 w-8 h-8 opacity-[0.07] text-primary" />
-    </Card>
-  </div>
-);
+const STAT_GROUPS: Array<{ label: string; keys: Array<keyof SummaryStats> }> = [
+  { label: "Attacking",   keys: ["goalsPerGame", "assistsPerGame", "shotsPerGame"] },
+  { label: "Defensive",   keys: ["savesPerGame", "teamGoalsForPerGame", "teamGoalsAgainstPerGame"] },
+  { label: "Performance", keys: ["pointsPerGame", "mvpRate", "avgContributionScore"] },
+];
+
+const SoloSummaryList = ({ summary }: { summary: SummaryStats }) => {
+  const wins    = summary.wins;
+  const losses  = summary.games - wins;
+  const winRate = summary.winRate ?? 0;
+  return (
+    <div className="space-y-4 animate-fade-in-up">
+      {/* ── Record hero ── */}
+      <Card className="overflow-hidden">
+        <div className={cn("h-0.5 w-full", winRate >= 50
+          ? "bg-gradient-to-r from-rl-green/70 via-rl-green/30 to-transparent"
+          : "bg-gradient-to-r from-rl-red/70 via-rl-red/30 to-transparent"
+        )} />
+        <CardContent className="px-5 py-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-baseline gap-2">
+              <span className="font-display font-bold text-4xl text-rl-green">{wins}W</span>
+              <span className="text-muted-foreground/40 text-2xl">—</span>
+              <span className="font-display font-bold text-4xl text-rl-red">{losses}L</span>
+            </div>
+            <div className="text-right">
+              <p className={cn("font-display font-bold text-2xl", winRate >= 50 ? "text-rl-green" : "text-rl-red")}>{Math.round(winRate)}%</p>
+              <p className="text-[10px] text-muted-foreground">{summary.games} game{summary.games !== 1 ? "s" : ""}</p>
+            </div>
+          </div>
+          <div className="h-1.5 rounded-full bg-muted/60 overflow-hidden">
+            <div
+              className={cn("h-full rounded-full transition-all duration-700", winRate >= 50 ? "bg-rl-green" : "bg-rl-red")}
+              style={{ width: `${winRate}%` }}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Stat groups ── */}
+      {STAT_GROUPS.map((group) => (
+        <div key={group.label} className="space-y-1.5">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 px-0.5">{group.label}</p>
+          <Card className="overflow-hidden">
+            <CardContent className="p-0 divide-y divide-border/20">
+              {group.keys.map((key) => {
+                const row = STAT_ROWS.find((r) => r.key === key)!;
+                const val = summary[key] as number | null;
+                const Icon = row.icon;
+                return (
+                  <div key={String(key)} className="flex items-center gap-3 px-4 py-3">
+                    <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-gradient-to-br", row.bg)}>
+                      <Icon className={cn("w-3.5 h-3.5", row.color)} />
+                    </div>
+                    <span className="text-sm text-muted-foreground flex-1">{row.label}</span>
+                    <span className={cn("font-display font-bold text-base tabular-nums", val !== null ? row.color : "text-muted-foreground/40")}>
+                      {row.formatter(val)}
+                    </span>
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+        </div>
+      ))}
+    </div>
+  );
+};
 
 // ─── Comparison table ─────────────────────────────────────────────────────────
 
@@ -524,7 +562,6 @@ const Stats = () => {
   const [selectedFriendId, setSelectedFriendId] = useState<string>("all");
   const [timeRange, setTimeRange] = useState<TimeRange>("season");
   const [viewMode, setViewMode] = useState<ViewMode>("summary");
-  const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [expandedContribGameId, setExpandedContribGameId] = useState<string | null>(null);
   const [pageTab, setPageTab] = useState<"stats" | "leaderboard">("stats");
   const [togetherRange, setTogetherRange] = useState<TogetherRange>("all");
@@ -677,9 +714,8 @@ const Stats = () => {
     if (selectedMode !== "all") count++;
     if (selectedType !== "all") count++;
     if (selectedFriendId !== "all") count++;
-    if (timeRange !== "all" && timeRange !== "season") count++;
     return count;
-  }, [selectedMode, selectedType, selectedFriendId, timeRange]);
+  }, [selectedMode, selectedType, selectedFriendId]);
 
   const { chartData, userSummary, teammateSummary } = useMemo(() => {
     const ut = { games: 0, wins: 0, points: 0, goals: 0, assists: 0, saves: 0, shots: 0, mvp: 0, teamGoalsFor: 0, teamGoalsAgainst: 0, carryTotal: 0, carryGames: 0 };
@@ -933,126 +969,81 @@ const Stats = () => {
           />
         ) : (<>
 
-        {/* ── Filter + view toggle bar — hidden in together view ── */}
-        {!selectedFriend && <div className="space-y-3 animate-fade-in-up">
-          <div className="flex items-center justify-between gap-3">
-            <button
-              onClick={() => setFiltersExpanded((v) => !v)}
-              className={cn(
-                "flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-xl transition-all",
-                filtersExpanded || activeFilterCount > 0
-                  ? "bg-primary/15 text-primary border border-primary/30"
-                  : "bg-muted/50 hover:bg-muted border border-transparent"
-              )}
-            >
-              <Filter className="w-4 h-4" />
-              <span>Filters</span>
-              {activeFilterCount > 0 && (
-                <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
-                  {activeFilterCount}
-                </span>
-              )}
-              {filtersExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            </button>
-
-            <div className="flex gap-1 bg-muted/50 border border-border/30 rounded-xl p-1">
-              {[
-                { v: "summary" as ViewMode, icon: BarChart2, label: "Summary" },
-                { v: "charts"  as ViewMode, icon: LineChartIcon, label: "Charts" },
-              ].map(({ v, icon: Icon, label }) => (
-                <button
-                  key={v}
-                  onClick={() => setViewMode(v)}
-                  className={cn(
-                    "flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-medium transition-all",
-                    viewMode === v
-                      ? "bg-primary text-primary-foreground shadow-sm shadow-primary/30"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  <Icon className="w-3 h-3" /> {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {filtersExpanded && (
-            <div className="glass rounded-2xl p-4 space-y-4 animate-fade-in-up">
-              {/* Time range pills */}
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-muted-foreground font-medium w-12 shrink-0">Time</span>
-                <div className="flex gap-2">
-                  {timeRangePills.map((pill) => (
-                    <button
-                      key={pill.value}
-                      onClick={() => setTimeRange(pill.value)}
-                      className={cn(
-                        "text-xs px-3 py-1 rounded-full font-medium transition-all",
-                        timeRange === pill.value
-                          ? "bg-primary text-primary-foreground shadow-[0_0_10px_hsl(var(--primary)/0.4)]"
-                          : "bg-muted/60 text-muted-foreground hover:text-foreground"
-                      )}
-                    >
-                      {pill.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
-                <div className="space-y-1">
-                  <Label className="text-xs">Mode</Label>
-                  <Select value={selectedMode} onValueChange={(v) => setSelectedMode(v as GameMode | "all")}>
-                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                    <SelectContent>{gameModes.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Type</Label>
-                  <Select value={selectedType} onValueChange={(v) => setSelectedType(v as GameType | "all")}>
-                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                    <SelectContent>{gameTypes.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Teammate</Label>
-                  <Select value={selectedFriendId} onValueChange={setSelectedFriendId} disabled={friendOptions.length === 0}>
-                    <SelectTrigger className="h-9"><SelectValue placeholder="All" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All teammates</SelectItem>
-                      {friendOptions.map((f) => <SelectItem key={f.id} value={f.id}>{f.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {activeFilterCount > 0 && (
-                <div className="flex justify-end">
+        {/* ── Filters — always visible, no accordion; hidden in together view ── */}
+        {!selectedFriend && (
+          <div className="space-y-2 animate-fade-in-up">
+            {/* Row 1: time range pills + Summary/Charts toggle */}
+            <div className="flex items-center gap-2">
+              <div className="flex gap-1.5 overflow-x-auto flex-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                {timeRangePills.map((pill) => (
                   <button
-                    onClick={() => { setSelectedMode("all"); setSelectedType("all"); setSelectedFriendId("all"); setTimeRange("all"); }}
-                    className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+                    key={pill.value}
+                    onClick={() => setTimeRange(pill.value)}
+                    className={cn(
+                      "flex items-center px-3 py-1.5 rounded-full text-xs font-medium border transition-colors shrink-0",
+                      timeRange === pill.value
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-card text-muted-foreground border-border/50 hover:text-foreground hover:border-border"
+                    )}
                   >
-                    <FilterX className="w-3.5 h-3.5" /> Clear all
+                    {pill.label}
                   </button>
-                </div>
+                ))}
+              </div>
+              <div className="flex gap-0.5 bg-muted/50 border border-border/30 rounded-lg p-0.5 shrink-0">
+                {([
+                  { v: "summary" as ViewMode, icon: BarChart2,      label: "Summary" },
+                  { v: "charts"  as ViewMode, icon: LineChartIcon,  label: "Charts"  },
+                ] as const).map(({ v, icon: Icon, label }) => (
+                  <button
+                    key={v}
+                    onClick={() => setViewMode(v)}
+                    title={label}
+                    className={cn(
+                      "flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all",
+                      viewMode === v
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Row 2: compact inline selects */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <Select value={selectedMode} onValueChange={(v) => setSelectedMode(v as GameMode | "all")}>
+                <SelectTrigger className="h-8 text-xs rounded-lg border-border/50 w-auto px-2.5 gap-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>{gameModes.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
+              </Select>
+              <Select value={selectedType} onValueChange={(v) => setSelectedType(v as GameType | "all")}>
+                <SelectTrigger className="h-8 text-xs rounded-lg border-border/50 w-auto px-2.5 gap-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>{gameTypes.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+              </Select>
+              <Select value={selectedFriendId} onValueChange={setSelectedFriendId} disabled={friendOptions.length === 0}>
+                <SelectTrigger className="h-8 text-xs rounded-lg border-border/50 w-auto px-2.5 gap-1">
+                  <SelectValue placeholder="All teammates" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All teammates</SelectItem>
+                  {friendOptions.map((f) => <SelectItem key={f.id} value={f.id}>{f.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              {activeFilterCount > 0 && (
+                <button
+                  onClick={() => { setSelectedMode("all"); setSelectedType("all"); setSelectedFriendId("all"); }}
+                  className="h-8 flex items-center gap-1 px-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <FilterX className="w-3 h-3" /> Clear
+                </button>
               )}
             </div>
-          )}
-        </div>}
-
-        {/* ── Active filter chips — solo view only ── */}
-        {!selectedFriend && activeFilterCount > 0 && (
-          <div className="flex flex-wrap gap-2 animate-fade-in-up">
-            <Badge variant="outline" className="rounded-full">{userSummary.games} game{userSummary.games !== 1 ? "s" : ""}</Badge>
-            {selectedMode !== "all" && <Badge variant="outline" className="rounded-full">{selectedMode}</Badge>}
-            {selectedType !== "all" && <Badge variant="outline" className="rounded-full">{selectedType}</Badge>}
-            {timeRange !== "all" && (
-              <Badge variant="outline" className="rounded-full">
-                {timeRange === "season" ? currentSeasonName
-                 : timeRange === "7d"   ? "Last 7 days"
-                 :                       "Last 30 days"}
-              </Badge>
-            )}
           </div>
         )}
 
@@ -1077,7 +1068,7 @@ const Stats = () => {
                   <p className="font-display font-semibold text-base">No games match your filters</p>
                   <p className="text-sm text-muted-foreground mt-1">Try adjusting the filters above</p>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => { setSelectedMode("all"); setSelectedType("all"); setSelectedFriendId("all"); setTimeRange("all"); }}>
+                <Button variant="outline" size="sm" onClick={() => { setSelectedMode("all"); setSelectedType("all"); setSelectedFriendId("all"); }}>
                   Clear filters
                 </Button>
               </CardContent>
@@ -1263,7 +1254,7 @@ const Stats = () => {
                 )}
               </>
             ) : (
-              <SoloSummaryGrid summary={userSummary} />
+              <SoloSummaryList summary={userSummary} />
             )}
             {bestContributionGames.length > 0 && (
               <BestContributionCard
