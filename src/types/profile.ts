@@ -4,6 +4,7 @@ export type BestGame = {
   date: string;
   gameMode: string;
   gameType: string;
+  tournamentType?: string | null;
   score: number;
   goals: number;
   assists: number;
@@ -30,6 +31,7 @@ export type ActivityGame = {
   result: "win" | "loss";
   gameMode: string;
   gameType: string;
+  tournamentType?: string | null;
   playedAt: string;
   score: number;
   goals: number;

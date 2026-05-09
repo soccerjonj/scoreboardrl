@@ -197,6 +197,11 @@ function TournamentCard({ tournament, userId }: { tournament: Tournament; userId
                 <span className="font-display font-bold text-sm">
                   {tournament.game_mode} {TOURNAMENT_TYPE_LABELS[tournament.tournament_type as keyof typeof TOURNAMENT_TYPE_LABELS] ?? tournament.tournament_type}
                 </span>
+                {tournament.tournament_type !== "soccar" && (
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-muted-foreground border-border/50">
+                    Special
+                  </Badge>
+                )}
                 {isWinner && (
                   <Badge className="text-[10px] px-1.5 py-0 bg-yellow-400/20 text-yellow-400 border-yellow-400/30">
                     Champion

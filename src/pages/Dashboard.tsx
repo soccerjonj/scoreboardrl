@@ -18,7 +18,7 @@ import { CarryMeter } from "@/components/game/CarryMeter";
 import { calculateContributionScores } from "@/lib/carryScore";
 import { getRankIcon } from "@/lib/rankIcons";
 import AppLayout from "@/components/layout/AppLayout";
-import { isStandardGame } from "@/lib/gameModes";
+import { isStandardGame, getGameCategory, GAME_CATEGORY_LABELS, isSeriousCategory } from "@/lib/gameModes";
 
 // ─── CountUp component ────────────────────────────────────────────────────────
 const CountUp = ({ to, decimals = 0, suffix = "", duration = 700 }: { to: number; decimals?: number; suffix?: string; duration?: number }) => {
@@ -697,6 +697,18 @@ const Dashboard = () => {
                                 </span>
                               )}
                               <Badge variant="outline" className="text-[10px] px-1.5 py-0 flex-shrink-0">{gameModeLabels[game.game_mode] ?? game.game_mode}</Badge>
+                              {(() => {
+                                const cat = getGameCategory(game as any);
+                                const serious = isSeriousCategory(cat);
+                                return (
+                                  <span className={cn(
+                                    "text-[10px] flex-shrink-0",
+                                    serious ? "text-foreground/70 font-semibold" : "text-muted-foreground"
+                                  )}>
+                                    {GAME_CATEGORY_LABELS[cat]}
+                                  </span>
+                                );
+                              })()}
                               {game.division_change && game.division_change !== "none" && (
                                 <Badge
                                   variant="outline"

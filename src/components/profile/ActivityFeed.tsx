@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { CarryMeter } from "@/components/game/CarryMeter";
 import type { ActivityGame, ActivityGamePlayer } from "@/types/profile";
+import { getGameCategory, GAME_CATEGORY_LABELS, isSeriousCategory, EXTRA_MODE_LABELS } from "@/lib/gameModes";
+import { TOURNAMENT_TYPE_LABELS } from "@/hooks/useTournamentSession";
 
 function relativeDate(isoString: string): string {
   const diff = Date.now() - new Date(isoString).getTime();
@@ -134,6 +136,29 @@ function GameCard({
   const hasScore  = game.teamGoals !== null && game.opponentGoals !== null;
   const teamSize  = game.gameMode === "1v1" ? 1 : game.gameMode === "2v2" ? 2 : game.gameMode === "3v3" ? 3 : 4;
 
+  // Derive game category for clear labeling
+  const category = getGameCategory({
+    game_type: game.gameType,
+    game_mode: game.gameMode,
+    tournament_type: game.tournamentType ?? null,
+  });
+  const categoryLabel = GAME_CATEGORY_LABELS[category];
+  const isSerious = isSeriousCategory(category);
+
+  // Detail line: "3v3 Soccar" for tournaments, "3v3 Rumble" for extra modes
+  const detailLine = (() => {
+    if (category === "tournament" || category === "special_tournament") {
+      const ttLabel = game.tournamentType
+        ? (TOURNAMENT_TYPE_LABELS[game.tournamentType as keyof typeof TOURNAMENT_TYPE_LABELS] ?? game.tournamentType)
+        : "Tournament";
+      return `${game.gameMode} ${ttLabel}`;
+    }
+    if (category === "extra_mode") {
+      return EXTRA_MODE_LABELS[game.gameMode as keyof typeof EXTRA_MODE_LABELS] ?? game.gameMode;
+    }
+    return null;
+  })();
+
   return (
     <Card className={cn(
       "overflow-hidden transition-all duration-200",
@@ -174,7 +199,14 @@ function GameCard({
                 <Badge variant="outline" className="text-[10px] px-1.5 py-0 flex-shrink-0">
                   {game.gameMode}
                 </Badge>
-                <span className="text-[10px] text-muted-foreground capitalize flex-shrink-0">{game.gameType}</span>
+                <span
+                  className={cn(
+                    "text-[10px] flex-shrink-0",
+                    isSerious ? "text-foreground/70 font-semibold" : "text-muted-foreground"
+                  )}
+                >
+                  {categoryLabel}
+                </span>
                 {game.isMvp && (
                   <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-yellow-400/15 text-yellow-400 flex-shrink-0">
                     MVP
@@ -216,12 +248,26 @@ function GameCard({
 
         {/* Expanded scoreboard */}
         {expanded && game.allPlayers.length > 0 && (
-          <Scoreboard
-            players={game.allPlayers}
-            currentUserId={currentUserId}
-            result={game.result}
-            teamSize={teamSize}
-          />
+          <>
+            {detailLine && (
+              <div className={cn(
+                "mt-3 px-3 py-1.5 rounded-md border text-[11px] inline-flex items-center gap-1.5",
+                category === "tournament"         && "bg-yellow-400/8 border-yellow-400/25 text-yellow-300",
+                category === "special_tournament" && "bg-muted/40 border-border/40 text-muted-foreground",
+                category === "extra_mode"         && "bg-muted/40 border-border/40 text-muted-foreground",
+              )}>
+                <span className="font-semibold">{categoryLabel}</span>
+                <span className="opacity-60">·</span>
+                <span>{detailLine}</span>
+              </div>
+            )}
+            <Scoreboard
+              players={game.allPlayers}
+              currentUserId={currentUserId}
+              result={game.result}
+              teamSize={teamSize}
+            />
+          </>
         )}
       </CardContent>
     </Card>

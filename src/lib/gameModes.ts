@@ -49,3 +49,48 @@ export function isStandardGame(g: {
   }
   return false;
 }
+
+/**
+ * High-level game category — a single label that captures both the game_type
+ * and whether the mode is "standard" (1v1/2v2/3v3 soccar) or not.
+ *
+ *  competitive          → comp 1v1/2v2/3v3 (serious, counted)
+ *  tournament           → tournament 2v2/3v3 Soccar (serious, counted)
+ *  casual               → casual any mode (not serious)
+ *  extra_mode           → comp Rumble/Hoops/Snow Day/Dropshot/Heatseeker, comp 4v4 (not serious)
+ *  special_tournament   → tournament non-Soccar e.g. Rumble/Heatseeker (not serious)
+ */
+export type GameCategory = "competitive" | "tournament" | "casual" | "extra_mode" | "special_tournament";
+
+export function getGameCategory(g: {
+  game_type: string;
+  game_mode: string;
+  tournament_type?: string | null;
+}): GameCategory {
+  if (g.game_type === "tournament") {
+    if (g.tournament_type === "soccar" && (g.game_mode === "2v2" || g.game_mode === "3v3")) {
+      return "tournament";
+    }
+    return "special_tournament";
+  }
+  if (g.game_type === "competitive") {
+    return STANDARD_MODES.includes(g.game_mode as GameMode) ? "competitive" : "extra_mode";
+  }
+  return "casual";
+}
+
+export const GAME_CATEGORY_LABELS: Record<GameCategory, string> = {
+  competitive:        "Competitive",
+  tournament:         "Tournament",
+  casual:             "Casual",
+  extra_mode:         "Extra Mode",
+  special_tournament: "Special Tournament",
+};
+
+/** Categories that contribute to standard stats and leaderboard */
+export const SERIOUS_CATEGORIES: GameCategory[] = ["competitive", "tournament"];
+
+/** True for "serious" categories (counted in stats) */
+export function isSeriousCategory(c: GameCategory): boolean {
+  return SERIOUS_CATEGORIES.includes(c);
+}
