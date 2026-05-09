@@ -595,28 +595,25 @@ const Friends = () => {
                     const name = getDisplayName(p);
                     const rank = getRankBadge(otherId, friendRanks);
                     return (
-                      <div
-                        key={req.id}
-                        className="flex items-center gap-3 p-3 rounded-xl border border-border/40 bg-card/60 hover:bg-card/80 transition-colors"
-                      >
-                        <Avatar src={p?.avatar_url ?? null} name={name} />
-                        <div className="flex-1 min-w-0">
-                          <p className="font-display text-sm font-semibold truncate">{name}</p>
-                          {rank ? (
-                            <div className="flex items-center gap-1 mt-0.5">
-                              <img src={getRankIcon(rank.tier)} alt={rank.label} className="w-3.5 h-3.5 object-contain" />
-                              <span className={cn("text-[10px] font-semibold", rank.color)}>{rank.label}</span>
-                            </div>
-                          ) : shouldShowUsername(p) ? (
-                            <p className="text-xs text-muted-foreground">@{p!.username}</p>
-                          ) : null}
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <Link to={`/profile/${otherId}`}>
-                            <Button size="sm" variant="hero" className="h-7 px-3 text-xs">
-                              View
-                            </Button>
-                          </Link>
+                      <div key={req.id} className="flex items-center gap-3 rounded-xl border border-border/40 bg-card/60 hover:bg-card/80 transition-colors overflow-hidden">
+                        <Link
+                          to={`/profile/${otherId}`}
+                          className="flex items-center gap-3 flex-1 min-w-0 p-3"
+                        >
+                          <Avatar src={p?.avatar_url ?? null} name={name} />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-display text-sm font-semibold truncate">{name}</p>
+                            {rank ? (
+                              <div className="flex items-center gap-1 mt-0.5">
+                                <img src={getRankIcon(rank.tier)} alt={rank.label} className="w-3.5 h-3.5 object-contain" />
+                                <span className={cn("text-[10px] font-semibold", rank.color)}>{rank.label}</span>
+                              </div>
+                            ) : shouldShowUsername(p) ? (
+                              <p className="text-xs text-muted-foreground">@{p!.username}</p>
+                            ) : null}
+                          </div>
+                        </Link>
+                        <div className="flex items-center pr-2 shrink-0">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button
