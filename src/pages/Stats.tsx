@@ -27,7 +27,7 @@ import {
 import { CartesianGrid, Area, AreaChart, XAxis, YAxis } from "recharts";
 import AppLayout from "@/components/layout/AppLayout";
 import LeaderboardView from "@/components/leaderboard/LeaderboardView";
-import { STANDARD_MODES, EXTRA_MODES } from "@/lib/gameModes";
+import { EXTRA_MODES, isStandardGame } from "@/lib/gameModes";
 
 type GameMode = Database["public"]["Enums"]["game_mode"];
 type GameType = Database["public"]["Enums"]["game_type"];
@@ -92,6 +92,7 @@ const gameModes: Array<{ value: GameMode | "all"; label: string; separator?: boo
 const gameTypes: Array<{ value: GameType | "all"; label: string }> = [
   { value: "all", label: "All types" },
   { value: "competitive", label: "Competitive" },
+  { value: "tournament", label: "Tournament" },
   { value: "casual", label: "Casual" },
 ];
 
@@ -607,8 +608,8 @@ const Stats = () => {
         const allIds = Array.from(new Set((playerGameRows || []).map((r) => r.game_id)));
 
         const gamesRes = allIds.length > 0
-          ? await supabase.from("games").select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, contribution_score, submission_status, submitted_by, created_at, game_id, mmr, mmr_change)").or(`created_by.eq.${user.id},id.in.(${allIds.join(",")})`).order("played_at", { ascending: true })
-          : await supabase.from("games").select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, contribution_score, submission_status, submitted_by, created_at, game_id, mmr, mmr_change)").eq("created_by", user.id).order("played_at", { ascending: true });
+          ? await supabase.from("games").select("id, played_at, game_mode, game_type, tournament_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, contribution_score, submission_status, submitted_by, created_at, game_id, mmr, mmr_change)").or(`created_by.eq.${user.id},id.in.(${allIds.join(",")})`).order("played_at", { ascending: true })
+          : await supabase.from("games").select("id, played_at, game_mode, game_type, tournament_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, contribution_score, submission_status, submitted_by, created_at, game_id, mmr, mmr_change)").eq("created_by", user.id).order("played_at", { ascending: true });
 
         if (gamesRes.error) throw gamesRes.error;
 
@@ -663,10 +664,11 @@ const Stats = () => {
   const teammateTarget = useMemo(() => selectedFriend ? buildTarget(selectedFriend.id, [selectedFriend.rlName, selectedFriend.username]) : null, [selectedFriend]);
 
   const filteredGames = useMemo(() => games
-    // "all" = standard modes only; specific extra mode selection shows only that mode
+    // "all" mode = standard games only (comp 1v1/2v2/3v3 + tournament Soccar 2v2/3v3)
     .filter((g) => selectedMode === "all"
-      ? STANDARD_MODES.includes(g.game_mode as any)
+      ? isStandardGame(g as any)
       : g.game_mode === selectedMode)
+    // "all" type = show all standard; explicit type filters by game_type
     .filter((g) => selectedType === "all" || g.game_type === selectedType)
     .filter((g) => !teammateTarget || Boolean(findPlayer(g.game_players, teammateTarget))),
   [games, selectedMode, selectedType, teammateTarget]);

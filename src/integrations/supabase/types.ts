@@ -137,6 +137,7 @@ export type Database = {
           played_at: string
           result: string
           screenshot_url: string | null
+          tournament_type: string | null
         }
         Insert: {
           created_at?: string
@@ -150,6 +151,7 @@ export type Database = {
           played_at?: string
           result: string
           screenshot_url?: string | null
+          tournament_type?: string | null
         }
         Update: {
           created_at?: string
@@ -163,6 +165,7 @@ export type Database = {
           played_at?: string
           result?: string
           screenshot_url?: string | null
+          tournament_type?: string | null
         }
         Relationships: [
           {
@@ -471,7 +474,7 @@ export type Database = {
       friend_request_status: "pending" | "accepted" | "rejected"
       subscription_tier: "free" | "pro" | "lifetime"
       game_mode: "1v1" | "2v2" | "3v3" | "4v4" | "rumble_3v3" | "hoops_2v2" | "snowday_3v3" | "dropshot_3v3" | "heatseeker_2v2"
-      game_type: "competitive" | "casual"
+      game_type: "competitive" | "casual" | "tournament"
       notification_type:
         | "game_shared"
         | "stat_conflict"

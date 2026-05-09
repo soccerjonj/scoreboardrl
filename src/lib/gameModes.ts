@@ -31,3 +31,21 @@ export const DAMAGE_MODES: GameMode[] = ["dropshot_3v3"];
 export function isExtraMode(mode: string): boolean {
   return !STANDARD_MODES.includes(mode as GameMode);
 }
+
+/**
+ * Returns true if the game should count toward standard stats and leaderboard.
+ * - Competitive 1v1/2v2/3v3: always counted
+ * - Tournament Soccar 2v2/3v3: counted (treated equivalent to competitive)
+ * - Everything else (casual, extra modes, non-soccar tournaments): not counted
+ */
+export function isStandardGame(g: {
+  game_mode: string;
+  game_type: string;
+  tournament_type?: string | null;
+}): boolean {
+  if (g.game_type === "competitive") return STANDARD_MODES.includes(g.game_mode as GameMode);
+  if (g.game_type === "tournament") {
+    return (g.game_mode === "2v2" || g.game_mode === "3v3") && g.tournament_type === "soccar";
+  }
+  return false;
+}

@@ -18,7 +18,7 @@ import { CarryMeter } from "@/components/game/CarryMeter";
 import { calculateContributionScores } from "@/lib/carryScore";
 import { getRankIcon } from "@/lib/rankIcons";
 import AppLayout from "@/components/layout/AppLayout";
-import { STANDARD_MODES } from "@/lib/gameModes";
+import { isStandardGame } from "@/lib/gameModes";
 
 // ─── CountUp component ────────────────────────────────────────────────────────
 const CountUp = ({ to, decimals = 0, suffix = "", duration = 700 }: { to: number; decimals?: number; suffix?: string; duration?: number }) => {
@@ -126,14 +126,14 @@ const Dashboard = () => {
         if (allIds.length > 0) {
           gamesRes = await supabase
             .from("games")
-            .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, contribution_score, submission_status, submitted_by, created_at, game_id)")
+            .select("id, played_at, game_mode, game_type, tournament_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, contribution_score, submission_status, submitted_by, created_at, game_id)")
             .or(`created_by.eq.${user.id},id.in.(${allIds.join(",")})`)
 
             .order("played_at", { ascending: false });
         } else {
           gamesRes = await supabase
             .from("games")
-            .select("id, played_at, game_mode, game_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, contribution_score, submission_status, submitted_by, created_at, game_id)")
+            .select("id, played_at, game_mode, game_type, tournament_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, contribution_score, submission_status, submitted_by, created_at, game_id)")
             .eq("created_by", user.id)
 
             .order("played_at", { ascending: false });
@@ -344,8 +344,8 @@ const Dashboard = () => {
     let totalContrib = 0, contribGames = 0;
     const results: string[] = [];
     games.forEach((game) => {
-      // Only count standard modes in quick stats
-      if (!STANDARD_MODES.includes(game.game_mode as any)) return;
+      // Only count standard games in quick stats (competitive 1v1/2v2/3v3 + tournament Soccar 2v2/3v3)
+      if (!isStandardGame(game as any)) return;
       const userRow = game.game_players?.find(
         (p) => (userTarget.userId && p.user_id === userTarget.userId) || userTarget.names.includes(normalizeName(p.player_name))
       );

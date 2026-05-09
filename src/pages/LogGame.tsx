@@ -205,8 +205,13 @@ const LogGame = () => {
     }
   }, [user, authLoading, navigate]);
 
+  // Keep gameType in sync with tournament state
   useEffect(() => {
-    if (!user || gameType !== "competitive") { setCurrentRank(null); return; }
+    if (isTournamentActive) setGameType("tournament");
+  }, [isTournamentActive]);
+
+  useEffect(() => {
+    if (!user || (gameType !== "competitive" && gameType !== "tournament")) { setCurrentRank(null); return; }
     supabase
       .from("ranks")
       .select("rank_tier, rank_division")
@@ -241,7 +246,8 @@ const LogGame = () => {
     // Only let Gemini set the game mode when the user chose "Auto" (standard comp).
     // For any pre-selected mode, preserve the user's choice.
     if (isAutoDetect) setGameMode(data.game_mode);
-    setGameType(data.game_type);
+    // Never let Gemini override game_type when a tournament is active
+    if (!isTournamentActive) setGameType(data.game_type);
     setPlayers(data.players.map((p) => ({ ...p, damage: (p as any).damage ?? 0 })));
     setImageFile(file);
     setWasPhotoParsed(true);
@@ -383,9 +389,10 @@ const LogGame = () => {
           game_mode: gameMode,
           game_type: gameType,
           result,
-          division_change: gameType === "competitive" ? divisionChange : null,
+          division_change: (gameType === "competitive" || gameType === "tournament") ? divisionChange : null,
           screenshot_url: screenshotUrl,
           logged_via_photo: wasPhotoParsed,
+          tournament_type: isTournamentActive && activeTournament ? activeTournament.tournament_type : null,
         })
         .select()
         .single();
@@ -498,8 +505,8 @@ const LogGame = () => {
         )
       );
 
-      // Auto-update profile rank and MMR if this is a competitive game
-      if (gameType === "competitive") {
+      // Auto-update profile rank and MMR if this is a competitive or tournament game
+      if (gameType === "competitive" || gameType === "tournament") {
         const rankUpdate: { rank_tier?: RankTier; rank_division?: RankDivision | null; mmr?: number | null } = {};
 
         if (divisionChange === "up" || divisionChange === "down") {
@@ -664,9 +671,15 @@ const LogGame = () => {
           <Card className="border-border/50 bg-card/80">
             <CardHeader className="pb-3">
               <CardTitle className="font-display text-xl">Upload Scoreboard</CardTitle>
-              <p className="text-xs text-muted-foreground">
-                Competitive 1v1 · 2v2 · 3v3 — mode detected automatically from photo.
-              </p>
+              {isTournamentActive && activeTournament ? (
+                <p className="text-xs text-muted-foreground">
+                  Tournament · {activeTournament.game_mode} {TOURNAMENT_TYPE_LABELS[activeTournament.tournament_type as keyof typeof TOURNAMENT_TYPE_LABELS]} · {ROUND_LABELS[tournamentRound!]}
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Competitive 1v1 · 2v2 · 3v3 — mode detected automatically from photo.
+                </p>
+              )}
             </CardHeader>
             <CardContent className="space-y-4">
 
@@ -815,11 +828,12 @@ const LogGame = () => {
 
                   <div className="space-y-2">
                     <Label>Game Type</Label>
-                    <Select value={gameType} onValueChange={(v) => setGameType(v as GameType)}>
+                    <Select value={gameType} onValueChange={(v) => setGameType(v as GameType)} disabled={isTournamentActive}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="competitive">Competitive</SelectItem>
                         <SelectItem value="casual">Casual</SelectItem>
+                        <SelectItem value="tournament">Tournament</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -835,7 +849,7 @@ const LogGame = () => {
                     </Select>
                   </div>
 
-                  {gameType === "competitive" && (
+                  {(gameType === "competitive" || gameType === "tournament") && (
                     <div className="space-y-2">
                       <Label>Division Change</Label>
                       <Select value={divisionChange} onValueChange={setDivisionChange}>

@@ -15,7 +15,7 @@ import PerformanceChart from "@/components/profile/PerformanceChart";
 import { ROUND_ORDER } from "@/hooks/useTournamentSession";
 import type { RoundKey } from "@/hooks/useTournamentSession";
 import type { BestGame, ActivityGame, TournamentSummary, LeaderboardStanding, ChartPoint, TeammateProfile } from "@/types/profile";
-import { STANDARD_MODES, EXTRA_MODES, EXTRA_MODE_LABELS } from "@/lib/gameModes";
+import { EXTRA_MODES, EXTRA_MODE_LABELS, isStandardGame } from "@/lib/gameModes";
 
 type GameMode = Database["public"]["Enums"]["game_mode"];
 type RankTier = Database["public"]["Enums"]["rank_tier"];
@@ -192,7 +192,7 @@ const FriendProfile = () => {
           const gameIds = playerRows.map((r) => r.game_id);
           const { data: gamesData, error: gamesError } = await supabase
             .from("games")
-            .select("id, result, played_at, game_mode, game_type, game_players(user_id, player_name, score, goals, assists, saves, shots, is_mvp, contribution_score, team)")
+            .select("id, result, played_at, game_mode, game_type, tournament_type, game_players(user_id, player_name, score, goals, assists, saves, shots, is_mvp, contribution_score, team)")
             .in("id", gameIds)
             .order("played_at", { ascending: false });
 
@@ -203,7 +203,7 @@ const FriendProfile = () => {
           }
 
           // Split standard vs extra modes
-          const standardGames = gamesData.filter((g) => STANDARD_MODES.includes(g.game_mode as any));
+          const standardGames = gamesData.filter((g) => isStandardGame(g as any));
           const standardGameIds = new Set(standardGames.map((g) => g.id));
           const standardRows = playerRows.filter((r) => standardGameIds.has(r.game_id));
 
