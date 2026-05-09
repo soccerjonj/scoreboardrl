@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Loader2, Star, User } from "lucide-react";
+import { ArrowLeft, Loader2, Star, User } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -410,6 +410,15 @@ const FriendProfile = () => {
   return (
     <AppLayout>
       <div className="space-y-4">
+        {/* Back button */}
+        <button
+          onClick={() => navigate("/friends")}
+          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors -mb-1"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Friends
+        </button>
+
         {/* Profile Header */}
         <Card className="overflow-hidden p-0">
           <ProfileHeader

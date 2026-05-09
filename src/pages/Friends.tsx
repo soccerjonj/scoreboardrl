@@ -134,6 +134,23 @@ const Friends = () => {
     if (!authLoading && !user) navigate("/auth");
   }, [user, authLoading, navigate]);
 
+  // Save scroll position when leaving, restore when returning
+  useEffect(() => {
+    const saved = sessionStorage.getItem("friends_scroll");
+    if (saved) {
+      const y = parseInt(saved, 10);
+      // Defer until after the page finishes loading and rendering
+      const id = setTimeout(() => window.scrollTo({ top: y, behavior: "instant" as ScrollBehavior }), 80);
+      return () => clearTimeout(id);
+    }
+  }, [loading]);
+
+  useEffect(() => {
+    return () => {
+      sessionStorage.setItem("friends_scroll", String(window.scrollY));
+    };
+  }, []);
+
   const refresh = async () => {
     if (!user) return;
     setLoading(true);
