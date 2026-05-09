@@ -69,6 +69,8 @@ const Notifications = () => {
                   if (n.type === "game_shared") {
                     const gameId = (n.payload as { game_id?: string } | null)?.game_id;
                     if (gameId) navigate(`/dashboard?game=${gameId}`);
+                  } else if (n.type === "friend_request") {
+                    navigate("/friends");
                   }
                 }}
                 className={`flex items-start gap-3 p-4 rounded-xl border transition-colors cursor-pointer ${

@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
+import { useNotifications } from "@/hooks/useNotifications";
 import {
   CheckCircle2,
   Loader2,
@@ -113,6 +114,8 @@ const Friends = () => {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { sendNotification } = useNotifications();
+  const [myDisplayName, setMyDisplayName] = useState<string>("");
 
   const [pageTab, setPageTab] = useState<PageTab>("friends");
   const [loading, setLoading] = useState(true);
@@ -135,12 +138,22 @@ const Friends = () => {
     if (!user) return;
     setLoading(true);
     try {
-      const { data: requests, error } = await supabase
-        .from("friend_requests")
-        .select("id, sender_id, receiver_id, status, created_at, updated_at")
-        .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
-        .in("status", ["pending", "accepted"]);
+      const [{ data: requests, error }, { data: myProfile }] = await Promise.all([
+        supabase
+          .from("friend_requests")
+          .select("id, sender_id, receiver_id, status, created_at, updated_at")
+          .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
+          .in("status", ["pending", "accepted"]),
+        supabase.from("profiles").select("rl_account_name, username").eq("user_id", user.id).single(),
+      ]);
       if (error) throw error;
+      if (myProfile) {
+        setMyDisplayName(
+          myProfile.rl_account_name?.trim() ||
+          (myProfile.username && !/^user_[a-z0-9]+$/i.test(myProfile.username) ? myProfile.username : "") ||
+          "Someone"
+        );
+      }
 
       const reqs = requests || [];
       setFriendRequests(reqs);
@@ -318,6 +331,14 @@ const Friends = () => {
       if (error) throw error;
       toast({ title: "Friend request sent" });
       setJustSent((prev) => new Set(prev).add(targetId));
+      // Notify the recipient
+      await sendNotification(
+        targetId,
+        "friend_request",
+        `${myDisplayName || "Someone"} sent you a friend request`,
+        "Open the Friends tab to accept or decline.",
+        { sender_id: user.id }
+      );
       await refresh();
     } catch (err: any) {
       toast({ title: "Failed", description: err.message, variant: "destructive" });
