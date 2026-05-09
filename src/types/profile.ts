@@ -12,6 +12,16 @@ export type BestGame = {
   isMvp: boolean;
 };
 
+export type ActivityGamePlayer = {
+  userId: string | null;
+  playerName: string;
+  score: number;
+  goals: number;
+  assists: number;
+  saves: number;
+  isMvp: boolean;
+};
+
 export type ActivityGame = {
   id: string;
   result: "win" | "loss";
@@ -23,6 +33,7 @@ export type ActivityGame = {
   assists: number;
   saves: number;
   isMvp: boolean;
+  allPlayers: ActivityGamePlayer[];
 };
 
 export type TournamentSummary = {
@@ -35,4 +46,18 @@ export type LeaderboardStanding = {
   stat: string;
   rank: number;
   window: string;
+};
+
+export type ChartPoint = {
+  index: number;
+  score: number;
+  date: string;
+};
+
+export type TeammateProfile = {
+  userId: string;
+  name: string;
+  games: number;
+  wins: number;
+  avatarUrl: string | null;
 };

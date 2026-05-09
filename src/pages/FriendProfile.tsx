@@ -8,14 +8,13 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { getRankIcon } from "@/lib/rankIcons";
 import ProfileHeader from "@/components/profile/ProfileHeader";
-import AchievementBadges from "@/components/profile/AchievementBadges";
 import StatsShowcase from "@/components/profile/StatsShowcase";
 import TrophyShelf from "@/components/profile/TrophyShelf";
 import ActivityFeed from "@/components/profile/ActivityFeed";
-import { useProfileBadges } from "@/hooks/useProfileBadges";
+import PerformanceChart from "@/components/profile/PerformanceChart";
 import { ROUND_ORDER } from "@/hooks/useTournamentSession";
 import type { RoundKey } from "@/hooks/useTournamentSession";
-import type { BestGame, ActivityGame, TournamentSummary, LeaderboardStanding } from "@/types/profile";
+import type { BestGame, ActivityGame, TournamentSummary, LeaderboardStanding, ChartPoint, TeammateProfile } from "@/types/profile";
 
 type GameMode = Database["public"]["Enums"]["game_mode"];
 type RankTier = Database["public"]["Enums"]["rank_tier"];
@@ -108,6 +107,8 @@ const FriendProfile = () => {
   const [activityGames, setActivityGames] = useState<ActivityGame[]>([]);
   const [bestGame, setBestGame] = useState<BestGame | null>(null);
   const [leaderboardStanding, setLeaderboardStanding] = useState<LeaderboardStanding | null>(null);
+  const [chartData, setChartData] = useState<ChartPoint[]>([]);
+  const [teammates, setTeammates] = useState<TeammateProfile[]>([]);
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/auth");
@@ -243,6 +244,18 @@ const FriendProfile = () => {
             .sort((a, b) => b.games - a.games)
             .slice(0, 3);
 
+          // Fetch avatars for top teammates
+          if (topTeammates.length > 0) {
+            const { data: tmProfiles } = await supabase
+              .from("profiles")
+              .select("user_id, avatar_url")
+              .in("user_id", topTeammates.map((t) => t.userId));
+            const avatarMap = new Map((tmProfiles ?? []).map((p) => [p.user_id, p.avatar_url ?? null]));
+            setTeammates(topTeammates.map((t) => ({ ...t, avatarUrl: avatarMap.get(t.userId) ?? null })));
+          } else {
+            setTeammates([]);
+          }
+
           // Normalized contribution
           const modeMap = new Map(gamesData.map((g) => [g.id, g.game_mode as string]));
           let normTotal = 0, normCount = 0;
@@ -265,9 +278,18 @@ const FriendProfile = () => {
             ...records, topTeammates,
           });
 
-          // Activity feed
-          const activity: ActivityGame[] = gamesData.slice(0, 10).map((game) => {
+          // Activity feed (last 20 games, with full scoreboard)
+          const activity: ActivityGame[] = gamesData.slice(0, 20).map((game) => {
             const myRow = ((game as any).game_players ?? []).find((p: any) => p.user_id === userId);
+            const allPlayers = ((game as any).game_players ?? []).map((p: any) => ({
+              userId: p.user_id ?? null,
+              playerName: p.player_name ?? "Unknown",
+              score: safeNum(p.score),
+              goals: safeNum(p.goals),
+              assists: safeNum(p.assists),
+              saves: safeNum(p.saves),
+              isMvp: p.is_mvp ?? false,
+            }));
             return {
               id: game.id,
               result: game.result === "win" ? "win" : "loss",
@@ -279,9 +301,20 @@ const FriendProfile = () => {
               assists: safeNum(myRow?.assists),
               saves:   safeNum(myRow?.saves),
               isMvp:   myRow?.is_mvp ?? false,
+              allPlayers,
             };
           });
           setActivityGames(activity);
+
+          // Performance chart
+          const chartPoints: ChartPoint[] = gamesData
+            .slice(0, 30)
+            .reverse()
+            .map((game, i) => {
+              const myRow = ((game as any).game_players ?? []).find((p: any) => p.user_id === userId);
+              return { index: i + 1, score: safeNum(myRow?.score), date: game.played_at };
+            });
+          setChartData(chartPoints);
 
           // Best game
           if (playerRows.length > 0) {
@@ -326,12 +359,6 @@ const FriendProfile = () => {
     load();
   }, [userId, user]);
 
-  const { badges, earnedCount, totalCount } = useProfileBadges({
-    stats: profileStats,
-    ranks,
-    tournaments: tournamentData,
-  });
-
   if (authLoading || loading) {
     return (
       <AppLayout>
@@ -356,6 +383,8 @@ const FriendProfile = () => {
 
   const displayName = profile.rl_account_name?.trim() || profile.username || "Unknown Player";
 
+  const rankedModes = gameModes.filter((m) => ranks[m].rank_tier !== "unranked");
+
   return (
     <AppLayout>
       <div className="space-y-4">
@@ -369,12 +398,8 @@ const FriendProfile = () => {
             favoriteCar={profile.favorite_car}
             ranks={ranks}
             profileUserId={userId!}
-            // No onEdit or onBannerFileSelected — read-only
           />
         </Card>
-
-        {/* Achievement Badges */}
-        <AchievementBadges badges={badges} earnedCount={earnedCount} totalCount={totalCount} />
 
         {/* Stats Showcase */}
         {profileStats && profileStats.totalGames > 0 && (
@@ -385,51 +410,60 @@ const FriendProfile = () => {
           />
         )}
 
+        {/* Performance Chart */}
+        <PerformanceChart data={chartData} />
+
+        {/* Activity Feed */}
+        <ActivityFeed games={activityGames} currentUserId={userId} />
+
         {/* Tournament Trophy Shelf */}
         <TrophyShelf tournaments={tournamentData} isOwnProfile={false} />
 
-        {/* Activity Feed */}
-        <ActivityFeed games={activityGames} />
-
-        {/* Competitive Ranks */}
-        <Card className="border-border/50 bg-card/80">
-          <CardContent className="pt-4 pb-3 space-y-1">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Competitive Ranks</p>
-            {gameModes.map((mode) => {
-              const rank = ranks[mode];
-              const colorClass = RANK_COLORS[rank.rank_tier] ?? "text-foreground";
-              return (
-                <div key={mode} className="flex items-center justify-between py-2 px-3 rounded-lg bg-background/60">
-                  <span className="font-display font-bold text-sm text-muted-foreground w-8">{gameModeLabels[mode]}</span>
-                  <div className="flex items-center gap-2 flex-1 ml-2">
-                    <img src={getRankIcon(rank.rank_tier)} alt={getRankLabel(rank.rank_tier)} className="w-8 h-8 object-contain" />
-                    <span className={`font-semibold text-sm ${colorClass}`}>
-                      {getRankLabel(rank.rank_tier)}
-                      {rank.rank_division && rank.rank_tier !== "unranked" && rank.rank_tier !== "supersonic_legend" ? ` ${rank.rank_division}` : ""}
-                    </span>
-                  </div>
-                  {rank.mmr != null && <span className="text-xs text-muted-foreground font-mono">{rank.mmr} MMR</span>}
-                </div>
-              );
-            })}
-          </CardContent>
-        </Card>
+        {/* Competitive Ranks — compact horizontal strip */}
+        {rankedModes.length > 0 && (
+          <Card className="border-border/50 bg-card/80">
+            <CardContent className="pt-4 pb-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Competitive Ranks</p>
+              <div className="flex gap-3 flex-wrap">
+                {rankedModes.map((mode) => {
+                  const rank = ranks[mode];
+                  const colorClass = RANK_COLORS[rank.rank_tier] ?? "text-foreground";
+                  return (
+                    <div key={mode} className="flex flex-col items-center gap-1 px-3 py-2 rounded-xl bg-background/60 border border-border/40 min-w-[72px]">
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase">{gameModeLabels[mode]}</span>
+                      <img src={getRankIcon(rank.rank_tier)} alt={getRankLabel(rank.rank_tier)} className="w-9 h-9 object-contain" />
+                      <span className={`text-xs font-semibold text-center leading-tight ${colorClass}`}>
+                        {getRankLabel(rank.rank_tier)}
+                        {rank.rank_division && rank.rank_tier !== "supersonic_legend" ? ` ${rank.rank_division}` : ""}
+                      </span>
+                      {rank.mmr != null && <span className="text-[10px] text-muted-foreground font-mono">{rank.mmr}</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Most Played With */}
-        {profileStats && profileStats.topTeammates.length > 0 && (
+        {teammates.length > 0 && (
           <Card className="border-border/50 bg-card/80">
             <CardContent className="pt-4 pb-3">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
                 <Star className="w-3.5 h-3.5 text-rose-400" /> Most Played With
               </p>
               <div className="space-y-2">
-                {profileStats.topTeammates.map((tm, i) => {
+                {teammates.map((tm, i) => {
                   const tmWinRate = tm.games > 0 ? Math.round((tm.wins / tm.games) * 100) : 0;
+                  const initials = tm.name.slice(0, 2).toUpperCase();
                   return (
-                    <div key={tm.userId} className="flex items-center gap-3 py-1.5 px-3 rounded-lg bg-background/60">
+                    <a key={tm.userId} href={`/profile/${tm.userId}`} className="flex items-center gap-3 py-1.5 px-3 rounded-lg bg-background/60 hover:bg-muted/40 transition-colors">
                       <span className="text-xs font-bold text-muted-foreground w-4">#{i + 1}</span>
-                      <div className="w-7 h-7 rounded-full bg-muted/60 flex items-center justify-center shrink-0">
-                        <User className="w-3.5 h-3.5 text-muted-foreground" />
+                      <div className="w-8 h-8 rounded-full bg-muted/60 border border-border/40 overflow-hidden shrink-0 flex items-center justify-center">
+                        {tm.avatarUrl
+                          ? <img src={tm.avatarUrl} alt={tm.name} className="w-full h-full object-cover" />
+                          : <span className="text-[10px] font-bold text-muted-foreground">{initials}</span>
+                        }
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-sm truncate">{tm.name}</p>
@@ -438,7 +472,7 @@ const FriendProfile = () => {
                       <div className={`text-xs font-mono font-bold px-2 py-0.5 rounded-full ${tmWinRate >= 50 ? "text-rl-green bg-rl-green/10" : "text-rl-red bg-rl-red/10"}`}>
                         {tmWinRate}%
                       </div>
-                    </div>
+                    </a>
                   );
                 })}
               </div>

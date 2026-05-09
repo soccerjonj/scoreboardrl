@@ -1,4 +1,4 @@
-import { Medal, Shield, Star, Target, Trophy, Zap } from "lucide-react";
+import { Crown, Shield, Star, Target, Zap } from "lucide-react";
 import { format } from "date-fns";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -48,11 +48,36 @@ function HeroStat({ icon, label, value, sub, color }: {
 
 export default function StatsShowcase({ stats, bestGame, leaderboardStanding }: Props) {
   const winRate = stats.totalGames > 0 ? Math.round((stats.wins / stats.totalGames) * 100) : 0;
+  const isTopTen = leaderboardStanding && leaderboardStanding.rank <= 10;
 
   return (
     <Card className="border-border/50 bg-card/80">
       <CardContent className="pt-4 pb-3 space-y-4">
         <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Career Stats</p>
+
+        {/* Leaderboard callout — hero if top 10, subtle if 11–20 */}
+        {leaderboardStanding && (
+          isTopTen ? (
+            <div className="relative overflow-hidden rounded-xl px-4 py-3 bg-gradient-to-r from-primary/20 via-rl-purple/15 to-transparent border border-primary/30 flex items-center gap-3">
+              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_left,hsl(var(--primary)/0.15),transparent_60%)]" />
+              <Crown className="w-5 h-5 text-primary shrink-0 relative z-10" />
+              <div className="relative z-10">
+                <p className="font-display font-bold text-base text-primary leading-tight">
+                  #{leaderboardStanding.rank} in {leaderboardStanding.stat}
+                </p>
+                <p className="text-xs text-muted-foreground">Global leaderboard · this week</p>
+              </div>
+            </div>
+          ) : (
+            <div className="px-3 py-2 rounded-lg bg-primary/5 border border-primary/20 flex items-center gap-2">
+              <Crown className="w-4 h-4 text-primary shrink-0" />
+              <span className="text-sm">
+                <span className="font-bold text-primary">Top {leaderboardStanding.rank}</span>
+                {" "}<span className="text-muted-foreground">in {leaderboardStanding.stat} this week</span>
+              </span>
+            </div>
+          )
+        )}
 
         {/* Hero numbers */}
         <div className="grid grid-cols-3 gap-2">
@@ -101,17 +126,6 @@ export default function StatsShowcase({ stats, bestGame, leaderboardStanding }: 
           )}
         </div>
 
-        {/* Leaderboard standing */}
-        {leaderboardStanding && (
-          <div className="px-3 py-2 rounded-lg bg-primary/5 border border-primary/20 flex items-center gap-2">
-            <Medal className="w-4 h-4 text-primary shrink-0" />
-            <span className="text-sm">
-              <span className="font-bold text-primary">Top {leaderboardStanding.rank}</span>
-              {" "}<span className="text-muted-foreground">in {leaderboardStanding.stat} this week</span>
-            </span>
-          </div>
-        )}
-
         {/* Best Performance */}
         {bestGame && (
           <div className="rounded-xl border border-border/50 bg-background/40 p-3 space-y-2">
@@ -139,30 +153,6 @@ export default function StatsShowcase({ stats, bestGame, leaderboardStanding }: 
             </div>
           </div>
         )}
-
-        {/* Personal Records */}
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
-            <Trophy className="w-3.5 h-3.5 text-yellow-400" />
-            Personal Records
-          </p>
-          <div className="grid grid-cols-5 gap-2">
-            {[
-              { label: "Score",  value: stats.bestScore },
-              { label: "Goals",  value: stats.bestGoals },
-              { label: "Assists",value: stats.bestAssists },
-              { label: "Saves",  value: stats.bestSaves },
-              { label: "Contrib",value: stats.bestContributionScore > 0 ? stats.bestContributionScore : null },
-            ].map(({ label, value }) => (
-              <div key={label} className="flex flex-col items-center gap-0.5 py-2 px-1 rounded-lg bg-background/60 border border-border/30">
-                <span className="font-display font-bold text-lg leading-none">
-                  {value !== null ? value : <span className="text-muted-foreground text-sm">—</span>}
-                </span>
-                <span className="text-[10px] text-muted-foreground leading-none">{label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
       </CardContent>
     </Card>
   );
