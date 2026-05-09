@@ -430,6 +430,7 @@ const Stats = () => {
 
   const [loading, setLoading] = useState(true);
   const [games, setGames] = useState<GameWithPlayers[]>([]);
+  const [rawMmrHistory, setRawMmrHistory] = useState<Array<{ game_mode: string; mmr: number; recorded_at: string }>>([]);
 
   const [friends, setFriends] = useState<FriendProfile[]>([]);
   const [userRlName, setUserRlName] = useState<string | null>(null);
@@ -479,6 +480,14 @@ const Stats = () => {
         setUserRlName(profileRes.data?.rl_account_name ?? null);
         setFriends(friendProfiles);
         setGames((gamesRes.data || []) as GameWithPlayers[]);
+
+        // Fetch MMR history from the dedicated table
+        const { data: mmrRows } = await supabase
+          .from("mmr_history" as any)
+          .select("game_mode, mmr, recorded_at")
+          .eq("user_id", user.id)
+          .order("recorded_at", { ascending: true });
+        setRawMmrHistory((mmrRows as any[] ?? []).map((r) => ({ game_mode: r.game_mode, mmr: r.mmr, recorded_at: r.recorded_at })));
       } catch (err: any) {
         toast({ title: "Failed to load stats", description: err.message, variant: "destructive" });
       } finally {
@@ -647,17 +656,52 @@ const Stats = () => {
       .slice(0, 5),
   [rangeFilteredGames, userTarget]);
 
-  const mmrHistory = useMemo(() => {
-    const points: Array<{ label: string; fullLabel: string; mmr: number }> = [];
-    rangeFilteredGames.forEach((game, idx) => {
-      const userRow = findPlayer(game.game_players || [], userTarget);
-      if (!userRow) return;
-      const mmrVal = (userRow as any).mmr;
-      if (mmrVal == null || typeof mmrVal !== "number") return;
-      points.push({ label: `#${idx + 1}`, fullLabel: `Game ${idx + 1} · ${format(new Date(game.played_at), "MMM d, yyyy")}`, mmr: mmrVal });
+  // MMR history — multi-mode overlay from mmr_history table
+  const mmrChartData = useMemo(() => {
+    const MODES = ["1v1", "2v2", "3v3"] as const;
+    const MODE_COLORS: Record<string, string> = {
+      "1v1": "hsl(271, 81%, 65%)",   // purple
+      "2v2": "hsl(212, 95%, 58%)",   // blue
+      "3v3": "hsl(142, 71%, 45%)",   // green
+    };
+
+    // Group rows by mode
+    const byMode = new Map<string, Array<{ mmr: number; recorded_at: string }>>();
+    rawMmrHistory.forEach((r) => {
+      if (!byMode.has(r.game_mode)) byMode.set(r.game_mode, []);
+      byMode.get(r.game_mode)!.push({ mmr: r.mmr, recorded_at: r.recorded_at });
     });
-    return points;
-  }, [rangeFilteredGames, userTarget]);
+
+    // Only include modes with >= 2 points
+    const activeModes = MODES.filter((m) => (byMode.get(m)?.length ?? 0) >= 2);
+    if (activeModes.length === 0) return { points: [], activeModes: [], colors: MODE_COLORS };
+
+    // Build a unified timeline: merge all timestamps across modes, sort ascending
+    const allTimestamps = Array.from(
+      new Set(rawMmrHistory.map((r) => r.recorded_at))
+    ).sort();
+
+    // For each timestamp, carry forward the last known MMR per mode
+    const lastKnown: Record<string, number | null> = {};
+    activeModes.forEach((m) => { lastKnown[m] = null; });
+
+    const points = allTimestamps.map((ts) => {
+      // Update last known for any mode that has a point at this timestamp
+      rawMmrHistory.filter((r) => r.recorded_at === ts).forEach((r) => {
+        if (activeModes.includes(r.game_mode as any)) lastKnown[r.game_mode] = r.mmr;
+      });
+      const entry: Record<string, string | number | null> = {
+        label: format(new Date(ts), "MMM d"),
+        fullLabel: format(new Date(ts), "MMM d, yyyy · h:mm a"),
+      };
+      activeModes.forEach((m) => { entry[m] = lastKnown[m]; });
+      return entry;
+    });
+
+    // Trim leading nulls per mode so lines start where data begins
+    const trimmed = points.filter((p) => activeModes.some((m) => p[m] != null));
+    return { points: trimmed, activeModes, colors: MODE_COLORS };
+  }, [rawMmrHistory]);
 
   if (authLoading || loading) {
     return <AppLayout><div className="flex items-center justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div></AppLayout>;
@@ -885,38 +929,48 @@ const Stats = () => {
               ))}
             </div>
 
-            {mmrHistory.length >= 2 && (
+            {mmrChartData.activeModes.length > 0 && (
               <Card className="overflow-hidden animate-fade-in-up">
                 <div className="h-[2px] w-full" style={{ background: "linear-gradient(to right, hsl(212, 95%, 58%), transparent)" }} />
                 <CardHeader className="pb-2 pt-3">
                   <CardTitle className="text-base font-display">MMR History</CardTitle>
-                  <CardDescription className="text-xs">Competitive MMR progression over time</CardDescription>
+                  <CardDescription className="text-xs">Competitive MMR over time · updates when you save your ranks</CardDescription>
                 </CardHeader>
                 <CardContent className="overflow-hidden pt-0">
-                  <ChartContainer config={{ mmr: { label: "MMR", color: "hsl(212, 95%, 58%)" } }} className="h-52 w-full max-w-full">
-                    <AreaChart data={mmrHistory} margin={{ left: 6, right: 12, top: 8, bottom: 0 }}>
+                  <ChartContainer
+                    config={Object.fromEntries(mmrChartData.activeModes.map((m) => [m, { label: m, color: mmrChartData.colors[m] }]))}
+                    className="h-56 w-full max-w-full"
+                  >
+                    <AreaChart data={mmrChartData.points} margin={{ left: 6, right: 12, top: 8, bottom: 0 }}>
                       <defs>
-                        <linearGradient id="grad-mmr" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="hsl(212, 95%, 58%)" stopOpacity={0.25} />
-                          <stop offset="90%" stopColor="hsl(212, 95%, 58%)" stopOpacity={0} />
-                        </linearGradient>
+                        {mmrChartData.activeModes.map((m) => (
+                          <linearGradient key={m} id={`grad-mmr-${m}`} x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor={mmrChartData.colors[m]} stopOpacity={0.25} />
+                            <stop offset="90%" stopColor={mmrChartData.colors[m]} stopOpacity={0} />
+                          </linearGradient>
+                        ))}
                       </defs>
                       <CartesianGrid vertical={false} strokeDasharray="4 4" stroke="hsl(var(--border)/0.25)" />
-                      <XAxis dataKey="label" hide />
+                      <XAxis dataKey="label" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
                       <YAxis tickLine={false} axisLine={false} width={50} domain={["auto", "auto"]} tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
                       <ChartTooltip content={<ChartTooltipContent labelFormatter={(_, payload) => payload?.[0]?.payload?.fullLabel ?? ""} />} />
-                      <Area
-                        type="monotone"
-                        dataKey="mmr"
-                        stroke="hsl(212, 95%, 58%)"
-                        strokeWidth={2.5}
-                        fill="url(#grad-mmr)"
-                        dot={false}
-                        activeDot={{ r: 5, strokeWidth: 2, stroke: "hsl(212, 95%, 58%)", fill: "hsl(var(--background))", style: { filter: "drop-shadow(0 0 6px hsl(212, 95%, 58%))" } }}
-                        isAnimationActive={true}
-                        animationDuration={900}
-                        animationEasing="ease-out"
-                      />
+                      {mmrChartData.activeModes.map((m) => (
+                        <Area
+                          key={m}
+                          type="monotone"
+                          dataKey={m}
+                          stroke={mmrChartData.colors[m]}
+                          strokeWidth={2}
+                          fill={`url(#grad-mmr-${m})`}
+                          dot={false}
+                          connectNulls
+                          activeDot={{ r: 4, strokeWidth: 2, stroke: mmrChartData.colors[m], fill: "hsl(var(--background))" }}
+                          isAnimationActive={true}
+                          animationDuration={800}
+                          animationEasing="ease-out"
+                        />
+                      ))}
+                      {mmrChartData.activeModes.length > 1 && <ChartLegend content={<ChartLegendContent />} />}
                     </AreaChart>
                   </ChartContainer>
                 </CardContent>
