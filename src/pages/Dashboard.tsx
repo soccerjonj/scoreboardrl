@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { Plus, Loader2, Trophy, Target, TrendingUp, ChevronRight, Zap, ChevronDown, ChevronUp, Pencil, Check, X as XIcon, Trash2, Info } from "lucide-react";
+import { Plus, Loader2, Trophy, Target, TrendingUp, ChevronRight, Zap, ChevronDown, ChevronUp, Pencil, Check, X as XIcon, Trash2, Info, Users } from "lucide-react";
 import TournamentBannerCard from "@/components/tournament/TournamentBannerCard";
 
 import { useAuth } from "@/contexts/AuthContext";
@@ -80,6 +80,7 @@ const Dashboard = () => {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [showContribInfo, setShowContribInfo] = useState(false);
   const [visibleCount, setVisibleCount]       = useState(5);
+  const [friendIds, setFriendIds]             = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/auth");
@@ -90,13 +91,21 @@ const Dashboard = () => {
     const load = async () => {
       setLoading(true);
       try {
-        const [profileRes, ranksRes] = await Promise.all([
+        const [profileRes, ranksRes, friendsRes] = await Promise.all([
           supabase.from("profiles").select("rl_account_name, username").eq("user_id", user.id).single(),
           supabase.from("ranks").select("game_mode, rank_tier, rank_division, mmr").eq("user_id", user.id).eq("game_type", "competitive"),
+          supabase.from("friend_requests").select("sender_id, receiver_id").eq("status", "accepted").or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`),
         ]);
 
         if (profileRes.error) throw profileRes.error;
         if (ranksRes.error)   throw ranksRes.error;
+
+        const friendIdSet = new Set<string>();
+        (friendsRes.data || []).forEach((r) => {
+          const fid = r.sender_id === user.id ? r.receiver_id : r.sender_id;
+          if (fid) friendIdSet.add(fid);
+        });
+        setFriendIds(friendIdSet);
 
         // Step 1: get all game IDs where user appears as a player
         const { data: playerGameRows } = await supabase
@@ -629,7 +638,10 @@ const Dashboard = () => {
                 const userTeam   = userRow?.team ?? null;
                 const teamGoals  = userTeam !== null ? players.filter(p => p.team === userTeam).reduce((s, p) => s + (p.goals ?? 0), 0) : null;
                 const oppGoals   = userTeam !== null ? players.filter(p => p.team !== userTeam && p.team != null).reduce((s, p) => s + (p.goals ?? 0), 0) : null;
-                const hasScore   = teamGoals !== null && oppGoals !== null;
+                const hasScore         = teamGoals !== null && oppGoals !== null;
+                const hasFriendOnTeam  = userTeam !== null && players.some(
+                  (p) => p.team === userTeam && p.user_id && p.user_id !== user?.id && friendIds.has(p.user_id)
+                );
 
                 // Sort players: blue team first, then orange; highest contribution first within team
                 const sortedPlayers = [...players].sort((a, b) => {
@@ -688,6 +700,9 @@ const Dashboard = () => {
                               )}
                               {userRow?.is_mvp && (
                                 <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-yellow-400/15 text-yellow-400 flex-shrink-0">MVP</span>
+                              )}
+                              {hasFriendOnTeam && (
+                                <Users className="w-3 h-3 text-primary/60 flex-shrink-0" />
                               )}
                             </div>
                             <p className="text-xs text-muted-foreground">
