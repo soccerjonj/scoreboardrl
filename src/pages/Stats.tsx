@@ -71,7 +71,10 @@ type SummaryStats = {
 };
 
 type TimeRange = "season" | "7d" | "30d" | "all";
+type TogetherRange = "session" | "7d" | "28d" | "season" | "all";
 type ViewMode = "summary" | "charts";
+
+const SESSION_GAP_MS = 3 * 60 * 60 * 1000; // 3 hours — max gap within a session
 
 const gameModes: Array<{ value: GameMode | "all"; label: string }> = [
   { value: "all", label: "All modes" },
@@ -510,6 +513,7 @@ const Stats = () => {
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [expandedContribGameId, setExpandedContribGameId] = useState<string | null>(null);
   const [pageTab, setPageTab] = useState<"stats" | "leaderboard">("stats");
+  const [togetherRange, setTogetherRange] = useState<TogetherRange>("session");
   const [seasonStartsAt, setSeasonStartsAt] = useState<string | null>(null);
   const [currentSeasonName, setCurrentSeasonName] = useState<string>("This Season");
 
@@ -587,6 +591,11 @@ const Stats = () => {
       setPageTab("stats");
     }
   }, [friendOptions, searchParams]);
+
+  // Reset together range to "Session" whenever the selected friend changes
+  useEffect(() => {
+    setTogetherRange("session");
+  }, [selectedFriendId]);
   const userTarget = useMemo(() => buildTarget(user?.id, [userRlName]), [user?.id, userRlName]);
   const teammateTarget = useMemo(() => selectedFriend ? buildTarget(selectedFriend.id, [selectedFriend.rlName, selectedFriend.username]) : null, [selectedFriend]);
 
@@ -596,7 +605,38 @@ const Stats = () => {
     .filter((g) => !teammateTarget || Boolean(findPlayer(g.game_players, teammateTarget))),
   [games, selectedMode, selectedType, teammateTarget]);
 
+  // Last continuous play session — games within SESSION_GAP_MS of each other,
+  // walking backwards from the most recent game.
+  const sessionGames = useMemo(() => {
+    if (!selectedFriend) return [] as GameWithPlayers[];
+    const sorted = [...filteredGames].sort(
+      (a, b) => new Date(b.played_at).getTime() - new Date(a.played_at).getTime()
+    );
+    if (sorted.length === 0) return [] as GameWithPlayers[];
+    const sessionIds = new Set<string>([sorted[0].id]);
+    for (let i = 1; i < sorted.length; i++) {
+      const gap = new Date(sorted[i - 1].played_at).getTime() - new Date(sorted[i].played_at).getTime();
+      if (gap > SESSION_GAP_MS) break;
+      sessionIds.add(sorted[i].id);
+    }
+    return filteredGames.filter((g) => sessionIds.has(g.id));
+  }, [filteredGames, selectedFriend]);
+
   const rangeFilteredGames = useMemo(() => {
+    if (selectedFriend) {
+      // Together view uses its own time range
+      if (togetherRange === "session") return sessionGames;
+      if (togetherRange === "all") return filteredGames;
+      if (togetherRange === "season") {
+        if (!seasonStartsAt) return filteredGames;
+        const cutoff = new Date(seasonStartsAt);
+        return filteredGames.filter((g) => new Date(g.played_at) >= cutoff);
+      }
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - (togetherRange === "7d" ? 7 : 28));
+      return filteredGames.filter((g) => new Date(g.played_at) >= cutoff);
+    }
+    // Solo stats — use the global time range
     if (timeRange === "all") return filteredGames;
     if (timeRange === "season") {
       if (!seasonStartsAt) return filteredGames; // fallback while season loads
@@ -606,7 +646,7 @@ const Stats = () => {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - (timeRange === "7d" ? 7 : 30));
     return filteredGames.filter((g) => new Date(g.played_at) >= cutoff);
-  }, [filteredGames, timeRange, seasonStartsAt]);
+  }, [filteredGames, timeRange, togetherRange, seasonStartsAt, selectedFriend, sessionGames]);
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
@@ -832,6 +872,14 @@ const Stats = () => {
     { value: "all",    label: "All"             },
   ];
 
+  const togetherRangePills: Array<{ value: TogetherRange; label: string }> = [
+    { value: "session", label: "Session"        },
+    { value: "7d",      label: "7D"             },
+    { value: "28d",     label: "28D"            },
+    { value: "season",  label: currentSeasonName},
+    { value: "all",     label: "All"            },
+  ];
+
   return (
     <AppLayout>
       <div className="space-y-5">
@@ -1032,6 +1080,24 @@ const Stats = () => {
                   <span className="text-base leading-none">←</span>
                   {selectedFriend.label}'s profile
                 </Link>
+
+                {/* Together time range pills */}
+                <div className="flex gap-1.5 overflow-x-auto pb-0.5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                  {togetherRangePills.map((pill) => (
+                    <button
+                      key={pill.value}
+                      onClick={() => setTogetherRange(pill.value)}
+                      className={cn(
+                        "flex items-center px-3 py-1.5 rounded-full text-xs font-medium border transition-colors shrink-0",
+                        togetherRange === pill.value
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-card text-muted-foreground border-border/50 hover:text-foreground hover:border-border"
+                      )}
+                    >
+                      {pill.label}
+                    </button>
+                  ))}
+                </div>
 
                 <ComparisonTable
                   userSummary={userSummary}
