@@ -760,7 +760,10 @@ const Stats = () => {
         </div>
 
         {pageTab === "leaderboard" ? (
-          <LeaderboardView />
+          <LeaderboardView
+            currentUserId={user?.id}
+            friendUserIds={friends.map((f) => f.user_id)}
+          />
         ) : (<>
 
         {/* ── Filter + view toggle bar ── */}

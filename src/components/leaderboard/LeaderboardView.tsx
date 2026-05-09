@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Trophy, Medal, Camera, Target, Shield, Star } from "lucide-react";
+import { Loader2, Trophy, Medal, Camera, Target, Shield, Star, Globe, Users } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -36,13 +36,23 @@ const STATS: { value: Stat; label: string; icon: React.ElementType; unit: string
 const rankColors = ["text-yellow-400", "text-slate-300", "text-amber-600"];
 const rankBg     = ["bg-yellow-400/10 border-yellow-400/20", "bg-slate-300/10 border-slate-300/20", "bg-amber-600/10 border-amber-600/20"];
 
-const LeaderboardView = () => {
+type Scope = "global" | "friends";
+
+type Props = {
+  currentUserId?: string;
+  friendUserIds?: string[];
+};
+
+const LeaderboardView = ({ currentUserId, friendUserIds = [] }: Props) => {
   const { user } = useAuth();
   const [window, setWindow] = useState<Window>("season");
   const [stat,   setStat]   = useState<Stat>("games");
+  const [scope,  setScope]  = useState<Scope>("global");
   const [entries, setEntries] = useState<LeaderEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentSeason, setCurrentSeason] = useState<{ name: string; ends_at: string | null } | null>(null);
+
+  const hasFriends = friendUserIds.length > 0;
 
   // One-time fetch of the current season metadata
   useEffect(() => {
@@ -74,11 +84,21 @@ const LeaderboardView = () => {
     fetch();
   }, [user, window, stat]);
 
-  const myEntry    = entries.find((e) => e.user_id === user?.id);
   const activeStat = STATS.find((s) => s.value === stat)!;
 
   // Dynamic season label — falls back to "This Season" while loading
   const seasonLabel = currentSeason?.name ?? "This Season";
+
+  // Friends scope: filter to current user + friends, re-rank within that group
+  const displayedEntries = useMemo(() => {
+    if (scope === "global") return entries;
+    const allowed = new Set([...(currentUserId ? [currentUserId] : []), ...friendUserIds]);
+    return entries
+      .filter((e) => allowed.has(e.user_id))
+      .map((e, i) => ({ ...e, rank: i + 1 }));
+  }, [scope, entries, currentUserId, friendUserIds]);
+
+  const myEntry = displayedEntries.find((e) => e.user_id === user?.id);
 
   // "Ending soon" banner: only fires when ends_at is explicitly set AND within 14 days
   const showEndingSoon = (() => {
@@ -94,6 +114,36 @@ const LeaderboardView = () => {
 
   return (
     <div className="space-y-4">
+      {/* Scope toggle — only shown when friend data is available */}
+      {hasFriends && (
+        <div className="flex gap-1 p-1 rounded-lg bg-muted/40 border border-border/50 w-fit">
+          <button
+            onClick={() => setScope("global")}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
+              scope === "global"
+                ? "bg-card text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Globe className="w-3.5 h-3.5" />
+            Global
+          </button>
+          <button
+            onClick={() => setScope("friends")}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
+              scope === "friends"
+                ? "bg-card text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Users className="w-3.5 h-3.5" />
+            Friends
+          </button>
+        </div>
+      )}
+
       {/* Window tabs */}
       <div className="flex gap-1 p-1 rounded-lg bg-muted/40 border border-border/50 w-fit">
         {WINDOWS.map(({ value, label }) => (
@@ -172,17 +222,19 @@ const LeaderboardView = () => {
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-6 h-6 animate-spin text-primary" />
             </div>
-          ) : entries.length === 0 ? (
+          ) : displayedEntries.length === 0 ? (
             <div className="py-12 text-center space-y-3 px-4">
               <Trophy className="w-10 h-10 text-muted-foreground/30 mx-auto" />
               <p className="font-display font-semibold">No entries yet</p>
               <p className="text-sm text-muted-foreground">
-                Be the first! Log a game with photo scan to appear here.
+                {scope === "friends"
+                  ? "None of your friends have logged games yet."
+                  : "Be the first! Log a game with photo scan to appear here."}
               </p>
             </div>
           ) : (
             <div className="divide-y divide-border/30">
-              {entries.map((entry, i) => {
+              {displayedEntries.map((entry, i) => {
                 const isMe   = entry.user_id === user?.id;
                 const isTop3 = i < 3;
                 const profilePath = isMe ? "/profile" : `/profile/${entry.user_id}`;
