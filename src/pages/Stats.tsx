@@ -514,6 +514,8 @@ const Stats = () => {
   const [expandedContribGameId, setExpandedContribGameId] = useState<string | null>(null);
   const [pageTab, setPageTab] = useState<"stats" | "leaderboard">("stats");
   const [togetherRange, setTogetherRange] = useState<TogetherRange>("all");
+  const [togetherVisibleCount, setTogetherVisibleCount] = useState(5);
+  const [togetherExpandedGameId, setTogetherExpandedGameId] = useState<string | null>(null);
   const [seasonStartsAt, setSeasonStartsAt] = useState<string | null>(null);
   const [currentSeasonName, setCurrentSeasonName] = useState<string>("This Season");
 
@@ -592,10 +594,18 @@ const Stats = () => {
     }
   }, [friendOptions, searchParams]);
 
-  // Reset together range to "All" whenever the selected friend changes
+  // Reset together range + visible count whenever the selected friend changes
   useEffect(() => {
     setTogetherRange("all");
+    setTogetherVisibleCount(5);
+    setTogetherExpandedGameId(null);
   }, [selectedFriendId]);
+
+  // Reset visible count when range changes
+  useEffect(() => {
+    setTogetherVisibleCount(5);
+    setTogetherExpandedGameId(null);
+  }, [togetherRange]);
   const userTarget = useMemo(() => buildTarget(user?.id, [userRlName]), [user?.id, userRlName]);
   const teammateTarget = useMemo(() => selectedFriend ? buildTarget(selectedFriend.id, [selectedFriend.rlName, selectedFriend.username]) : null, [selectedFriend]);
 
@@ -796,12 +806,11 @@ const Stats = () => {
     return (played.filter((g) => g.result === "win").length / played.length) * 100;
   }, [games, userTarget]);
 
-  // Recent shared games — last 5 games where both played, newest first
+  // Recent shared games — all games where both played, newest first
   const recentSharedGames = useMemo(() => {
     if (!teammateTarget) return [];
     return [...rangeFilteredGames]
       .filter((g) => findPlayer(g.game_players || [], userTarget) && findPlayer(g.game_players || [], teammateTarget))
-      .slice(-5)
       .reverse();
   }, [rangeFilteredGames, userTarget, teammateTarget]);
 
@@ -1101,59 +1110,129 @@ const Stats = () => {
                   overallWinRate={overallWinRate}
                 />
 
-                {/* Recent games together */}
+                {/* Recent games together — Dashboard-style */}
                 {recentSharedGames.length > 0 && (
-                  <Card className="border-border/50 bg-card/80 overflow-hidden animate-fade-in-up">
-                    <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/30">
-                      <span className="text-xs font-semibold text-foreground">Recent Games Together</span>
-                      <span className="text-[10px] text-muted-foreground">{recentSharedGames.length} game{recentSharedGames.length !== 1 ? "s" : ""}</span>
+                  <div className="space-y-2 animate-fade-in-up">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-display font-bold text-base">Recent Games Together</h3>
+                      <span className="text-xs text-muted-foreground">{recentSharedGames.length} game{recentSharedGames.length !== 1 ? "s" : ""}</span>
                     </div>
-                    <div className="divide-y divide-border/20">
-                      {recentSharedGames.map((g) => {
-                        const isWin = g.result === "win";
-                        const players = g.game_players || [];
-                        const userRow = findPlayer(players, userTarget)!;
-                        const teammateRow = findPlayer(players, teammateTarget!);
-                        const userTeam = userRow.team;
-                        const goalsFor     = players.filter((p) => p.team === userTeam).reduce((s, p) => s + safeNumber(p.goals), 0);
-                        const goalsAgainst = players.filter((p) => p.team !== userTeam).reduce((s, p) => s + safeNumber(p.goals), 0);
-                        return (
-                          <div key={g.id} className="flex items-center gap-3 px-4 py-2.5">
-                            {/* W/L bar */}
-                            <span className={cn(
-                              "w-1 h-8 rounded-full shrink-0",
-                              isWin ? "bg-rl-green shadow-[0_0_6px_hsl(var(--rl-green)/0.5)]" : "bg-rl-red shadow-[0_0_6px_hsl(var(--rl-red)/0.5)]"
-                            )} />
-                            {/* Mode + date */}
-                            <div className="shrink-0 w-10 text-center">
-                              <p className="text-[10px] font-bold text-muted-foreground uppercase">{g.game_mode}</p>
-                              <p className="text-[9px] text-muted-foreground/60 mt-0.5">
-                                {new Date(g.played_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-                              </p>
+                    {recentSharedGames.slice(0, togetherVisibleCount).map((g) => {
+                      const isWin       = g.result === "win";
+                      const isExpanded  = togetherExpandedGameId === g.id;
+                      const players     = g.game_players || [];
+                      const userRow     = findPlayer(players, userTarget)!;
+                      const teammateRow = findPlayer(players, teammateTarget!);
+                      const userTeam    = userRow?.team ?? null;
+                      const teamGoals   = userTeam !== null ? players.filter((p) => p.team === userTeam).reduce((s, p) => s + safeNumber(p.goals), 0) : null;
+                      const oppGoals    = userTeam !== null ? players.filter((p) => p.team !== userTeam && p.team != null).reduce((s, p) => s + safeNumber(p.goals), 0) : null;
+                      const hasScore    = teamGoals !== null && oppGoals !== null;
+                      const teamSize    = g.game_mode === "1v1" ? 1 : g.game_mode === "2v2" ? 2 : g.game_mode === "3v3" ? 3 : 4;
+                      const userCarry   = userRow?.contribution_score ?? 0;
+                      const sortedPlayers = [...players].sort((a, b) => {
+                        if ((a.team ?? "blue") < (b.team ?? "orange")) return -1;
+                        if ((a.team ?? "blue") > (b.team ?? "orange")) return 1;
+                        return safeNumber(b.contribution_score) - safeNumber(a.contribution_score);
+                      });
+                      return (
+                        <Card key={g.id} className={cn("overflow-hidden transition-all duration-200", isWin ? "border-rl-green/20" : "border-rl-red/20")}>
+                          {/* Colored top stripe */}
+                          <div className={cn("h-0.5 w-full", isWin ? "bg-gradient-to-r from-rl-green/80 via-rl-green/40 to-transparent" : "bg-gradient-to-r from-rl-red/80 via-rl-red/40 to-transparent")} />
+                          <CardContent className="py-3 px-4">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <span className={cn("w-1.5 h-8 rounded-full flex-shrink-0", isWin ? "bg-rl-green shadow-[0_0_8px_hsl(var(--rl-green)/0.6)]" : "bg-rl-red shadow-[0_0_8px_hsl(var(--rl-red)/0.6)]")} />
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1.5 flex-nowrap">
+                                    <span className={cn("font-display font-bold text-sm flex-shrink-0", isWin ? "text-rl-green" : "text-rl-red")}>{isWin ? "WIN" : "LOSS"}</span>
+                                    {hasScore && (
+                                      <span className="font-display font-bold text-sm flex-shrink-0">
+                                        <span className={isWin ? "text-rl-green" : "text-rl-red"}>{teamGoals}</span>
+                                        <span className="text-muted-foreground mx-0.5">–</span>
+                                        <span className="text-muted-foreground">{oppGoals}</span>
+                                      </span>
+                                    )}
+                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 flex-shrink-0">{g.game_mode}</Badge>
+                                    {userRow?.is_mvp && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-yellow-400/15 text-yellow-400 flex-shrink-0">MVP</span>}
+                                  </div>
+                                  <p className="text-xs text-muted-foreground">{format(new Date(g.played_at), "MMM d, h:mm a")}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                {userRow && (
+                                  <div className="text-right">
+                                    <p className="font-mono text-sm font-bold">{userRow.score} pts</p>
+                                    <p className="text-xs text-muted-foreground">{userRow.goals}G {userRow.assists}A {userRow.saves}SV{userRow.shots != null ? ` ${userRow.shots}SH` : ""}</p>
+                                    {userCarry > 0 && (
+                                      <div className="flex items-center gap-1.5 mt-1 justify-end">
+                                        <CarryMeter score={userCarry} teamSize={teamSize} size="sm" />
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                                <button onClick={() => setTogetherExpandedGameId(isExpanded ? null : g.id)} className="text-muted-foreground hover:text-foreground transition-colors p-1">
+                                  {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                </button>
+                              </div>
                             </div>
-                            {/* Score line */}
-                            <div className="shrink-0">
-                              <span className={cn("text-sm font-display font-bold tabular-nums", isWin ? "text-rl-green" : "text-rl-red")}>
-                                {goalsFor}–{goalsAgainst}
-                              </span>
-                            </div>
-                            {/* Player stats */}
-                            <div className="flex-1 min-w-0 flex items-center justify-end gap-3 text-[10px] font-mono text-muted-foreground">
-                              <span className="text-foreground font-semibold">{safeNumber(userRow.score)}<span className="text-muted-foreground font-normal">pts</span></span>
-                              <span className="text-border/60">·</span>
-                              <span>{safeNumber(userRow.goals)}G {safeNumber(userRow.assists)}A {safeNumber(userRow.saves)}S</span>
-                              {teammateRow && (
-                                <>
-                                  <span className="text-border/40 hidden sm:inline">|</span>
-                                  <span className="hidden sm:inline">{selectedFriend.label.split(" ")[0]}: {safeNumber(teammateRow.score)}pts</span>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </Card>
+
+                            {/* Expanded player breakdown */}
+                            {isExpanded && (
+                              <div className="mt-3 pt-3 border-t border-border/40">
+                                <div className="grid grid-cols-[1fr_2.5rem_2rem_2.5rem_2rem_2rem] gap-x-1 px-2 pb-1.5 mb-0.5 border-b border-border/20">
+                                  <span className="text-[9px] text-muted-foreground font-semibold uppercase tracking-wide">Player</span>
+                                  <span className="text-[9px] text-muted-foreground font-semibold text-right">Score</span>
+                                  <span className="text-[9px] text-muted-foreground font-semibold text-right">G</span>
+                                  <span className="text-[9px] text-muted-foreground font-semibold text-right">A</span>
+                                  <span className="text-[9px] text-muted-foreground font-semibold text-right">SV</span>
+                                  <span className="text-[9px] text-muted-foreground font-semibold text-right">SH</span>
+                                </div>
+                                {["blue", "orange"].map((teamColor) => {
+                                  const teamRows = sortedPlayers.filter((p) => (p.team ?? "blue") === teamColor);
+                                  if (!teamRows.length) return null;
+                                  return (
+                                    <div key={teamColor} className="mb-1">
+                                      <p className={cn("text-[10px] font-bold uppercase tracking-wider mt-1.5 mb-0.5 px-2", teamColor === "blue" ? "text-blue-400" : "text-orange-400")}>{teamColor}</p>
+                                      {teamRows.map((p) => {
+                                        const isMe = matchesTarget(p, userTarget);
+                                        const isFriend = teammateTarget ? matchesTarget(p, teammateTarget) : false;
+                                        return (
+                                          <div key={p.id} className={cn("grid grid-cols-[1fr_2.5rem_2rem_2.5rem_2rem_2rem] gap-x-1 items-start py-1.5 px-2 rounded-md", isMe && "bg-primary/5", isFriend && !isMe && "bg-secondary/5")}>
+                                            <div className="min-w-0">
+                                              <div className="flex items-center gap-1.5 min-w-0">
+                                                <span className={cn("text-xs font-medium leading-snug break-words min-w-0", isMe ? "text-primary" : isFriend ? "text-secondary" : "text-foreground")}>{p.player_name}</span>
+                                                {p.is_mvp && <span className="text-[9px] text-yellow-400 font-bold leading-snug flex-shrink-0">MVP</span>}
+                                              </div>
+                                              {safeNumber(p.contribution_score) > 0 && (
+                                                <div className="mt-0.5"><CarryMeter score={safeNumber(p.contribution_score)} teamSize={teamSize} size="sm" /></div>
+                                              )}
+                                            </div>
+                                            <span className="text-xs font-mono font-bold text-right leading-snug">{p.score}</span>
+                                            <span className="text-xs font-mono text-muted-foreground text-right leading-snug">{p.goals}</span>
+                                            <span className="text-xs font-mono text-muted-foreground text-right leading-snug">{p.assists}</span>
+                                            <span className="text-xs font-mono text-muted-foreground text-right leading-snug">{p.saves}</span>
+                                            <span className="text-xs font-mono text-muted-foreground text-right leading-snug">{p.shots}</span>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                    {recentSharedGames.length > togetherVisibleCount && (
+                      <button
+                        onClick={() => setTogetherVisibleCount((n) => n + 10)}
+                        className="w-full py-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        Show more ({recentSharedGames.length - togetherVisibleCount} remaining)
+                      </button>
+                    )}
+                  </div>
                 )}
               </>
             ) : (
