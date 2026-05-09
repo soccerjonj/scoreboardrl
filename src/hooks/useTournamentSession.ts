@@ -320,8 +320,8 @@ export function useTournamentSession() {
             supabase.from("notifications").insert({
               user_id: pid,
               type: "tournament_invite",
-              title: `${ownerName} started a tournament with you`,
-              body: `${gameMode} ${typeLabel} — Tournament Mode is now active.`,
+              title: `${ownerName} invited you to a tournament`,
+              body: `${gameMode} ${typeLabel}. Tap Join in the banner to enter Tournament Mode.`,
               payload: { tournament_id: t.id },
             })
           )
