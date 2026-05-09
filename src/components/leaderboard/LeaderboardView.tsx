@@ -88,21 +88,6 @@ const LeaderboardView = ({ currentUserId, friendUserIds = [] }: Props) => {
     fetch();
   }, [user, window, stat]);
 
-  // Reset visibility when entries reload (scope/window/stat change)
-  useEffect(() => { setIsUserRowVisible(true); }, [displayedEntries]);
-
-  // Observe the user's actual row; hide anchor when it's in view
-  useEffect(() => {
-    const el = userRowRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => setIsUserRowVisible(entry.isIntersecting),
-      { threshold: 0.5 }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [myEntry]);
-
   const activeStat = STATS.find((s) => s.value === stat)!;
 
   // Dynamic season label — falls back to "This Season" while loading
@@ -119,6 +104,21 @@ const LeaderboardView = ({ currentUserId, friendUserIds = [] }: Props) => {
   }, [scope, entries, currentUserId, friendUserIds]);
 
   const myEntry = displayedEntries.find((e) => e.user_id === user?.id);
+
+  // Reset visibility when entries reload (scope/window/stat change)
+  useEffect(() => { setIsUserRowVisible(true); }, [displayedEntries]);
+
+  // Observe the user's actual row; hide anchor when it's in view
+  useEffect(() => {
+    const el = userRowRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsUserRowVisible(entry.isIntersecting),
+      { threshold: 0.5 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [myEntry]);
 
   // "Ending soon" banner: only fires when ends_at is explicitly set AND within 14 days
   const showEndingSoon = (() => {
