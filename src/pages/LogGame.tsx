@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import AppLayout from "@/components/layout/AppLayout";
+import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -153,6 +154,7 @@ const LogGame = () => {
   const { toast } = useToast();
 
   const [gameMode, setGameMode] = useState<GameMode>("2v2");
+  const [isExtraMode, setIsExtraMode] = useState(false);
   const [gameType, setGameType] = useState<GameType>("competitive");
   const [result, setResult] = useState<"win" | "loss">("win");
   const [divisionChange, setDivisionChange] = useState<string>("none");
@@ -234,7 +236,9 @@ const LogGame = () => {
     data: { game_mode: GameMode; game_type: GameType; players: PlayerStat[]; result?: "win" | "loss"; division_change?: "up" | "down" | "none"; new_rank_tier?: string; new_rank_division?: string },
     file: File
   ) => {
-    setGameMode(data.game_mode);
+    // If the user flagged this as an extra mode game upfront, keep the
+    // currently selected extra mode — Gemini only detects 1v1/2v2/3v3.
+    if (!isExtraMode) setGameMode(data.game_mode);
     setGameType(data.game_type);
     setPlayers(data.players.map((p) => ({ ...p, damage: (p as any).damage ?? 0 })));
     setImageFile(file);
@@ -660,6 +664,33 @@ const LogGame = () => {
               <CardTitle className="font-display text-xl">Upload Scoreboard</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Standard vs Extra Mode toggle */}
+              <div className="flex p-0.5 rounded-lg bg-muted/50 border border-border/40">
+                <button
+                  onClick={() => { setIsExtraMode(false); setGameMode("2v2"); }}
+                  className={cn(
+                    "flex-1 py-1.5 rounded-md text-xs font-medium transition-colors",
+                    !isExtraMode ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Standard Game
+                </button>
+                <button
+                  onClick={() => { setIsExtraMode(true); setGameMode("rumble_3v3"); }}
+                  className={cn(
+                    "flex-1 py-1.5 rounded-md text-xs font-medium transition-colors",
+                    isExtraMode ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Extra Mode
+                </button>
+              </div>
+              {isExtraMode && (
+                <p className="text-xs text-muted-foreground -mt-1">
+                  Gemini will parse player stats normally. Pick the exact mode (Rumble, Hoops, etc.) on the next screen.
+                </p>
+              )}
+
               <PhotoGuide />
               <ScoreboardUploader userRlName={rlName} onParsed={handleParsed} />
 

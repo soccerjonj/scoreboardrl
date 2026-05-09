@@ -79,15 +79,9 @@ Deno.serve(async (req) => {
 RULES:
 1. Strip club tags in [brackets] from player names entirely.
 2. Blue team is on top, Orange team on bottom.
-3. Each row: Name, Score, Goals, Assists, Saves, and either Shots or Damage. MVP has a star/crown icon.
-   - In DROPSHOT the last column is labelled "Damage" (not "Shots"). Read that value into the "damage" field and set "shots" to 0.
-   - In all other modes the last column is "Shots". Set "shots" to that value and "damage" to null.
-4. Detect game_mode from on-screen text (playlist name, mode label) AND player count per team:
-   - Standard soccer: 1 per team→"1v1", 2→"2v2", 3→"3v3", 4→"4v4"
-   - Extra playlists (look for these words anywhere on the screen):
-     "RUMBLE"→"rumble_3v3", "HOOPS"→"hoops_2v2", "SNOW DAY"→"snowday_3v3",
-     "DROPSHOT"→"dropshot_3v3", "HEATSEEKER"→"heatseeker_2v2"
-   - If the last stat column is labelled "Damage" the mode is always "dropshot_3v3".
+3. Each row: Name, Score, Goals, Assists, Saves, Shots. Read whatever number is in the last column as "shots". Set "damage" to null always.
+   MVP has a star/crown icon.
+4. Count players per team to determine game_mode: 1→"1v1", 2→"2v2", 3→"3v3", 4→"4v4".
 5. game_type is "competitive" if ANY rank/MMR/division info appears at the bottom. Otherwise "casual".
 6. ${user_rl_name ? `result: "win" if "${user_rl_name}"'s team has more goals, "loss" otherwise.` : 'Set result to "win" or "loss" based on which team has more goals for the top (blue) team.'}
 7. division_change: Always return "none". Division changes are computed server-side by comparing new_rank_tier against the stored rank.
@@ -114,7 +108,7 @@ Return ONLY valid JSON with no extra text or markdown:
   "new_rank_tier": "diamond_1",
   "new_rank_division": "I",
   "players": [
-    {"name":"PlayerName","team":"blue","score":450,"goals":2,"assists":1,"saves":3,"shots":5,"damage":null,"is_mvp":true,"mmr":847,"mmr_change":12,"rank_tier":"diamond_1","rank_division":"I"}
+    {"name":"PlayerName","team":"blue","score":450,"goals":2,"assists":1,"saves":3,"shots":5,"is_mvp":true,"mmr":847,"mmr_change":12,"rank_tier":"diamond_1","rank_division":"I"}
   ]
 }`;
 
