@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -54,6 +54,10 @@ const LeaderboardView = ({ currentUserId, friendUserIds = [] }: Props) => {
 
   const hasFriends = friendUserIds.length > 0;
 
+  // Sticky "you" anchor
+  const userRowRef = useRef<HTMLAnchorElement>(null);
+  const [isUserRowVisible, setIsUserRowVisible] = useState(true);
+
   // One-time fetch of the current season metadata
   useEffect(() => {
     supabase
@@ -83,6 +87,21 @@ const LeaderboardView = ({ currentUserId, friendUserIds = [] }: Props) => {
     };
     fetch();
   }, [user, window, stat]);
+
+  // Reset visibility when entries reload (scope/window/stat change)
+  useEffect(() => { setIsUserRowVisible(true); }, [displayedEntries]);
+
+  // Observe the user's actual row; hide anchor when it's in view
+  useEffect(() => {
+    const el = userRowRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsUserRowVisible(entry.isIntersecting),
+      { threshold: 0.5 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [myEntry]);
 
   const activeStat = STATS.find((s) => s.value === stat)!;
 
@@ -190,22 +209,6 @@ const LeaderboardView = ({ currentUserId, friendUserIds = [] }: Props) => {
         ))}
       </div>
 
-      {/* My position callout (if outside top 10) */}
-      {myEntry && myEntry.rank > 10 && (
-        <Card className="border-primary/20 bg-primary/5">
-          <CardContent className="py-3 px-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="font-display font-bold text-primary text-lg">#{myEntry.rank}</span>
-              <span className="text-sm font-medium">Your position</span>
-            </div>
-            <span className="text-sm text-muted-foreground flex items-center gap-1.5">
-              <activeStat.icon className="w-3.5 h-3.5" />
-              {myEntry.stat_value} {activeStat.unit}
-            </span>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Rankings card */}
       <Card className="border-border/50 bg-card/80 overflow-hidden">
         <CardHeader className="pb-2">
@@ -242,6 +245,7 @@ const LeaderboardView = ({ currentUserId, friendUserIds = [] }: Props) => {
                 return (
                   <Link
                     key={entry.user_id}
+                    ref={isMe ? userRowRef : undefined}
                     to={profilePath}
                     className={cn(
                       "flex items-center gap-3 px-4 py-3 transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-primary/60",
@@ -297,6 +301,57 @@ const LeaderboardView = ({ currentUserId, friendUserIds = [] }: Props) => {
           )}
         </CardContent>
       </Card>
+
+      {/* Sticky "you" anchor — visible whenever the user's real row is off-screen */}
+      {myEntry && !isUserRowVisible && (() => {
+        const anchorTop3 = myEntry.rank <= 3;
+        const anchorIdx  = myEntry.rank - 1;
+        return (
+          <div className="sticky bottom-16 z-10 rounded-xl border border-primary/30 bg-card/95 backdrop-blur-sm shadow-lg shadow-black/20 overflow-hidden">
+            <div className="flex items-center gap-3 px-4 py-3 bg-primary/5">
+              {/* Rank badge */}
+              <div className={cn(
+                "w-8 h-8 rounded-lg flex items-center justify-center text-xs font-display font-bold shrink-0",
+                anchorTop3 ? cn("border", rankBg[anchorIdx]) : "bg-muted/30"
+              )}>
+                {anchorTop3
+                  ? <Medal className={cn("w-4 h-4", rankColors[anchorIdx])} />
+                  : <span className="text-muted-foreground">#{myEntry.rank}</span>
+                }
+              </div>
+
+              {/* Avatar */}
+              {myEntry.avatar_url ? (
+                <img src={myEntry.avatar_url} alt={myEntry.rl_name} className="w-8 h-8 rounded-full object-cover shrink-0" />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
+                  <span className="text-xs font-display font-bold text-muted-foreground">
+                    {(myEntry.rl_name || "?")[0].toUpperCase()}
+                  </span>
+                </div>
+              )}
+
+              {/* Name + optional global rank */}
+              <div className="flex-1 min-w-0">
+                <p className={cn("font-display font-semibold text-sm truncate", anchorTop3 && rankColors[anchorIdx])}>
+                  {myEntry.rl_name || "Unknown"}
+                  <span className="ml-2 text-[10px] text-primary font-normal">· you</span>
+                </p>
+                {myEntry.globalRank != null && (
+                  <p className="text-[10px] text-muted-foreground font-mono">#{myEntry.globalRank} globally</p>
+                )}
+              </div>
+
+              {/* Stat value */}
+              <div className="flex items-center gap-1 shrink-0">
+                <activeStat.icon className="w-3 h-3 text-muted-foreground" />
+                <span className="font-display font-bold text-sm">{myEntry.stat_value.toLocaleString()}</span>
+                <span className="text-[10px] text-muted-foreground">{activeStat.unit}</span>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };
