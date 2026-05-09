@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { Plus, Loader2, Trophy, Target, TrendingUp, ChevronRight, Zap, ChevronDown, ChevronUp, Pencil, Check, X as XIcon, Trash2, Info } from "lucide-react";
@@ -66,6 +66,7 @@ type PlayerEditValues = { player_name: string; score: number; goals: number; ass
 const Dashboard = () => {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
 
   const [loading, setLoading]             = useState(true);
@@ -199,6 +200,22 @@ const Dashboard = () => {
       backfillCarryScores(games);
     }
   }, [loading]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Deep-link: ?game=<id> → expand that card and scroll to it
+  useEffect(() => {
+    if (loading || games.length === 0) return;
+    const targetId = searchParams.get("game");
+    if (!targetId) return;
+    const idx = games.findIndex((g) => g.id === targetId);
+    if (idx === -1) return;
+    // Ensure the game is rendered (visibleCount may be 5 by default)
+    setVisibleCount((prev) => Math.max(prev, idx + 1));
+    setExpandedGameId(targetId);
+    // Small delay so the DOM has time to render the card at the new visibleCount
+    setTimeout(() => {
+      document.getElementById(`game-${targetId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 150);
+  }, [loading, games, searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Inline stat editing (whole scoreboard at once) ────────────────────────────
   const handleAllStatsSave = async (game: GameWithPlayers) => {
@@ -620,7 +637,7 @@ const Dashboard = () => {
                 });
 
                 return (
-                  <Card key={game.id} className={cn(
+                  <Card key={game.id} id={`game-${game.id}`} className={cn(
                     "overflow-hidden transition-all duration-200",
                     isWin ? "border-rl-green/20" : "border-rl-red/20"
                   )}>
