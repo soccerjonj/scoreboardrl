@@ -464,7 +464,17 @@ const BestContributionCard = ({
                           <div key={p.id} className={cn("grid grid-cols-[1fr_2.5rem_2rem_2.5rem_2rem_2rem] gap-x-1 items-start py-1.5 rounded-md", isUser && "bg-primary/5 px-2 -mx-2")}>
                             <div className="min-w-0">
                               <div className="flex items-center gap-1.5 min-w-0">
-                                <span className={cn("text-xs font-medium leading-snug break-words min-w-0", isUser ? "text-primary" : "text-foreground")}>{p.player_name}</span>
+                                {p.user_id && !isUser ? (
+                                  <Link
+                                    to={`/profile/${p.user_id}`}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="text-xs font-medium leading-snug break-words min-w-0 hover:text-primary hover:underline transition-colors"
+                                  >
+                                    {p.player_name}
+                                  </Link>
+                                ) : (
+                                  <span className={cn("text-xs font-medium leading-snug break-words min-w-0", isUser ? "text-primary" : "text-foreground")}>{p.player_name}</span>
+                                )}
                                 {p.is_mvp && <span className="text-[9px] text-yellow-400 font-bold leading-snug flex-shrink-0">MVP</span>}
                               </div>
                               {p.contribution_score != null && p.contribution_score > 0 && (
@@ -1200,7 +1210,16 @@ const Stats = () => {
                                           <div key={p.id} className={cn("grid grid-cols-[1fr_2.5rem_2rem_2.5rem_2rem_2rem] gap-x-1 items-start py-1.5 px-2 rounded-md", isMe && "bg-primary/5", isFriend && !isMe && "bg-secondary/5")}>
                                             <div className="min-w-0">
                                               <div className="flex items-center gap-1.5 min-w-0">
-                                                <span className={cn("text-xs font-medium leading-snug break-words min-w-0", isMe ? "text-primary" : isFriend ? "text-secondary" : "text-foreground")}>{p.player_name}</span>
+                                                {p.user_id && !isMe ? (
+                                                  <Link
+                                                    to={`/profile/${p.user_id}`}
+                                                    className="text-xs font-medium leading-snug break-words min-w-0 hover:text-primary hover:underline transition-colors"
+                                                  >
+                                                    {p.player_name}
+                                                  </Link>
+                                                ) : (
+                                                  <span className={cn("text-xs font-medium leading-snug break-words min-w-0", isMe ? "text-primary" : isFriend ? "text-secondary" : "text-foreground")}>{p.player_name}</span>
+                                                )}
                                                 {p.is_mvp && <span className="text-[9px] text-yellow-400 font-bold leading-snug flex-shrink-0">MVP</span>}
                                               </div>
                                               {safeNumber(p.contribution_score) > 0 && (

@@ -764,9 +764,19 @@ const Dashboard = () => {
                                         ) : (
                                           <>
                                             <div className="flex items-center gap-1.5 min-w-0">
-                                              <span className={`text-xs font-medium leading-snug break-words min-w-0 ${isUser ? "text-primary" : "text-foreground"}`}>
-                                                {p.player_name}
-                                              </span>
+                                              {p.user_id && !isUser ? (
+                                                <Link
+                                                  to={`/profile/${p.user_id}`}
+                                                  onClick={(e) => e.stopPropagation()}
+                                                  className="text-xs font-medium leading-snug break-words min-w-0 hover:text-primary hover:underline transition-colors"
+                                                >
+                                                  {p.player_name}
+                                                </Link>
+                                              ) : (
+                                                <span className={`text-xs font-medium leading-snug break-words min-w-0 ${isUser ? "text-primary" : "text-foreground"}`}>
+                                                  {p.player_name}
+                                                </span>
+                                              )}
                                               {p.is_mvp && (
                                                 <span className="text-[9px] text-yellow-400 font-bold leading-snug flex-shrink-0">MVP</span>
                                               )}
