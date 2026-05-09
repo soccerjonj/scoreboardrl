@@ -15,6 +15,7 @@ import PerformanceChart from "@/components/profile/PerformanceChart";
 import { ROUND_ORDER } from "@/hooks/useTournamentSession";
 import type { RoundKey } from "@/hooks/useTournamentSession";
 import type { BestGame, ActivityGame, TournamentSummary, LeaderboardStanding, ChartPoint, TeammateProfile } from "@/types/profile";
+import { STANDARD_MODES, EXTRA_MODES, EXTRA_MODE_LABELS } from "@/lib/gameModes";
 
 type GameMode = Database["public"]["Enums"]["game_mode"];
 type RankTier = Database["public"]["Enums"]["rank_tier"];
@@ -56,7 +57,11 @@ type ProfileStats = {
 };
 
 const gameModes: GameMode[] = ["1v1", "2v2", "3v3"];
-const gameModeLabels: Record<GameMode, string> = { "1v1": "1v1", "2v2": "2v2", "3v3": "3v3", "4v4": "4v4" };
+const gameModeLabels: Record<GameMode, string> = {
+  "1v1": "1v1", "2v2": "2v2", "3v3": "3v3", "4v4": "4v4",
+  "rumble_3v3": "3v3 Rumble", "hoops_2v2": "2v2 Hoops", "snowday_3v3": "3v3 Snow Day",
+  "dropshot_3v3": "3v3 Dropshot", "heatseeker_2v2": "2v2 Heatseeker",
+};
 
 const rankTierOptions: { value: RankTier; label: string }[] = [
   { value: "unranked", label: "Unranked" },
@@ -110,6 +115,7 @@ const FriendProfile = () => {
   const [leaderboardStanding, setLeaderboardStanding] = useState<LeaderboardStanding | null>(null);
   const [chartData, setChartData] = useState<{ points: Record<string, string | number | null>[]; activeModes: string[] }>({ points: [], activeModes: [] });
   const [teammates, setTeammates] = useState<TeammateProfile[]>([]);
+  const [extraModeSummaries, setExtraModeSummaries] = useState<Array<{ mode: GameMode; games: number; wins: number }>>([]);
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/auth");
@@ -183,32 +189,6 @@ const FriendProfile = () => {
             return;
           }
 
-          const n = playerRows.length;
-
-          const { records, totals } = playerRows.reduce(
-            ({ records: best, totals: t }, row) => ({
-              records: {
-                bestScore:             Math.max(best.bestScore,             safeNum(row.score)),
-                bestGoals:             Math.max(best.bestGoals,             safeNum(row.goals)),
-                bestAssists:           Math.max(best.bestAssists,           safeNum(row.assists)),
-                bestSaves:             Math.max(best.bestSaves,             safeNum(row.saves)),
-                bestContributionScore: Math.max(best.bestContributionScore, safeNum(row.contribution_score)),
-              },
-              totals: {
-                score:   t.score   + safeNum(row.score),
-                goals:   t.goals   + safeNum(row.goals),
-                assists: t.assists + safeNum(row.assists),
-                saves:   t.saves   + safeNum(row.saves),
-                shots:   t.shots   + safeNum(row.shots),
-                mvps:    t.mvps    + (row.is_mvp ? 1 : 0),
-              },
-            }),
-            {
-              records: { bestScore: 0, bestGoals: 0, bestAssists: 0, bestSaves: 0, bestContributionScore: 0 },
-              totals:  { score: 0, goals: 0, assists: 0, saves: 0, shots: 0, mvps: 0 },
-            }
-          );
-
           const gameIds = playerRows.map((r) => r.game_id);
           const { data: gamesData, error: gamesError } = await supabase
             .from("games")
@@ -222,9 +202,14 @@ const FriendProfile = () => {
             return;
           }
 
-          const totalGames = gamesData.length;
-          const wins = gamesData.filter((g) => g.result === "win").length;
-          const recentForm: Array<"W" | "L"> = gamesData.slice(0, 5).map((g) => (g.result === "win" ? "W" : "L"));
+          // Split standard vs extra modes
+          const standardGames = gamesData.filter((g) => STANDARD_MODES.includes(g.game_mode as any));
+          const standardGameIds = new Set(standardGames.map((g) => g.id));
+          const standardRows = playerRows.filter((r) => standardGameIds.has(r.game_id));
+
+          const totalGames = standardGames.length;
+          const wins = standardGames.filter((g) => g.result === "win").length;
+          const recentForm: Array<"W" | "L"> = standardGames.slice(0, 5).map((g) => (g.result === "win" ? "W" : "L"));
 
           const teammateMap = new Map<string, { name: string; games: number; wins: number }>();
           gamesData.forEach((game) => {
@@ -257,12 +242,12 @@ const FriendProfile = () => {
             setTeammates([]);
           }
 
-          // Normalized contribution
+          // Normalized contribution — standard modes only
           const modeMap = new Map(gamesData.map((g) => [g.id, g.game_mode as string]));
           let normTotal = 0, normCount = 0;
-          playerRows.forEach((row) => {
+          standardRows.forEach((row) => {
             const mode = modeMap.get(row.game_id);
-            const ts = mode === "1v1" ? 1 : mode === "2v2" ? 2 : mode === "3v3" ? 3 : 4;
+            const ts = mode === "1v1" ? 1 : (mode === "2v2" || mode === "hoops_2v2" || mode === "heatseeker_2v2") ? 2 : 3;
             const cs = safeNum(row.contribution_score);
             if (cs > 0 && ts > 1) { normTotal += cs * ts; normCount++; }
           });
@@ -300,7 +285,8 @@ const FriendProfile = () => {
             const mm = new Map(games.map(g => [g.id, g.game_mode as string]));
             let nt = 0, nc = 0;
             rows.forEach(row => {
-              const ts = mm.get(row.game_id) === "1v1" ? 1 : mm.get(row.game_id) === "2v2" ? 2 : mm.get(row.game_id) === "3v3" ? 3 : 4;
+              const m = mm.get(row.game_id);
+              const ts = m === "1v1" ? 1 : (m === "2v2" || m === "hoops_2v2" || m === "heatseeker_2v2") ? 2 : 3;
               const cs = safeNum(row.contribution_score);
               if (cs > 0 && ts > 1) { nt += cs * ts; nc++; }
             });
@@ -318,18 +304,34 @@ const FriendProfile = () => {
             };
           };
 
-          const allStats: ProfileStats = {
-            totalGames, wins, losses: totalGames - wins, recentForm,
-            avgScore:        n > 0 ? totals.score   / n : 0,
-            avgGoals:        n > 0 ? totals.goals   / n : 0,
-            avgAssists:      n > 0 ? totals.assists / n : 0,
-            avgSaves:        n > 0 ? totals.saves   / n : 0,
-            avgShots:        n > 0 ? totals.shots   / n : 0,
-            avgContribution: normCount > 0 ? normTotal / normCount : null,
-            mvpRate:         n > 0 ? (totals.mvps / n) * 100 : 0,
-            ...records, topTeammates,
-          };
+          const builtOverall = buildStats(standardRows, standardGames);
+          const allStats: ProfileStats = builtOverall
+            ? {
+                ...builtOverall,
+                totalGames, wins, losses: totalGames - wins,
+                recentForm,
+                avgContribution: normCount > 0 ? normTotal / normCount : builtOverall.avgContribution,
+                topTeammates,
+              }
+            : {
+                totalGames, wins, losses: totalGames - wins, recentForm,
+                avgScore: 0, avgGoals: 0, avgAssists: 0, avgSaves: 0, avgShots: 0,
+                avgContribution: null, mvpRate: 0,
+                bestScore: 0, bestGoals: 0, bestAssists: 0, bestSaves: 0, bestContributionScore: 0,
+                topTeammates,
+              };
           setProfileStats(allStats);
+
+          // Extra mode summaries
+          const allExtraModes: GameMode[] = [...EXTRA_MODES, "4v4"];
+          const extras = allExtraModes
+            .map((mode) => {
+              const mGames = gamesData.filter((g) => g.game_mode === mode);
+              if (mGames.length === 0) return null;
+              return { mode, games: mGames.length, wins: mGames.filter((g) => g.result === "win").length };
+            })
+            .filter(Boolean) as Array<{ mode: GameMode; games: number; wins: number }>;
+          setExtraModeSummaries(extras);
 
           const modeStatsMap: Record<string, ProfileStats> = { all: allStats };
           for (const m of ["1v1", "2v2", "3v3"] as GameMode[]) {
@@ -517,6 +519,27 @@ const FriendProfile = () => {
             statsByMode={statsByMode}
             leaderboardStanding={leaderboardStanding}
           />
+        )}
+
+        {/* Extra Modes Summary */}
+        {extraModeSummaries.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-1">Extra Modes</p>
+            <div className="space-y-2">
+              {extraModeSummaries.map(({ mode, games, wins }) => {
+                const wr = Math.round((wins / games) * 100);
+                return (
+                  <div key={mode} className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-card/60 border border-border/40 text-sm">
+                    <span className="font-medium text-muted-foreground">{EXTRA_MODE_LABELS[mode] ?? mode}</span>
+                    <div className="flex items-center gap-3 text-xs font-mono">
+                      <span className="text-muted-foreground">{games} games</span>
+                      <span className={wr >= 50 ? "text-rl-green font-bold" : "text-rl-red font-bold"}>{wr}% WR</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         )}
 
         {/* Performance Chart */}

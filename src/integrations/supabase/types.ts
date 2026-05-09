@@ -52,6 +52,7 @@ export type Database = {
           assists: number
           carry_score: number | null
           created_at: string
+          damage: number | null
           game_id: string
           goals: number
           id: string
@@ -73,6 +74,7 @@ export type Database = {
           assists?: number
           carry_score?: number | null
           created_at?: string
+          damage?: number | null
           game_id: string
           goals?: number
           id?: string
@@ -94,6 +96,7 @@ export type Database = {
           assists?: number
           carry_score?: number | null
           created_at?: string
+          damage?: number | null
           game_id?: string
           goals?: number
           id?: string
@@ -467,7 +470,7 @@ export type Database = {
     Enums: {
       friend_request_status: "pending" | "accepted" | "rejected"
       subscription_tier: "free" | "pro" | "lifetime"
-      game_mode: "1v1" | "2v2" | "3v3" | "4v4"
+      game_mode: "1v1" | "2v2" | "3v3" | "4v4" | "rumble_3v3" | "hoops_2v2" | "snowday_3v3" | "dropshot_3v3" | "heatseeker_2v2"
       game_type: "competitive" | "casual"
       notification_type:
         | "game_shared"

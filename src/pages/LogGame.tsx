@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -139,6 +139,7 @@ interface PlayerStat {
   assists: number;
   saves: number;
   shots: number;
+  damage: number;
   is_mvp: boolean;
   mmr?: number | null;
   mmr_change?: number | null;
@@ -235,7 +236,7 @@ const LogGame = () => {
   ) => {
     setGameMode(data.game_mode);
     setGameType(data.game_type);
-    setPlayers(data.players);
+    setPlayers(data.players.map((p) => ({ ...p, damage: (p as any).damage ?? 0 })));
     setImageFile(file);
     setWasPhotoParsed(true);
     setStep("review");
@@ -430,6 +431,8 @@ const LogGame = () => {
         players.map((p) => ({ name: p.name, team: p.team, score: p.score, goals: p.goals, assists: p.assists, saves: p.saves, shots: p.shots }))
       );
 
+      const isDropshot = gameMode === "dropshot_3v3";
+
       // Insert game players
       const gamePlayers = players.map((p) => {
         const matchedUserId =
@@ -447,7 +450,8 @@ const LogGame = () => {
           goals:              p.goals,
           assists:            p.assists,
           saves:              p.saves,
-          shots:              p.shots,
+          shots:              isDropshot ? 0 : p.shots,
+          damage:             isDropshot ? p.damage : null,
           is_mvp:             p.is_mvp,
           contribution_score: contributionMap.get(norm(p.name)) ?? 1,
           mmr:                p.mmr ?? null,
@@ -664,13 +668,13 @@ const LogGame = () => {
                   variant="outline"
                   onClick={() => {
                     // Create empty players based on game mode
-                    const count = gameMode === "1v1" ? 1 : gameMode === "2v2" ? 2 : gameMode === "3v3" ? 3 : 4;
+                    const count = gameMode === "1v1" ? 1 : gameMode === "2v2" || gameMode === "hoops_2v2" || gameMode === "heatseeker_2v2" ? 2 : 3;
                     const emptyPlayers: PlayerStat[] = [];
                     for (let i = 0; i < count; i++) {
-                      emptyPlayers.push({ name: "", team: "blue", score: 0, goals: 0, assists: 0, saves: 0, shots: 0, is_mvp: false });
+                      emptyPlayers.push({ name: "", team: "blue", score: 0, goals: 0, assists: 0, saves: 0, shots: 0, damage: 0, is_mvp: false });
                     }
                     for (let i = 0; i < count; i++) {
-                      emptyPlayers.push({ name: "", team: "orange", score: 0, goals: 0, assists: 0, saves: 0, shots: 0, is_mvp: false });
+                      emptyPlayers.push({ name: "", team: "orange", score: 0, goals: 0, assists: 0, saves: 0, shots: 0, damage: 0, is_mvp: false });
                     }
                     setPlayers(emptyPlayers);
                     setStep("review");
@@ -703,6 +707,12 @@ const LogGame = () => {
                         <SelectItem value="2v2">2v2</SelectItem>
                         <SelectItem value="3v3">3v3</SelectItem>
                         <SelectItem value="4v4">4v4</SelectItem>
+                        <SelectSeparator />
+                        <SelectItem value="rumble_3v3">3v3 Rumble</SelectItem>
+                        <SelectItem value="hoops_2v2">2v2 Hoops</SelectItem>
+                        <SelectItem value="snowday_3v3">3v3 Snow Day</SelectItem>
+                        <SelectItem value="dropshot_3v3">3v3 Dropshot</SelectItem>
+                        <SelectItem value="heatseeker_2v2">2v2 Heatseeker</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -844,6 +854,7 @@ const LogGame = () => {
                   players={players}
                   onChange={setPlayers}
                   userRlName={rlName}
+                  showDamage={gameMode === "dropshot_3v3"}
                 />
 
                 {/* Contribution score preview */}
@@ -860,7 +871,7 @@ const LogGame = () => {
                         {entries.map(([name, score]) => (
                           <div key={name} className="flex items-center justify-between">
                             <span className="text-sm font-medium">{name}</span>
-                            <CarryMeter score={score} teamSize={gameMode === "1v1" ? 1 : gameMode === "2v2" ? 2 : gameMode === "3v3" ? 3 : 4} size="sm" />
+                            <CarryMeter score={score} teamSize={gameMode === "1v1" ? 1 : (gameMode === "2v2" || gameMode === "hoops_2v2" || gameMode === "heatseeker_2v2") ? 2 : 3} size="sm" />
                           </div>
                         ))}
                       </div>

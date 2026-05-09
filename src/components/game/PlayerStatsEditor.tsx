@@ -11,6 +11,7 @@ interface PlayerStat {
   assists: number;
   saves: number;
   shots: number;
+  damage: number;
   is_mvp: boolean;
 }
 
@@ -18,9 +19,11 @@ interface PlayerStatsEditorProps {
   players: PlayerStat[];
   onChange: (players: PlayerStat[]) => void;
   userRlName?: string | null;
+  /** When true, replaces the "shots" field with a "damage" field (Dropshot mode) */
+  showDamage?: boolean;
 }
 
-const PlayerStatsEditor = ({ players, onChange, userRlName }: PlayerStatsEditorProps) => {
+const PlayerStatsEditor = ({ players, onChange, userRlName, showDamage = false }: PlayerStatsEditorProps) => {
   const updatePlayer = (index: number, field: keyof PlayerStat, value: any) => {
     const updated = [...players];
     updated[index] = { ...updated[index], [field]: value };
@@ -30,7 +33,7 @@ const PlayerStatsEditor = ({ players, onChange, userRlName }: PlayerStatsEditorP
   const blueTeam = players.filter((p) => p.team === "blue");
   const orangeTeam = players.filter((p) => p.team === "orange");
 
-  const renderTeam = (team: PlayerStat[], teamName: string, teamColor: string) => (
+  const renderTeam = (team: PlayerStat[], teamName: string, teamColor: string, useDamage: boolean) => (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
         <div className={`w-3 h-3 rounded-full ${teamColor}`} />
@@ -76,7 +79,7 @@ const PlayerStatsEditor = ({ players, onChange, userRlName }: PlayerStatsEditorP
             </div>
 
             <div className="grid grid-cols-5 gap-2">
-              {(["score", "goals", "assists", "saves", "shots"] as const).map((stat) => (
+              {(["score", "goals", "assists", "saves"] as const).map((stat) => (
                 <div key={stat} className="space-y-1">
                   <Label className="text-xs text-muted-foreground capitalize">{stat}</Label>
                   <Input
@@ -88,6 +91,21 @@ const PlayerStatsEditor = ({ players, onChange, userRlName }: PlayerStatsEditorP
                   />
                 </div>
               ))}
+              {/* shots OR damage depending on game mode */}
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground capitalize">
+                  {useDamage ? "damage" : "shots"}
+                </Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={useDamage ? player.damage : player.shots}
+                  onChange={(e) =>
+                    updatePlayer(globalIndex, useDamage ? "damage" : "shots", parseInt(e.target.value) || 0)
+                  }
+                  className="h-8 text-sm text-center"
+                />
+              </div>
             </div>
           </div>
         );
@@ -100,8 +118,8 @@ const PlayerStatsEditor = ({ players, onChange, userRlName }: PlayerStatsEditorP
       <p className="text-sm text-muted-foreground">
         Review and correct the parsed stats before saving. Click the star to toggle MVP.
       </p>
-      {blueTeam.length > 0 && renderTeam(blueTeam, "Blue", "bg-primary")}
-      {orangeTeam.length > 0 && renderTeam(orangeTeam, "Orange", "bg-secondary")}
+      {blueTeam.length > 0 && renderTeam(blueTeam, "Blue", "bg-primary", showDamage)}
+      {orangeTeam.length > 0 && renderTeam(orangeTeam, "Orange", "bg-secondary", showDamage)}
     </div>
   );
 };

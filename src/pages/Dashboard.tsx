@@ -18,6 +18,7 @@ import { CarryMeter } from "@/components/game/CarryMeter";
 import { calculateContributionScores } from "@/lib/carryScore";
 import { getRankIcon } from "@/lib/rankIcons";
 import AppLayout from "@/components/layout/AppLayout";
+import { STANDARD_MODES } from "@/lib/gameModes";
 
 // ─── CountUp component ────────────────────────────────────────────────────────
 const CountUp = ({ to, decimals = 0, suffix = "", duration = 700 }: { to: number; decimals?: number; suffix?: string; duration?: number }) => {
@@ -57,7 +58,11 @@ const rankDisplayName = (tier: RankTier): string =>
     ? "Unranked"
     : tier.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
 
-const gameModeLabels: Record<GameMode, string> = { "1v1": "1v1", "2v2": "2v2", "3v3": "3v3", "4v4": "4v4" };
+const gameModeLabels: Record<GameMode, string> = {
+  "1v1": "1v1", "2v2": "2v2", "3v3": "3v3", "4v4": "4v4",
+  "rumble_3v3": "Rumble", "hoops_2v2": "Hoops", "snowday_3v3": "Snow Day",
+  "dropshot_3v3": "Dropshot", "heatseeker_2v2": "Heatseeker",
+};
 const normalizeName  = (v?: string | null) => v?.trim().toLowerCase() ?? "";
 
 type PlayerEditValues = { player_name: string; score: number; goals: number; assists: number; saves: number; shots: number };
@@ -339,6 +344,8 @@ const Dashboard = () => {
     let totalContrib = 0, contribGames = 0;
     const results: string[] = [];
     games.forEach((game) => {
+      // Only count standard modes in quick stats
+      if (!STANDARD_MODES.includes(game.game_mode as any)) return;
       const userRow = game.game_players?.find(
         (p) => (userTarget.userId && p.user_id === userTarget.userId) || userTarget.names.includes(normalizeName(p.player_name))
       );
@@ -348,7 +355,7 @@ const Dashboard = () => {
       totalScore += userRow.score;
       totalGoals += userRow.goals;
       if (userRow.is_mvp) mvps++;
-      const ts = game.game_mode === "1v1" ? 1 : game.game_mode === "2v2" ? 2 : game.game_mode === "3v3" ? 3 : 4;
+      const ts = game.game_mode === "1v1" ? 1 : (game.game_mode === "2v2" || game.game_mode === "hoops_2v2" || game.game_mode === "heatseeker_2v2") ? 2 : 3;
       const cs = userRow.contribution_score ?? 0;
       if (cs > 0 && ts > 1) { totalContrib += cs * ts; contribGames++; }
       results.push(game.result);
@@ -634,7 +641,7 @@ const Dashboard = () => {
                 const isExpanded = expandedGameId === game.id;
                 const isEditing  = editingGameId === game.id;
                 const userCarry  = userRow?.contribution_score ?? 0;
-                const teamSize   = game.game_mode === "1v1" ? 1 : game.game_mode === "2v2" ? 2 : game.game_mode === "3v3" ? 3 : 4;
+                const teamSize   = game.game_mode === "1v1" ? 1 : (game.game_mode === "2v2" || game.game_mode === "hoops_2v2" || game.game_mode === "heatseeker_2v2") ? 2 : 3;
                 const userTeam   = userRow?.team ?? null;
                 const teamGoals  = userTeam !== null ? players.filter(p => p.team === userTeam).reduce((s, p) => s + (p.goals ?? 0), 0) : null;
                 const oppGoals   = userTeam !== null ? players.filter(p => p.team !== userTeam && p.team != null).reduce((s, p) => s + (p.goals ?? 0), 0) : null;
@@ -689,7 +696,7 @@ const Dashboard = () => {
                                   <span className="text-muted-foreground">{oppGoals}</span>
                                 </span>
                               )}
-                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 flex-shrink-0">{game.game_mode}</Badge>
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 flex-shrink-0">{gameModeLabels[game.game_mode] ?? game.game_mode}</Badge>
                               {game.division_change && game.division_change !== "none" && (
                                 <Badge
                                   variant="outline"

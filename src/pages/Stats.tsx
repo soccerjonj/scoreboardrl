@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CarryMeter } from "@/components/game/CarryMeter";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   ChartContainer,
   ChartLegend,
@@ -27,6 +27,7 @@ import {
 import { CartesianGrid, Area, AreaChart, XAxis, YAxis } from "recharts";
 import AppLayout from "@/components/layout/AppLayout";
 import LeaderboardView from "@/components/leaderboard/LeaderboardView";
+import { STANDARD_MODES, EXTRA_MODES } from "@/lib/gameModes";
 
 type GameMode = Database["public"]["Enums"]["game_mode"];
 type GameType = Database["public"]["Enums"]["game_type"];
@@ -75,12 +76,17 @@ type ViewMode = "summary" | "charts";
 
 const SESSION_GAP_MS = 3 * 60 * 60 * 1000; // 3 hours — max gap within a session
 
-const gameModes: Array<{ value: GameMode | "all"; label: string }> = [
+const gameModes: Array<{ value: GameMode | "all"; label: string; separator?: boolean }> = [
   { value: "all", label: "All modes" },
   { value: "1v1", label: "1v1" },
   { value: "2v2", label: "2v2" },
   { value: "3v3", label: "3v3" },
-  { value: "4v4", label: "4v4" },
+  { value: "4v4", label: "4v4", separator: true },
+  { value: "rumble_3v3",     label: "3v3 Rumble"    },
+  { value: "hoops_2v2",      label: "2v2 Hoops"     },
+  { value: "snowday_3v3",    label: "3v3 Snow Day"   },
+  { value: "dropshot_3v3",   label: "3v3 Dropshot"  },
+  { value: "heatseeker_2v2", label: "2v2 Heatseeker" },
 ];
 
 const gameTypes: Array<{ value: GameType | "all"; label: string }> = [
@@ -438,7 +444,7 @@ const BestContributionCard = ({
         const userRow = findPlayer(game.game_players || [], userTarget);
         const isWin   = game.result === "win";
         const isOpen  = expandedGameId === game.id;
-        const teamSize = game.game_mode === "1v1" ? 1 : game.game_mode === "2v2" ? 2 : game.game_mode === "3v3" ? 3 : 4;
+        const teamSize = game.game_mode === "1v1" ? 1 : (game.game_mode === "2v2" || game.game_mode === "hoops_2v2" || game.game_mode === "heatseeker_2v2") ? 2 : 3;
         const userTeamFirst  = userRow?.team ?? "blue";
         const teamOrder      = [userTeamFirst, userTeamFirst === "blue" ? "orange" : "blue"] as const;
         const sortedPlayers  = [...(game.game_players || [])].sort((a, b) => {
@@ -657,7 +663,10 @@ const Stats = () => {
   const teammateTarget = useMemo(() => selectedFriend ? buildTarget(selectedFriend.id, [selectedFriend.rlName, selectedFriend.username]) : null, [selectedFriend]);
 
   const filteredGames = useMemo(() => games
-    .filter((g) => selectedMode === "all" || g.game_mode === selectedMode)
+    // "all" = standard modes only; specific extra mode selection shows only that mode
+    .filter((g) => selectedMode === "all"
+      ? STANDARD_MODES.includes(g.game_mode as any)
+      : g.game_mode === selectedMode)
     .filter((g) => selectedType === "all" || g.game_type === selectedType)
     .filter((g) => !teammateTarget || Boolean(findPlayer(g.game_players, teammateTarget))),
   [games, selectedMode, selectedType, teammateTarget]);
@@ -730,7 +739,7 @@ const Stats = () => {
         const teamFor = players.filter((p) => p.team === userTeam).reduce((s, p) => s + safeNumber(p.goals), 0);
         const teamAgainst = players.filter((p) => p.team !== userTeam).reduce((s, p) => s + safeNumber(p.goals), 0);
         const uScore = safeNumber(userRow.score), uGoals = safeNumber(userRow.goals), uAssists = safeNumber(userRow.assists), uSaves = safeNumber(userRow.saves), uShots = safeNumber(userRow.shots), uContrib = safeNumber(userRow.contribution_score);
-        const gTeamSize = game.game_mode === "1v1" ? 1 : game.game_mode === "2v2" ? 2 : game.game_mode === "3v3" ? 3 : 4;
+        const gTeamSize = game.game_mode === "1v1" ? 1 : (game.game_mode === "2v2" || game.game_mode === "hoops_2v2" || game.game_mode === "heatseeker_2v2") ? 2 : 3;
         ut.games++; ut.points += uScore; ut.goals += uGoals; ut.assists += uAssists; ut.saves += uSaves; ut.shots += uShots;
         ut.teamGoalsFor += teamFor; ut.teamGoalsAgainst += teamAgainst;
         if (game.result === "win") ut.wins++;
@@ -782,7 +791,7 @@ const Stats = () => {
           if (!userRow) return;
           const userTeam = userRow.team;
           const uScore = safeNumber(userRow.score), uGoals = safeNumber(userRow.goals), uAssists = safeNumber(userRow.assists), uSaves = safeNumber(userRow.saves), uShots = safeNumber(userRow.shots), uContrib = safeNumber(userRow.contribution_score);
-          const gTeamSize = game.game_mode === "1v1" ? 1 : game.game_mode === "2v2" ? 2 : game.game_mode === "3v3" ? 3 : 4;
+          const gTeamSize = game.game_mode === "1v1" ? 1 : (game.game_mode === "2v2" || game.game_mode === "hoops_2v2" || game.game_mode === "heatseeker_2v2") ? 2 : 3;
           ut.games++; ut.points += uScore; ut.goals += uGoals; ut.assists += uAssists; ut.saves += uSaves; ut.shots += uShots;
           ut.teamGoalsFor += players.filter((p) => p.team === userTeam).reduce((s, p) => s + safeNumber(p.goals), 0);
           ut.teamGoalsAgainst += players.filter((p) => p.team !== userTeam).reduce((s, p) => s + safeNumber(p.goals), 0);
@@ -1014,7 +1023,14 @@ const Stats = () => {
                 <SelectTrigger className="h-8 text-xs rounded-lg border-border/50 w-auto px-2.5 gap-1">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>{gameModes.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
+                <SelectContent>
+                  {gameModes.map((m) => (
+                    <>
+                      {m.separator && <SelectSeparator key={`sep-${m.value}`} />}
+                      <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                    </>
+                  ))}
+                </SelectContent>
               </Select>
               <Select value={selectedType} onValueChange={(v) => setSelectedType(v as GameType | "all")}>
                 <SelectTrigger className="h-8 text-xs rounded-lg border-border/50 w-auto px-2.5 gap-1">
@@ -1040,6 +1056,14 @@ const Stats = () => {
                 </button>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Extra mode note */}
+        {EXTRA_MODES.includes(selectedMode as any) && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/40 border border-border/40 text-xs text-muted-foreground">
+            <span>ℹ</span>
+            <span>Extra mode — stats shown separately and not counted in your overall averages.</span>
           </div>
         )}
 
@@ -1128,7 +1152,7 @@ const Stats = () => {
                       const teamGoals   = userTeam !== null ? players.filter((p) => p.team === userTeam).reduce((s, p) => s + safeNumber(p.goals), 0) : null;
                       const oppGoals    = userTeam !== null ? players.filter((p) => p.team !== userTeam && p.team != null).reduce((s, p) => s + safeNumber(p.goals), 0) : null;
                       const hasScore    = teamGoals !== null && oppGoals !== null;
-                      const teamSize    = g.game_mode === "1v1" ? 1 : g.game_mode === "2v2" ? 2 : g.game_mode === "3v3" ? 3 : 4;
+                      const teamSize    = g.game_mode === "1v1" ? 1 : (g.game_mode === "2v2" || g.game_mode === "hoops_2v2" || g.game_mode === "heatseeker_2v2") ? 2 : 3;
                       const userCarry      = userRow?.contribution_score ?? 0;
                       const userTeamFirst  = userRow?.team ?? "blue";
                       const teamOrder      = [userTeamFirst, userTeamFirst === "blue" ? "orange" : "blue"] as const;
