@@ -513,7 +513,7 @@ const Stats = () => {
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [expandedContribGameId, setExpandedContribGameId] = useState<string | null>(null);
   const [pageTab, setPageTab] = useState<"stats" | "leaderboard">("stats");
-  const [togetherRange, setTogetherRange] = useState<TogetherRange>("session");
+  const [togetherRange, setTogetherRange] = useState<TogetherRange>("all");
   const [seasonStartsAt, setSeasonStartsAt] = useState<string | null>(null);
   const [currentSeasonName, setCurrentSeasonName] = useState<string>("This Season");
 
@@ -592,9 +592,9 @@ const Stats = () => {
     }
   }, [friendOptions, searchParams]);
 
-  // Reset together range to "Session" whenever the selected friend changes
+  // Reset together range to "All" whenever the selected friend changes
   useEffect(() => {
-    setTogetherRange("session");
+    setTogetherRange("all");
   }, [selectedFriendId]);
   const userTarget = useMemo(() => buildTarget(user?.id, [userRlName]), [user?.id, userRlName]);
   const teammateTarget = useMemo(() => selectedFriend ? buildTarget(selectedFriend.id, [selectedFriend.rlName, selectedFriend.username]) : null, [selectedFriend]);
