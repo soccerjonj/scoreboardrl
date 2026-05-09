@@ -263,7 +263,6 @@ const ComparisonTable = ({
                 ? "bg-rl-green/10 text-rl-green"
                 : "bg-rl-red/10 text-rl-red"
             )}>
-              <span>{betterDelta > 0 ? "🤝" : "📉"}</span>
               <span>
                 You win <span className="font-bold">{Math.round(Math.abs(betterDelta))}%</span>
                 {betterDelta > 0 ? " more" : " less"} with {teammateName} than your overall average.
