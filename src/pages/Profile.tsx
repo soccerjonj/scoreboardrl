@@ -104,11 +104,9 @@ const Profile = () => {
   const [loading, setLoading]                 = useState(true);
   const [saving, setSaving]                   = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [uploadingBanner, setUploadingBanner] = useState(false);
   const [avatarUrl, setAvatarUrl]             = useState<string | null>(() =>
     user ? (localStorage.getItem(`avatar_url_${user.id}`) ?? null) : null
   );
-  const [bannerUrl, setBannerUrl]             = useState<string | null>(null);
   const [rlAccountName, setRlAccountName]     = useState("");
   const [rlNameWasSet, setRlNameWasSet]       = useState(false);
   const [bio, setBio]                         = useState("");
@@ -143,7 +141,7 @@ const Profile = () => {
       setLoading(true);
       try {
         const [profileRes, ranksRes] = await Promise.all([
-          supabase.from("profiles").select("rl_account_name, avatar_url, banner_url, bio, favorite_car").eq("user_id", user.id).single(),
+          supabase.from("profiles").select("rl_account_name, avatar_url, bio, favorite_car").eq("user_id", user.id).single(),
           supabase.from("ranks").select("game_mode, rank_tier, rank_division, mmr").eq("user_id", user.id).eq("game_type", "competitive"),
         ]);
         if (profileRes.error) throw profileRes.error;
@@ -158,8 +156,6 @@ const Profile = () => {
         setAvatarUrl(freshAvatarUrl);
         if (freshAvatarUrl) localStorage.setItem(`avatar_url_${user.id}`, freshAvatarUrl);
         else localStorage.removeItem(`avatar_url_${user.id}`);
-
-        setBannerUrl(data?.banner_url ?? null);
 
         const dbBio = data?.bio ?? "";
         const lsBio = localStorage.getItem(`profile_bio_${user.id}`) ?? "";
@@ -455,24 +451,6 @@ const Profile = () => {
     }
   };
 
-  // ── Banner upload ──────────────────────────────────────────────────────────
-  const handleBannerFileSelected = async (file: File) => {
-    if (!user) return;
-    const ext = file.name.split(".").pop() ?? "jpg";
-    const path = `banners/${user.id}/${Date.now()}.${ext}`;
-    setUploadingBanner(true);
-    try {
-      const { error: uploadError } = await supabase.storage.from("screenshots").upload(path, file, { upsert: true });
-      if (uploadError) throw uploadError;
-      const { data: urlData } = supabase.storage.from("screenshots").getPublicUrl(path);
-      await supabase.from("profiles").update({ banner_url: urlData.publicUrl } as any).eq("user_id", user.id);
-      setBannerUrl(urlData.publicUrl);
-      toast({ title: "Banner updated" });
-    } catch (err: any) {
-      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
-    } finally { setUploadingBanner(false); }
-  };
-
   // ── RL name confirm ────────────────────────────────────────────────────────
   const confirmRlNameEdit = () => {
     setDraftRlName(rlNameDraft.trim());
@@ -535,8 +513,6 @@ const Profile = () => {
 
   // ── VIEW MODE ──────────────────────────────────────────────────────────────
   if (!isEditing) {
-    const rankedModes = gameModes.filter((m) => ranks[m].rank_tier !== "unranked");
-
     return (
       <AppLayout>
         <div className="space-y-4">
@@ -545,7 +521,6 @@ const Profile = () => {
             <ProfileHeader
               displayName={rlAccountName || "—"}
               avatarUrl={avatarUrl}
-              bannerUrl={bannerUrl}
               bio={bio}
               favoriteCar={favoriteCar}
               ranks={ranks}
@@ -553,8 +528,6 @@ const Profile = () => {
               totalGames={profileStats?.totalGames}
               wins={profileStats?.wins}
               onEdit={enterEditMode}
-              onBannerFileSelected={handleBannerFileSelected}
-              uploadingBanner={uploadingBanner}
             />
           </Card>
 
@@ -574,32 +547,6 @@ const Profile = () => {
 
           {/* Tournament Trophy Shelf */}
           <TrophyShelf tournaments={tournamentData} isOwnProfile={true} />
-
-          {/* Competitive Ranks — compact horizontal strip */}
-          {rankedModes.length > 0 && (
-            <Card className="border-border/50 bg-card/80">
-              <CardContent className="pt-4 pb-3">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Competitive Ranks</p>
-                <div className="flex gap-3 flex-wrap">
-                  {rankedModes.map((mode) => {
-                    const rank = ranks[mode];
-                    const colorClass = RANK_COLORS[rank.rank_tier] ?? "text-foreground";
-                    return (
-                      <div key={mode} className="flex flex-col items-center gap-1 px-3 py-2 rounded-xl bg-background/60 border border-border/40 min-w-[72px]">
-                        <span className="text-[10px] font-bold text-muted-foreground uppercase">{gameModeLabels[mode]}</span>
-                        <img src={getRankIcon(rank.rank_tier)} alt={getRankLabel(rank.rank_tier)} className="w-9 h-9 object-contain" />
-                        <span className={`text-xs font-semibold text-center leading-tight ${colorClass}`}>
-                          {getRankLabel(rank.rank_tier)}
-                          {rank.rank_division && rank.rank_tier !== "supersonic_legend" ? ` ${rank.rank_division}` : ""}
-                        </span>
-                        {rank.mmr != null && <span className="text-[10px] text-muted-foreground font-mono">{rank.mmr}</span>}
-                      </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          )}
 
           {/* Most Played With */}
           {teammates.length > 0 && (

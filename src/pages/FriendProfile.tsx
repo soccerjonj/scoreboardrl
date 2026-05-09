@@ -424,8 +424,6 @@ const FriendProfile = () => {
 
   const displayName = profile.rl_account_name?.trim() || profile.username || "Unknown Player";
 
-  const rankedModes = gameModes.filter((m) => ranks[m].rank_tier !== "unranked");
-
   return (
     <AppLayout>
       <div className="space-y-4">
@@ -443,7 +441,6 @@ const FriendProfile = () => {
           <ProfileHeader
             displayName={displayName}
             avatarUrl={profile.avatar_url}
-            bannerUrl={profile.banner_url}
             bio={profile.bio}
             favoriteCar={profile.favorite_car}
             ranks={ranks}
@@ -469,32 +466,6 @@ const FriendProfile = () => {
 
         {/* Tournament Trophy Shelf */}
         <TrophyShelf tournaments={tournamentData} isOwnProfile={false} />
-
-        {/* Competitive Ranks — compact horizontal strip */}
-        {rankedModes.length > 0 && (
-          <Card className="border-border/50 bg-card/80">
-            <CardContent className="pt-4 pb-3">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Competitive Ranks</p>
-              <div className="flex gap-3 flex-wrap">
-                {rankedModes.map((mode) => {
-                  const rank = ranks[mode];
-                  const colorClass = RANK_COLORS[rank.rank_tier] ?? "text-foreground";
-                  return (
-                    <div key={mode} className="flex flex-col items-center gap-1 px-3 py-2 rounded-xl bg-background/60 border border-border/40 min-w-[72px]">
-                      <span className="text-[10px] font-bold text-muted-foreground uppercase">{gameModeLabels[mode]}</span>
-                      <img src={getRankIcon(rank.rank_tier)} alt={getRankLabel(rank.rank_tier)} className="w-9 h-9 object-contain" />
-                      <span className={`text-xs font-semibold text-center leading-tight ${colorClass}`}>
-                        {getRankLabel(rank.rank_tier)}
-                        {rank.rank_division && rank.rank_tier !== "supersonic_legend" ? ` ${rank.rank_division}` : ""}
-                      </span>
-                      {rank.mmr != null && <span className="text-[10px] text-muted-foreground font-mono">{rank.mmr}</span>}
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         {/* Most Played With */}
         {teammates.length > 0 && (
