@@ -199,6 +199,7 @@ function GameCard({
                   <span className="text-rl-orange">{game.goals}G</span>
                   <span className="text-rl-blue">{game.assists}A</span>
                   <span className="text-cyan-400">{game.saves}SV</span>
+                  {game.shots != null && <span className="text-muted-foreground">{game.shots}SH</span>}
                 </div>
               </div>
             </div>

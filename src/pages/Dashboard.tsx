@@ -628,6 +628,10 @@ const Dashboard = () => {
                 const isEditing  = editingGameId === game.id;
                 const userCarry  = userRow?.contribution_score ?? 0;
                 const teamSize   = game.game_mode === "1v1" ? 1 : game.game_mode === "2v2" ? 2 : game.game_mode === "3v3" ? 3 : 4;
+                const userTeam   = userRow?.team ?? null;
+                const teamGoals  = userTeam !== null ? players.filter(p => p.team === userTeam).reduce((s, p) => s + (p.goals ?? 0), 0) : null;
+                const oppGoals   = userTeam !== null ? players.filter(p => p.team !== userTeam && p.team != null).reduce((s, p) => s + (p.goals ?? 0), 0) : null;
+                const hasScore   = teamGoals !== null && oppGoals !== null;
 
                 // Sort players: blue team first, then orange; highest contribution first within team
                 const sortedPlayers = [...players].sort((a, b) => {
@@ -677,6 +681,9 @@ const Dashboard = () => {
                                   Div {game.division_change === "up" ? "↑" : "↓"}
                                 </Badge>
                               )}
+                              {userRow?.is_mvp && (
+                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-yellow-400/15 text-yellow-400 flex-shrink-0">MVP</span>
+                              )}
                             </div>
                             <p className="text-xs text-muted-foreground">
                               {format(new Date(game.played_at), "MMM d, h:mm a")}
@@ -687,9 +694,16 @@ const Dashboard = () => {
                         <div className="flex items-center gap-3">
                           {userRow && (
                             <div className="text-right">
+                              {hasScore && (
+                                <p className="font-display font-bold text-base leading-none text-right mb-0.5">
+                                  <span className={isWin ? "text-rl-green" : "text-rl-red"}>{teamGoals}</span>
+                                  <span className="text-muted-foreground mx-1">–</span>
+                                  <span className="text-muted-foreground">{oppGoals}</span>
+                                </p>
+                              )}
                               <p className="font-mono text-sm font-bold">{userRow.score} pts</p>
                               <p className="text-xs text-muted-foreground">
-                                {userRow.goals}G {userRow.assists}A {userRow.saves}S
+                                {userRow.goals}G {userRow.assists}A {userRow.saves}SV {userRow.shots != null ? `${userRow.shots}SH` : ""}
                               </p>
                               {userCarry > 0 && (
                                 <div className="flex items-center gap-1.5 mt-1 justify-end">
