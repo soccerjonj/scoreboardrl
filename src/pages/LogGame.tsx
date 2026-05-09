@@ -156,6 +156,7 @@ const LogGame = () => {
   const [gameMode, setGameMode] = useState<GameMode>("2v2");
   // true = competitive standard (1v1/2v2/3v3 auto-detected from photo)
   const [isAutoDetect, setIsAutoDetect] = useState(true);
+  const [showModePicker, setShowModePicker] = useState(false);
   const [gameType, setGameType] = useState<GameType>("competitive");
   const [result, setResult] = useState<"win" | "loss">("win");
   const [divisionChange, setDivisionChange] = useState<string>("none");
@@ -661,122 +662,96 @@ const LogGame = () => {
 
         {step === "upload" && (
           <Card className="border-border/50 bg-card/80">
-            <CardHeader>
+            <CardHeader className="pb-3">
               <CardTitle className="font-display text-xl">Upload Scoreboard</CardTitle>
+              <p className="text-xs text-muted-foreground">
+                Competitive 1v1 · 2v2 · 3v3 — mode detected automatically from photo.
+              </p>
             </CardHeader>
             <CardContent className="space-y-4">
 
-              {/* ── Game Type ── */}
-              <div className="flex p-0.5 rounded-lg bg-muted/50 border border-border/40">
-                <button
-                  onClick={() => {
-                    setGameType("competitive");
-                    setIsAutoDetect(true);
-                    setGameMode("2v2");
-                  }}
-                  className={cn(
-                    "flex-1 py-1.5 rounded-md text-xs font-medium transition-colors",
-                    gameType === "competitive" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  Competitive
-                </button>
-                <button
-                  onClick={() => {
-                    setGameType("casual");
-                    setIsAutoDetect(false);
-                    setGameMode("2v2");
-                  }}
-                  className={cn(
-                    "flex-1 py-1.5 rounded-md text-xs font-medium transition-colors",
-                    gameType === "casual" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  Casual
-                </button>
-              </div>
-
-              {/* ── Mode pills ── */}
-              {gameType === "competitive" ? (
-                <div className="space-y-1.5">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Mode</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {/* Auto-detect standard 1v1/2v2/3v3 */}
+              {/* Non-standard mode badge (shown once a mode is selected) */}
+              {!isAutoDetect && !showModePicker && (() => {
+                const modeLabel: Record<string, string> = {
+                  rumble_3v3: "3v3 Rumble", hoops_2v2: "2v2 Hoops", snowday_3v3: "3v3 Snow Day",
+                  dropshot_3v3: "3v3 Dropshot", heatseeker_2v2: "2v2 Heatseeker",
+                  "1v1": "1v1", "2v2": "2v2", "3v3": "3v3", "4v4": "4v4",
+                };
+                return (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/8 border border-primary/20 text-xs">
+                    <span className="font-semibold text-foreground">{modeLabel[gameMode] ?? gameMode}</span>
+                    <span className="text-muted-foreground">·</span>
+                    <span className="text-muted-foreground capitalize">{gameType}</span>
                     <button
-                      onClick={() => { setIsAutoDetect(true); setGameMode("2v2"); }}
-                      className={cn(
-                        "px-2.5 py-1 rounded-full text-xs font-medium border transition-colors",
-                        isAutoDetect
-                          ? "bg-primary text-primary-foreground border-primary"
-                          : "bg-card text-muted-foreground border-border/50 hover:text-foreground hover:border-border"
-                      )}
+                      onClick={() => { setIsAutoDetect(true); setGameType("competitive"); setGameMode("2v2"); }}
+                      className="ml-auto text-muted-foreground hover:text-foreground transition-colors"
+                      title="Clear"
                     >
-                      Auto (1v1 / 2v2 / 3v3)
+                      <XIcon className="w-3.5 h-3.5" />
                     </button>
-                    {/* Extra comp modes */}
-                    {(["rumble_3v3", "hoops_2v2", "snowday_3v3", "dropshot_3v3", "heatseeker_2v2"] as GameMode[]).map((m) => {
-                      const labels: Record<string, string> = {
-                        rumble_3v3: "3v3 Rumble", hoops_2v2: "2v2 Hoops",
-                        snowday_3v3: "3v3 Snow Day", dropshot_3v3: "3v3 Dropshot", heatseeker_2v2: "2v2 Heatseeker",
-                      };
-                      return (
-                        <button
-                          key={m}
-                          onClick={() => { setIsAutoDetect(false); setGameMode(m); }}
-                          className={cn(
-                            "px-2.5 py-1 rounded-full text-xs font-medium border transition-colors",
-                            !isAutoDetect && gameMode === m
-                              ? "bg-primary text-primary-foreground border-primary"
-                              : "bg-card text-muted-foreground border-border/50 hover:text-foreground hover:border-border"
-                          )}
-                        >
-                          {labels[m]}
-                        </button>
-                      );
-                    })}
+                  </div>
+                );
+              })()}
+
+              {/* Mode picker — only shown when "Other mode" is clicked */}
+              {showModePicker && (
+                <div className="rounded-lg border border-border/50 bg-muted/20 p-3 space-y-3">
+                  {/* Competitive extras */}
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Competitive</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(["rumble_3v3", "hoops_2v2", "snowday_3v3", "dropshot_3v3", "heatseeker_2v2"] as GameMode[]).map((m) => {
+                        const labels: Record<string, string> = {
+                          rumble_3v3: "3v3 Rumble", hoops_2v2: "2v2 Hoops",
+                          snowday_3v3: "3v3 Snow Day", dropshot_3v3: "3v3 Dropshot", heatseeker_2v2: "2v2 Heatseeker",
+                        };
+                        return (
+                          <button
+                            key={m}
+                            onClick={() => { setIsAutoDetect(false); setGameType("competitive"); setGameMode(m); setShowModePicker(false); }}
+                            className="px-2.5 py-1 rounded-full text-xs font-medium border bg-card text-muted-foreground border-border/50 hover:text-foreground hover:border-border transition-colors"
+                          >
+                            {labels[m]}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Casual */}
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Casual</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(["1v1", "2v2", "3v3", "4v4", "rumble_3v3", "hoops_2v2", "snowday_3v3", "dropshot_3v3", "heatseeker_2v2"] as GameMode[]).map((m) => {
+                        const labels: Record<string, string> = {
+                          "1v1": "1v1", "2v2": "2v2", "3v3": "3v3", "4v4": "4v4",
+                          rumble_3v3: "Rumble", hoops_2v2: "Hoops",
+                          snowday_3v3: "Snow Day", dropshot_3v3: "Dropshot", heatseeker_2v2: "Heatseeker",
+                        };
+                        return (
+                          <button
+                            key={m}
+                            onClick={() => { setIsAutoDetect(false); setGameType("casual"); setGameMode(m); setShowModePicker(false); }}
+                            className="px-2.5 py-1 rounded-full text-xs font-medium border bg-card text-muted-foreground border-border/50 hover:text-foreground hover:border-border transition-colors"
+                          >
+                            {labels[m]}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
-              ) : (
-                <div className="space-y-1.5">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Mode</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {/* Standard soccer sizes */}
-                    {(["1v1", "2v2", "3v3", "4v4"] as GameMode[]).map((m) => (
-                      <button
-                        key={m}
-                        onClick={() => { setIsAutoDetect(false); setGameMode(m); }}
-                        className={cn(
-                          "px-2.5 py-1 rounded-full text-xs font-medium border transition-colors",
-                          gameMode === m
-                            ? "bg-primary text-primary-foreground border-primary"
-                            : "bg-card text-muted-foreground border-border/50 hover:text-foreground hover:border-border"
-                        )}
-                      >
-                        {m}
-                      </button>
-                    ))}
-                    {/* Extra modes */}
-                    {(["rumble_3v3", "hoops_2v2", "snowday_3v3", "dropshot_3v3", "heatseeker_2v2"] as GameMode[]).map((m) => {
-                      const labels: Record<string, string> = {
-                        rumble_3v3: "Rumble", hoops_2v2: "Hoops",
-                        snowday_3v3: "Snow Day", dropshot_3v3: "Dropshot", heatseeker_2v2: "Heatseeker",
-                      };
-                      return (
-                        <button
-                          key={m}
-                          onClick={() => { setIsAutoDetect(false); setGameMode(m); }}
-                          className={cn(
-                            "px-2.5 py-1 rounded-full text-xs font-medium border transition-colors",
-                            gameMode === m
-                              ? "bg-primary text-primary-foreground border-primary"
-                              : "bg-card text-muted-foreground border-border/50 hover:text-foreground hover:border-border"
-                          )}
-                        >
-                          {labels[m]}
-                        </button>
-                      );
-                    })}
-                  </div>
+              )}
+
+              {/* "Other mode" trigger — shown only when auto-detect is active and picker is closed */}
+              {isAutoDetect && !showModePicker && (
+                <div className="text-center">
+                  <button
+                    onClick={() => setShowModePicker(true)}
+                    className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+                  >
+                    Logging a different mode?
+                  </button>
                 </div>
               )}
 
