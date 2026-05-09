@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import BracketTree, { RoundResult } from "@/components/tournament/BracketTree";
+import { CarryMeter } from "@/components/game/CarryMeter";
 import { ROUND_LABELS, ROUND_ORDER, TOURNAMENT_TYPE_LABELS, RoundKey } from "@/hooks/useTournamentSession";
 import { cn } from "@/lib/utils";
 
@@ -37,6 +38,7 @@ type GamePlayer = {
   team: string | null;
   is_mvp: boolean;
   user_id: string | null;
+  contribution_score: number | null;
 };
 
 type GameResult = {
@@ -86,7 +88,7 @@ function TournamentCard({ tournament, userId }: { tournament: Tournament; userId
 
       const { data: gamesData } = await supabase
         .from("games")
-        .select("id, result, played_at, game_mode, game_players(id, player_name, score, goals, assists, saves, shots, team, is_mvp, user_id)")
+        .select("id, result, played_at, game_mode, game_players(id, player_name, score, goals, assists, saves, shots, team, is_mvp, user_id, contribution_score)")
         .in("id", gameIds);
 
       const gd = (gamesData ?? []) as GameResult[];
@@ -140,11 +142,16 @@ function TournamentCard({ tournament, userId }: { tournament: Tournament; userId
     assists: number;
     saves: number;
     shots: number;
+    contribTotal: number;
+    contribCount: number;
     gamesCount: number;
   }>();
 
   // Team totals (everyone on user's team combined)
-  const teamTotals = { score: 0, goals: 0, assists: 0, saves: 0, shots: 0 };
+  const teamTotals = {
+    score: 0, goals: 0, assists: 0, saves: 0, shots: 0,
+    contribTotal: 0, contribCount: 0,
+  };
 
   games.forEach((g) => {
     // Find the user's row in this game to determine which team is "the user's team"
@@ -158,6 +165,9 @@ function TournamentCard({ tournament, userId }: { tournament: Tournament; userId
       .filter((p) => p.team === userTeam)
       .forEach((p) => {
         const key = p.user_id ?? p.player_name.trim().toLowerCase();
+        const cs = p.contribution_score;
+        const hasCs = typeof cs === "number" && !Number.isNaN(cs);
+
         const existing = playerMap.get(key);
         if (existing) {
           existing.score   += p.score   ?? 0;
@@ -166,6 +176,10 @@ function TournamentCard({ tournament, userId }: { tournament: Tournament; userId
           existing.saves   += p.saves   ?? 0;
           existing.shots   += p.shots   ?? 0;
           existing.gamesCount += 1;
+          if (hasCs) {
+            existing.contribTotal += cs as number;
+            existing.contribCount += 1;
+          }
         } else {
           playerMap.set(key, {
             displayName: p.player_name,
@@ -175,6 +189,8 @@ function TournamentCard({ tournament, userId }: { tournament: Tournament; userId
             assists: p.assists ?? 0,
             saves:   p.saves   ?? 0,
             shots:   p.shots   ?? 0,
+            contribTotal: hasCs ? (cs as number) : 0,
+            contribCount: hasCs ? 1 : 0,
             gamesCount: 1,
           });
         }
@@ -185,6 +201,10 @@ function TournamentCard({ tournament, userId }: { tournament: Tournament; userId
         teamTotals.assists += p.assists ?? 0;
         teamTotals.saves   += p.saves   ?? 0;
         teamTotals.shots   += p.shots   ?? 0;
+        if (hasCs) {
+          teamTotals.contribTotal += cs as number;
+          teamTotals.contribCount += 1;
+        }
       });
   });
 
@@ -193,6 +213,21 @@ function TournamentCard({ tournament, userId }: { tournament: Tournament; userId
     if (a.isUser !== b.isUser) return a.isUser ? -1 : 1;
     return b.score - a.score;
   });
+
+  // Tournament team size — derive from games (use mode count, fallback to 3)
+  const teamSize = (() => {
+    const firstGame = games[0];
+    if (!firstGame) return 3;
+    const mode = firstGame.game_mode;
+    return mode === "1v1" ? 1
+         : mode === "2v2" || mode === "hoops_2v2" || mode === "heatseeker_2v2" ? 2
+         : mode === "4v4" ? 4
+         : 3;
+  })();
+
+  const teamAvgContrib = teamTotals.contribCount > 0
+    ? teamTotals.contribTotal / teamTotals.contribCount
+    : null;
 
   return (
     <Card className={cn(
@@ -296,44 +331,59 @@ function TournamentCard({ tournament, userId }: { tournament: Tournament; userId
                     <span className="text-rl-blue">{teamTotals.assists}A</span>
                     <span className="text-cyan-400">{teamTotals.saves}SV</span>
                     <span className="text-muted-foreground">{teamTotals.shots}SH</span>
+                    {teamAvgContrib !== null && (
+                      <span className="text-yellow-400 ml-auto">avg {teamAvgContrib.toFixed(1)}</span>
+                    )}
                   </div>
                 </div>
 
                 {/* Per-player stats (user's team only) */}
                 <div className="space-y-1.5">
-                  {aggregatedPlayers.map((p, i) => (
-                    <div
-                      key={i}
-                      className={cn(
-                        "rounded-lg border px-3 py-2",
-                        p.isUser
-                          ? "bg-primary/5 border-primary/40"
-                          : "bg-card/40 border-border/30"
-                      )}
-                    >
-                      {/* Top row: name + games count */}
-                      <div className="flex items-center justify-between gap-2 mb-1.5">
-                        <span className={cn(
-                          "text-sm font-display font-bold truncate min-w-0",
-                          p.isUser ? "text-primary" : "text-foreground"
-                        )}>
-                          {p.displayName || <span className="italic text-muted-foreground">Unknown</span>}
-                          {p.isUser && <span className="ml-1.5 text-[9px] font-sans uppercase tracking-wider text-primary/70">You</span>}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground font-mono shrink-0">
-                          {p.gamesCount} game{p.gamesCount === 1 ? "" : "s"}
-                        </span>
+                  {aggregatedPlayers.map((p, i) => {
+                    const avgContrib = p.contribCount > 0 ? p.contribTotal / p.contribCount : null;
+                    return (
+                      <div
+                        key={i}
+                        className={cn(
+                          "rounded-lg border px-3 py-2",
+                          p.isUser
+                            ? "bg-primary/5 border-primary/40"
+                            : "bg-card/40 border-border/30"
+                        )}
+                      >
+                        {/* Top row: name + games count */}
+                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                          <span className={cn(
+                            "text-sm font-display font-bold truncate min-w-0",
+                            p.isUser ? "text-primary" : "text-foreground"
+                          )}>
+                            {p.displayName || <span className="italic text-muted-foreground">Unknown</span>}
+                            {p.isUser && <span className="ml-1.5 text-[9px] font-sans uppercase tracking-wider text-primary/70">You</span>}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground font-mono shrink-0">
+                            {p.gamesCount} game{p.gamesCount === 1 ? "" : "s"}
+                          </span>
+                        </div>
+                        {/* Stats row */}
+                        <div className="flex items-center gap-3 font-mono text-xs">
+                          <span className="font-bold text-foreground/90">{p.score}</span>
+                          <span className="text-rl-orange">{p.goals}G</span>
+                          <span className="text-rl-blue">{p.assists}A</span>
+                          <span className="text-cyan-400">{p.saves}SV</span>
+                          <span className="text-muted-foreground">{p.shots}SH</span>
+                        </div>
+                        {/* Average contribution score (carry meter) */}
+                        {avgContrib !== null && teamSize > 1 && (
+                          <div className="mt-1.5 flex items-center gap-2">
+                            <span className="text-[9px] uppercase tracking-wider text-muted-foreground shrink-0">
+                              Avg Contrib
+                            </span>
+                            <CarryMeter score={avgContrib} teamSize={teamSize} size="sm" />
+                          </div>
+                        )}
                       </div>
-                      {/* Stats row */}
-                      <div className="flex items-center gap-3 font-mono text-xs">
-                        <span className="font-bold text-foreground/90">{p.score}</span>
-                        <span className="text-rl-orange">{p.goals}G</span>
-                        <span className="text-rl-blue">{p.assists}A</span>
-                        <span className="text-cyan-400">{p.saves}SV</span>
-                        <span className="text-muted-foreground">{p.shots}SH</span>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -349,8 +399,17 @@ function TournamentCard({ tournament, userId }: { tournament: Tournament; userId
                     const isWin = g.result === "win";
                     const isExpanded = expandedGameId === g.id;
 
-                    const bluePlayers = g.game_players.filter((p) => p.team === "blue");
-                    const orangePlayers = g.game_players.filter((p) => p.team === "orange");
+                    // Determine user's team in this game so we can group as Your Team / Opponents
+                    const userRow = g.game_players.find((p) => p.user_id === userId);
+                    const userTeam = userRow?.team ?? null;
+                    const myTeamPlayers = userTeam ? g.game_players.filter((p) => p.team === userTeam).sort((a, b) => b.score - a.score) : [];
+                    const opponentPlayers = userTeam ? g.game_players.filter((p) => p.team !== userTeam).sort((a, b) => b.score - a.score) : [];
+                    const groups = userTeam
+                      ? [
+                          { label: isWin ? "Your Team  ·  WIN" : "Your Team  ·  LOSS", isMyTeam: true,  players: myTeamPlayers },
+                          { label: isWin ? "Opponents  ·  LOSS" : "Opponents  ·  WIN", isMyTeam: false, players: opponentPlayers },
+                        ]
+                      : [{ label: "", isMyTeam: false, players: [...g.game_players].sort((a, b) => b.score - a.score) }];
 
                     return (
                       <div key={g.id} className="rounded-lg border border-border/30 overflow-hidden">
@@ -383,78 +442,65 @@ function TournamentCard({ tournament, userId }: { tournament: Tournament; userId
                         </button>
 
                         {isExpanded && (
-                          <div className="border-t border-border/20 px-3 pb-3 pt-2">
-                            {/* Column headers */}
-                            <div className="grid grid-cols-[1fr_3rem_2rem_3rem_2rem_3rem] gap-x-1 pb-1.5 mb-1 border-b border-border/20">
-                              <span className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">Name</span>
-                              <span className="text-[9px] font-semibold text-muted-foreground text-right">Score</span>
-                              <span className="text-[9px] font-semibold text-muted-foreground text-right">G</span>
-                              <span className="text-[9px] font-semibold text-muted-foreground text-right">Assists</span>
-                              <span className="text-[9px] font-semibold text-muted-foreground text-right">Sv</span>
-                              <span className="text-[9px] font-semibold text-muted-foreground text-right">Shots</span>
+                          <div className="border-t border-border/20 px-2 pb-2 pt-2">
+                            {/* Column headers — match ActivityFeed scoreboard layout */}
+                            <div className="grid grid-cols-[1fr_2.5rem_2rem_2.5rem_2rem_2rem] gap-x-1 px-2 pb-1.5 mb-0.5 border-b border-border/20">
+                              <span className="text-[9px] text-muted-foreground font-semibold uppercase tracking-wide">Player</span>
+                              <span className="text-[9px] text-muted-foreground font-semibold text-right">Score</span>
+                              <span className="text-[9px] text-muted-foreground font-semibold text-right">G</span>
+                              <span className="text-[9px] text-muted-foreground font-semibold text-right">A</span>
+                              <span className="text-[9px] text-muted-foreground font-semibold text-right">SV</span>
+                              <span className="text-[9px] text-muted-foreground font-semibold text-right">SH</span>
                             </div>
 
-                            {/* Blue team */}
-                            {bluePlayers.length > 0 && (
-                              <div className="mb-1">
-                                <p className="text-[10px] font-bold uppercase tracking-wider text-blue-400 mb-0.5">Blue</p>
-                                {bluePlayers.map((p) => {
-                                  const isUser = p.user_id === userId;
+                            {groups.map((group, gi) => (
+                              <div key={gi} className="mb-1">
+                                {group.label && (
+                                  <p className={cn(
+                                    "text-[10px] font-bold uppercase tracking-wider mt-1.5 mb-0.5 px-2",
+                                    group.isMyTeam ? "text-primary/80" : "text-muted-foreground"
+                                  )}>
+                                    {group.label}
+                                  </p>
+                                )}
+                                {group.players.map((p) => {
+                                  const isMe = p.user_id === userId;
+                                  const cs = p.contribution_score;
+                                  const showMeter = typeof cs === "number" && cs > 0 && teamSize > 1;
                                   return (
                                     <div
                                       key={p.id}
                                       className={cn(
-                                        "grid grid-cols-[1fr_3rem_2rem_3rem_2rem_3rem] gap-x-1 items-center py-1.5 rounded-md",
-                                        isUser && "bg-primary/5 px-1.5 -mx-1.5"
+                                        "grid grid-cols-[1fr_2.5rem_2rem_2.5rem_2rem_2rem] gap-x-1 px-2 py-1.5 items-start text-xs rounded-md",
+                                        isMe ? "bg-primary/5" : ""
                                       )}
                                     >
-                                      <div className="flex items-center gap-1 min-w-0">
-                                        <span className={cn("text-xs font-medium truncate", isUser ? "text-primary" : "text-foreground")}>
-                                          {p.player_name}
-                                        </span>
-                                        {p.is_mvp && <span className="text-[9px] text-yellow-400 font-bold shrink-0">MVP</span>}
+                                      <div className="flex flex-col gap-0.5 min-w-0">
+                                        <div className="flex items-center gap-1.5 min-w-0">
+                                          <span className={cn(
+                                            "truncate text-xs font-medium leading-snug",
+                                            isMe ? "text-primary font-semibold" : "text-foreground"
+                                          )}>
+                                            {p.player_name || "—"}
+                                          </span>
+                                          {p.is_mvp && (
+                                            <span className="shrink-0 text-[9px] text-yellow-400 font-bold leading-snug">MVP</span>
+                                          )}
+                                        </div>
+                                        {showMeter && (
+                                          <CarryMeter score={cs as number} teamSize={teamSize} size="sm" />
+                                        )}
                                       </div>
-                                      <span className="text-xs font-mono font-bold text-right">{p.score}</span>
-                                      <span className="text-xs font-mono text-muted-foreground text-right">{p.goals}</span>
-                                      <span className="text-xs font-mono text-muted-foreground text-right">{p.assists}</span>
-                                      <span className="text-xs font-mono text-muted-foreground text-right">{p.saves}</span>
-                                      <span className="text-xs font-mono text-muted-foreground text-right">{p.shots}</span>
+                                      <span className={cn("font-mono font-bold text-right leading-snug", isMe ? "text-foreground" : "text-foreground/80")}>{p.score}</span>
+                                      <span className="font-mono text-muted-foreground text-right leading-snug">{p.goals}</span>
+                                      <span className="font-mono text-muted-foreground text-right leading-snug">{p.assists}</span>
+                                      <span className="font-mono text-muted-foreground text-right leading-snug">{p.saves}</span>
+                                      <span className="font-mono text-muted-foreground text-right leading-snug">{p.shots}</span>
                                     </div>
                                   );
                                 })}
                               </div>
-                            )}
-
-                            {/* Orange team */}
-                            {orangePlayers.length > 0 && (
-                              <div>
-                                <p className="text-[10px] font-bold uppercase tracking-wider text-orange-400 mb-0.5">Orange</p>
-                                {orangePlayers.map((p) => {
-                                  const isUser = p.user_id === userId;
-                                  return (
-                                    <div
-                                      key={p.id}
-                                      className={cn(
-                                        "grid grid-cols-[1fr_3rem_2rem_3rem_2rem_3rem] gap-x-1 items-center py-1.5 rounded-md",
-                                        isUser && "bg-primary/5 px-1.5 -mx-1.5"
-                                      )}
-                                    >
-                                      <div className="flex items-center gap-1 min-w-0">
-                                        <span className={cn("text-xs font-medium truncate", isUser ? "text-primary" : "text-foreground")}>
-                                          {p.player_name}
-                                        </span>
-                                        {p.is_mvp && <span className="text-[9px] text-yellow-400 font-bold shrink-0">MVP</span>}
-                                      </div>
-                                      <span className="text-xs font-mono font-bold text-right">{p.score}</span>
-                                      <span className="text-xs font-mono text-muted-foreground text-right">{p.goals}</span>
-                                      <span className="text-xs font-mono text-muted-foreground text-right">{p.assists}</span>
-                                      <span className="text-xs font-mono text-muted-foreground text-right">{p.saves}</span>
-                                      <span className="text-xs font-mono text-muted-foreground text-right">{p.shots}</span>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
+                            ))}
                           </div>
                         )}
                       </div>
