@@ -443,7 +443,7 @@ const Dashboard = () => {
               {/* Expanded rank grid */}
               {ranksExpanded && (
                 <div className="grid grid-cols-3 gap-3">
-                  {(["1v1", "2v2", "3v3", "4v4"] as GameMode[]).map((mode) => {
+                  {(["1v1", "2v2", "3v3"] as GameMode[]).map((mode) => {
                     const rank = ranks.find((r) => r.game_mode === mode);
                     const tier = rank?.rank_tier ?? "unranked";
                     const div  = rank?.rank_division;

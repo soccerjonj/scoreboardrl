@@ -55,7 +55,7 @@ type ProfileStats = {
   topTeammates: Array<{ userId: string; name: string; games: number; wins: number }>;
 };
 
-const gameModes: GameMode[] = ["1v1", "2v2", "3v3", "4v4"];
+const gameModes: GameMode[] = ["1v1", "2v2", "3v3"];
 const gameModeLabels: Record<GameMode, string> = { "1v1": "1v1", "2v2": "2v2", "3v3": "3v3", "4v4": "4v4" };
 
 const rankTierOptions: { value: RankTier; label: string }[] = [
