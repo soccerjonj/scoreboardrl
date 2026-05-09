@@ -173,7 +173,7 @@ const FriendProfile = () => {
         try {
           const { data: playerRows, error: playersError } = await supabase
             .from("game_players")
-            .select("game_id, score, goals, assists, saves, shots, is_mvp, contribution_score")
+            .select("game_id, score, goals, assists, saves, shots, is_mvp, contribution_score, mmr")
             .eq("user_id", userId);
 
           if (playersError) throw playersError;
@@ -319,26 +319,25 @@ const FriendProfile = () => {
           });
           setActivityGames(activity);
 
-          // Performance chart — MMR history
-          try {
-            const { data: mmrRows } = await supabase
-              .from("mmr_history" as any)
-              .select("mmr, game_mode, recorded_at")
-              .eq("user_id", userId)
-              .order("recorded_at", { ascending: true })
-              .limit(120);
-            if (mmrRows && (mmrRows as any[]).length > 0) {
-              const modeCounts = new Map<string, number>();
-              (mmrRows as any[]).forEach((r) => modeCounts.set(r.game_mode, (modeCounts.get(r.game_mode) ?? 0) + 1));
-              const preferredMode = (["2v2", "3v3", "1v1"] as GameMode[]).reduce((best, m) =>
-                (modeCounts.get(m) ?? 0) > (modeCounts.get(best) ?? 0) ? m : best
-              , "2v2");
-              const modeRows = (mmrRows as any[]).filter((r) => r.game_mode === preferredMode).slice(-30);
-              setChartData(modeRows.map((r, i) => ({ index: i + 1, score: r.mmr, date: r.recorded_at, gameMode: preferredMode })));
-            } else {
-              setChartData([]);
-            }
-          } catch { setChartData([]); }
+          // Performance chart — MMR per game from game_players.mmr
+          const mmrByMode = new Map<string, ChartPoint[]>();
+          gamesData.forEach((game) => {
+            const myRow = playerRows.find((r) => r.game_id === game.id);
+            const mmrVal = (myRow as any)?.mmr;
+            if (mmrVal == null || typeof mmrVal !== "number") return;
+            const mode = game.game_mode;
+            if (!mmrByMode.has(mode)) mmrByMode.set(mode, []);
+            mmrByMode.get(mode)!.push({ index: 0, score: mmrVal, date: game.played_at, gameMode: mode });
+          });
+          mmrByMode.forEach((pts, mode) => {
+            pts.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+            pts.forEach((p, i) => { p.index = i + 1; });
+            mmrByMode.set(mode, pts);
+          });
+          const preferredMode = (["2v2", "3v3", "1v1"] as GameMode[]).reduce((best, m) =>
+            (mmrByMode.get(m)?.length ?? 0) > (mmrByMode.get(best)?.length ?? 0) ? m : best
+          , "2v2");
+          setChartData((mmrByMode.get(preferredMode) ?? []).slice(-30));
 
           // Best game
           if (playerRows.length > 0) {

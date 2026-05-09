@@ -430,7 +430,6 @@ const Stats = () => {
 
   const [loading, setLoading] = useState(true);
   const [games, setGames] = useState<GameWithPlayers[]>([]);
-  const [rawMmrHistory, setRawMmrHistory] = useState<Array<{ game_mode: string; mmr: number; recorded_at: string }>>([]);
 
   const [friends, setFriends] = useState<FriendProfile[]>([]);
   const [userRlName, setUserRlName] = useState<string | null>(null);
@@ -480,14 +479,6 @@ const Stats = () => {
         setUserRlName(profileRes.data?.rl_account_name ?? null);
         setFriends(friendProfiles);
         setGames((gamesRes.data || []) as GameWithPlayers[]);
-
-        // Fetch MMR history from the dedicated table
-        const { data: mmrRows } = await supabase
-          .from("mmr_history" as any)
-          .select("game_mode, mmr, recorded_at")
-          .eq("user_id", user.id)
-          .order("recorded_at", { ascending: true });
-        setRawMmrHistory((mmrRows as any[] ?? []).map((r) => ({ game_mode: r.game_mode, mmr: r.mmr, recorded_at: r.recorded_at })));
       } catch (err: any) {
         toast({ title: "Failed to load stats", description: err.message, variant: "destructive" });
       } finally {
@@ -656,52 +647,52 @@ const Stats = () => {
       .slice(0, 5),
   [rangeFilteredGames, userTarget]);
 
-  // MMR history — multi-mode overlay from mmr_history table
+  // MMR history — multi-mode overlay from game_players.mmr (per-game values)
   const mmrChartData = useMemo(() => {
     const MODES = ["1v1", "2v2", "3v3"] as const;
     const MODE_COLORS: Record<string, string> = {
-      "1v1": "hsl(271, 81%, 65%)",   // purple
-      "2v2": "hsl(212, 95%, 58%)",   // blue
-      "3v3": "hsl(142, 71%, 45%)",   // green
+      "1v1": "hsl(271, 81%, 65%)",
+      "2v2": "hsl(212, 95%, 58%)",
+      "3v3": "hsl(142, 71%, 45%)",
     };
 
-    // Group rows by mode
-    const byMode = new Map<string, Array<{ mmr: number; recorded_at: string }>>();
-    rawMmrHistory.forEach((r) => {
-      if (!byMode.has(r.game_mode)) byMode.set(r.game_mode, []);
-      byMode.get(r.game_mode)!.push({ mmr: r.mmr, recorded_at: r.recorded_at });
+    // Collect per-game MMR points grouped by mode (oldest→newest, already sorted)
+    const byMode = new Map<string, Array<{ mmr: number; date: string }>>();
+    rangeFilteredGames.forEach((game) => {
+      const userRow = findPlayer(game.game_players || [], userTarget);
+      const mmrVal = (userRow as any)?.mmr;
+      if (mmrVal == null || typeof mmrVal !== "number") return;
+      const mode = game.game_mode as string;
+      if (!byMode.has(mode)) byMode.set(mode, []);
+      byMode.get(mode)!.push({ mmr: mmrVal, date: game.played_at });
     });
 
-    // Only include modes with >= 2 points
     const activeModes = MODES.filter((m) => (byMode.get(m)?.length ?? 0) >= 2);
     if (activeModes.length === 0) return { points: [], activeModes: [], colors: MODE_COLORS };
 
-    // Build a unified timeline: merge all timestamps across modes, sort ascending
-    const allTimestamps = Array.from(
-      new Set(rawMmrHistory.map((r) => r.recorded_at))
+    // Build unified timeline across all active modes
+    const allDates = Array.from(
+      new Set(activeModes.flatMap((m) => byMode.get(m)!.map((p) => p.date)))
     ).sort();
 
-    // For each timestamp, carry forward the last known MMR per mode
     const lastKnown: Record<string, number | null> = {};
     activeModes.forEach((m) => { lastKnown[m] = null; });
 
-    const points = allTimestamps.map((ts) => {
-      // Update last known for any mode that has a point at this timestamp
-      rawMmrHistory.filter((r) => r.recorded_at === ts).forEach((r) => {
-        if (activeModes.includes(r.game_mode as any)) lastKnown[r.game_mode] = r.mmr;
+    const points = allDates.map((date) => {
+      activeModes.forEach((m) => {
+        const pt = byMode.get(m)!.find((p) => p.date === date);
+        if (pt) lastKnown[m] = pt.mmr;
       });
       const entry: Record<string, string | number | null> = {
-        label: format(new Date(ts), "MMM d"),
-        fullLabel: format(new Date(ts), "MMM d, yyyy · h:mm a"),
+        label: format(new Date(date), "MMM d"),
+        fullLabel: format(new Date(date), "MMM d, yyyy"),
       };
       activeModes.forEach((m) => { entry[m] = lastKnown[m]; });
       return entry;
     });
 
-    // Trim leading nulls per mode so lines start where data begins
-    const trimmed = points.filter((p) => activeModes.some((m) => p[m] != null));
-    return { points: trimmed, activeModes, colors: MODE_COLORS };
-  }, [rawMmrHistory]);
+    return { points, activeModes, colors: MODE_COLORS };
+  }, [rangeFilteredGames, userTarget]);
 
   if (authLoading || loading) {
     return <AppLayout><div className="flex items-center justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div></AppLayout>;
@@ -934,7 +925,7 @@ const Stats = () => {
                 <div className="h-[2px] w-full" style={{ background: "linear-gradient(to right, hsl(212, 95%, 58%), transparent)" }} />
                 <CardHeader className="pb-2 pt-3">
                   <CardTitle className="text-base font-display">MMR History</CardTitle>
-                  <CardDescription className="text-xs">Competitive MMR over time · updates when you save your ranks</CardDescription>
+                  <CardDescription className="text-xs">Competitive MMR per game · filtered by selected time range</CardDescription>
                 </CardHeader>
                 <CardContent className="overflow-hidden pt-0">
                   <ChartContainer
