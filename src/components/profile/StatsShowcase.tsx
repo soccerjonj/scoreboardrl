@@ -1,4 +1,4 @@
-import { Crown, Shield, Star, Target, Zap } from "lucide-react";
+import { Crown, Zap } from "lucide-react";
 import { format } from "date-fns";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -29,19 +29,19 @@ type Props = {
   leaderboardStanding: LeaderboardStanding | null;
 };
 
-function HeroStat({ icon, label, value, sub, color }: {
-  icon: React.ReactNode;
+type StatCellProps = {
   label: string;
   value: string;
-  sub?: string;
-  color: string;
-}) {
+  color?: string;
+};
+
+function StatCell({ label, value, color }: StatCellProps) {
   return (
-    <div className="flex flex-col items-center gap-1 py-3 rounded-xl bg-background/60 border border-border/40">
-      <div className={cn("opacity-70", color)}>{icon}</div>
-      <p className={cn("font-display font-bold text-2xl leading-none", color)}>{value}</p>
-      {sub && <p className="text-[9px] text-muted-foreground">{sub}</p>}
-      <p className="text-[10px] text-muted-foreground">{label}</p>
+    <div className="flex flex-col gap-0.5">
+      <span className={cn("font-display font-bold text-xl leading-none tabular-nums", color ?? "text-foreground")}>
+        {value}
+      </span>
+      <span className="text-[10px] text-muted-foreground leading-none">{label}</span>
     </div>
   );
 }
@@ -53,9 +53,8 @@ export default function StatsShowcase({ stats, bestGame, leaderboardStanding }: 
   return (
     <Card className="border-border/50 bg-card/80">
       <CardContent className="pt-4 pb-3 space-y-4">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Career Stats</p>
 
-        {/* Leaderboard callout — hero if top 10, subtle if 11–20 */}
+        {/* Leaderboard callout */}
         {leaderboardStanding && (
           isTopTen ? (
             <div className="relative overflow-hidden rounded-xl px-4 py-3 bg-gradient-to-r from-primary/20 via-rl-purple/15 to-transparent border border-primary/30 flex items-center gap-3">
@@ -79,31 +78,9 @@ export default function StatsShowcase({ stats, bestGame, leaderboardStanding }: 
           )
         )}
 
-        {/* Hero numbers */}
-        <div className="grid grid-cols-3 gap-2">
-          <HeroStat
-            icon={<Target className="w-5 h-5" />}
-            label="Goals"
-            value={stats.avgGoals.toFixed(1)}
-            sub="/game"
-            color="text-rl-orange"
-          />
-          <HeroStat
-            icon={<Shield className="w-5 h-5" />}
-            label="Saves"
-            value={stats.avgSaves.toFixed(1)}
-            sub="/game"
-            color="text-rl-blue"
-          />
-          <HeroStat
-            icon={<Star className="w-5 h-5" />}
-            label="MVP%"
-            value={`${Math.round(stats.mvpRate)}%`}
-            color="text-yellow-400"
-          />
-        </div>
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Career Stats</p>
 
-        {/* W/L shelf + recent form */}
+        {/* W/L + form strip */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rl-green/10 border border-rl-green/20">
             <span className="font-display font-bold text-sm text-rl-green">{stats.wins}W</span>
@@ -111,7 +88,7 @@ export default function StatsShowcase({ stats, bestGame, leaderboardStanding }: 
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rl-red/10 border border-rl-red/20">
             <span className="font-display font-bold text-sm text-rl-red">{stats.losses}L</span>
           </div>
-          <span className="text-xs text-muted-foreground font-mono">{winRate}%</span>
+          <span className="text-xs text-muted-foreground font-mono">{winRate}% WR</span>
           <div className="flex-1" />
           {stats.recentForm.length > 0 && (
             <div className="flex items-center gap-1">
@@ -126,16 +103,29 @@ export default function StatsShowcase({ stats, bestGame, leaderboardStanding }: 
           )}
         </div>
 
+        {/* 6-stat grid — two rows of 3, no boxes */}
+        <div className="grid grid-cols-3 gap-x-4 gap-y-4 py-1">
+          <StatCell label="Goals / game"   value={stats.avgGoals.toFixed(1)}   color="text-rl-orange" />
+          <StatCell label="Assists / game" value={stats.avgAssists.toFixed(1)} color="text-rl-blue" />
+          <StatCell label="Saves / game"   value={stats.avgSaves.toFixed(1)}   color="text-cyan-400" />
+          <StatCell label="Score / game"   value={Math.round(stats.avgScore).toString()} />
+          <StatCell label="Shots / game"   value={stats.avgShots.toFixed(1)}   color="text-muted-foreground" />
+          <StatCell label="MVP Rate"        value={`${Math.round(stats.mvpRate)}%`} color="text-yellow-400" />
+        </div>
+
+        {/* Divider */}
+        <div className="border-t border-border/30" />
+
         {/* Best Performance */}
         {bestGame && (
-          <div className="rounded-xl border border-border/50 bg-background/40 p-3 space-y-2">
+          <div className="space-y-1.5">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
               <Zap className="w-3.5 h-3.5 text-rl-orange" />
               Best Performance
             </p>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between rounded-xl bg-background/50 border border-border/30 px-3 py-2.5">
               <div className="space-y-0.5">
-                <p className="text-xs text-muted-foreground">
+                <p className="text-[10px] text-muted-foreground">
                   {format(new Date(bestGame.date), "MMM d, yyyy")} · {bestGame.gameMode} {bestGame.gameType}
                 </p>
                 <div className="flex items-center gap-3 font-mono text-sm">

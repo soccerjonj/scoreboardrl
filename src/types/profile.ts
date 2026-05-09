@@ -20,6 +20,7 @@ export type ActivityGamePlayer = {
   assists: number;
   saves: number;
   isMvp: boolean;
+  team: string | null;
 };
 
 export type ActivityGame = {
@@ -34,6 +35,8 @@ export type ActivityGame = {
   saves: number;
   isMvp: boolean;
   allPlayers: ActivityGamePlayer[];
+  teamGoals: number | null;
+  opponentGoals: number | null;
 };
 
 export type TournamentSummary = {

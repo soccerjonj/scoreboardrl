@@ -16,53 +16,93 @@ function relativeDate(isoString: string): string {
   return format(new Date(isoString), "MMM d");
 }
 
+function PlayerRow({
+  player,
+  isMe,
+}: {
+  player: ActivityGamePlayer;
+  isMe: boolean;
+}) {
+  return (
+    <div className={cn(
+      "grid grid-cols-[1fr_auto_auto_auto_auto] gap-x-3 px-3 py-1.5 items-center text-xs",
+      isMe ? "bg-primary/8 border-l-2 border-l-primary/60" : ""
+    )}>
+      <div className="flex items-center gap-1.5 min-w-0">
+        <span className={cn("truncate", isMe ? "font-semibold" : "font-medium text-muted-foreground/90")}>
+          {player.playerName || "—"}
+        </span>
+        {player.isMvp && (
+          <span className="shrink-0 text-[8px] font-bold px-1 py-0.5 rounded-sm bg-yellow-400/15 text-yellow-400 leading-none">
+            MVP
+          </span>
+        )}
+      </div>
+      <span className={cn("font-mono font-bold text-right w-9", isMe ? "text-foreground" : "text-foreground/70")}>{player.score}</span>
+      <span className="font-mono text-rl-orange/80 text-right w-5">{player.goals}</span>
+      <span className="font-mono text-rl-blue/80 text-right w-5">{player.assists}</span>
+      <span className="font-mono text-cyan-400/80 text-right w-5">{player.saves}</span>
+    </div>
+  );
+}
+
 function Scoreboard({
   players,
   currentUserId,
+  result,
 }: {
   players: ActivityGamePlayer[];
   currentUserId: string | null;
+  result: "win" | "loss";
 }) {
-  // Sort by score descending
-  const sorted = [...players].sort((a, b) => b.score - a.score);
+  // Group by team if team data present, otherwise show flat sorted list
+  const hasTeams = players.some((p) => p.team != null);
+  const myTeam = currentUserId ? players.find((p) => p.userId === currentUserId)?.team ?? null : null;
+
+  let groups: { label: string; isMyTeam: boolean; players: ActivityGamePlayer[] }[];
+
+  if (hasTeams && myTeam) {
+    const myTeamPlayers = players.filter((p) => p.team === myTeam).sort((a, b) => b.score - a.score);
+    const opponentPlayers = players.filter((p) => p.team !== myTeam).sort((a, b) => b.score - a.score);
+    groups = [
+      { label: result === "win" ? "Your Team  ·  WIN" : "Your Team  ·  LOSS", isMyTeam: true,  players: myTeamPlayers },
+      { label: result === "win" ? "Opponents  ·  LOSS" : "Opponents  ·  WIN", isMyTeam: false, players: opponentPlayers },
+    ];
+  } else {
+    groups = [{ label: "", isMyTeam: false, players: [...players].sort((a, b) => b.score - a.score) }];
+  }
 
   return (
-    <div className="mt-2 rounded-lg overflow-hidden border border-border/30">
-      {/* Header */}
-      <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-x-3 px-3 py-1.5 bg-muted/30 text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+    <div className="mt-2 rounded-lg overflow-hidden border border-border/30 bg-background/40">
+      {/* Column headers */}
+      <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-x-3 px-3 py-1 bg-muted/30 text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
         <span>Player</span>
         <span className="text-right w-9">Score</span>
         <span className="text-right w-5">G</span>
         <span className="text-right w-5">A</span>
         <span className="text-right w-5">S</span>
       </div>
-      {sorted.map((p, i) => {
-        const isMe = currentUserId && p.userId === currentUserId;
-        return (
-          <div
-            key={i}
-            className={cn(
-              "grid grid-cols-[1fr_auto_auto_auto_auto] gap-x-3 px-3 py-1.5 items-center text-xs border-t border-border/20",
-              isMe
-                ? "bg-primary/5 border-l-2 border-l-primary/50"
-                : "bg-background/30"
-            )}
-          >
-            <div className="flex items-center gap-1.5 min-w-0">
-              <span className="font-medium truncate">{p.playerName || "—"}</span>
-              {p.isMvp && (
-                <span className="shrink-0 text-[8px] font-bold px-1 py-0.5 rounded-sm bg-yellow-400/15 text-yellow-400 leading-none">
-                  MVP
-                </span>
-              )}
+      {groups.map((group, gi) => (
+        <div key={gi}>
+          {group.label && (
+            <div className={cn(
+              "px-3 py-1 text-[9px] font-bold uppercase tracking-wider border-t border-border/20",
+              group.isMyTeam
+                ? "text-primary/80 bg-primary/5"
+                : "text-muted-foreground bg-muted/10"
+            )}>
+              {group.label}
             </div>
-            <span className="font-mono font-bold text-right w-9">{p.score}</span>
-            <span className="font-mono text-rl-orange text-right w-5">{p.goals}</span>
-            <span className="font-mono text-rl-blue text-right w-5">{p.assists}</span>
-            <span className="font-mono text-cyan-400 text-right w-5">{p.saves}</span>
-          </div>
-        );
-      })}
+          )}
+          {group.players.map((p, i) => (
+            <PlayerRow
+              key={i}
+              player={p}
+              isMe={!!(currentUserId && p.userId === currentUserId)}
+            />
+          ))}
+        </div>
+      ))}
     </div>
   );
 }
@@ -76,20 +116,21 @@ function GameCard({
 }) {
   const [expanded, setExpanded] = useState(false);
   const isWin = game.result === "win";
+  const hasScore = game.teamGoals !== null && game.opponentGoals !== null;
 
   return (
     <div className="py-2.5">
       <button
-        className="w-full flex gap-3 items-stretch text-left"
+        className="w-full flex gap-3 items-center text-left"
         onClick={() => setExpanded((v) => !v)}
       >
         {/* Win/loss stripe */}
-        <div className={cn("w-1 rounded-full shrink-0", isWin ? "bg-rl-green" : "bg-rl-red")} />
+        <div className={cn("w-1 self-stretch rounded-full shrink-0", isWin ? "bg-rl-green" : "bg-rl-red")} />
 
         <div className="flex-1 min-w-0">
-          {/* Top row */}
+          {/* Top row: mode + time + expand indicator */}
           <div className="flex items-center justify-between mb-1">
-            <div className="flex items-center gap-1.5 flex-wrap">
+            <div className="flex items-center gap-1.5">
               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground">
                 {game.gameMode}
               </span>
@@ -100,36 +141,58 @@ function GameCard({
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-1.5 shrink-0 ml-2">
-              <span className="text-[10px] text-muted-foreground">{relativeDate(game.playedAt)}</span>
+            <div className="flex items-center gap-1 shrink-0 ml-2 text-muted-foreground">
+              <span className="text-[10px]">{relativeDate(game.playedAt)}</span>
               {game.allPlayers.length > 0 && (
-                expanded
-                  ? <ChevronUp className="w-3 h-3 text-muted-foreground" />
-                  : <ChevronDown className="w-3 h-3 text-muted-foreground" />
+                expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
               )}
             </div>
           </div>
-          {/* Stats row */}
-          <div className="flex items-center gap-3 font-mono text-sm">
-            <span className="font-bold text-foreground/90">{game.score}</span>
-            <span className="text-rl-orange">{game.goals}G</span>
-            <span className="text-rl-blue">{game.assists}A</span>
-            <span className="text-cyan-400">{game.saves}S</span>
+
+          {/* Main content row: goal score + player stats */}
+          <div className="flex items-center gap-3">
+            {/* Goal score — the game result */}
+            {hasScore ? (
+              <span className="font-display font-bold text-base leading-none shrink-0">
+                <span className={isWin ? "text-rl-green" : "text-rl-red"}>{game.teamGoals}</span>
+                <span className="text-muted-foreground mx-1">–</span>
+                <span className="text-muted-foreground">{game.opponentGoals}</span>
+              </span>
+            ) : (
+              <span className={cn("font-display font-bold text-sm shrink-0", isWin ? "text-rl-green" : "text-rl-red")}>
+                {isWin ? "W" : "L"}
+              </span>
+            )}
+            {/* Separator */}
+            <span className="text-border/60 shrink-0">·</span>
+            {/* Player stats */}
+            <div className="flex items-center gap-2 font-mono text-xs text-muted-foreground">
+              <span className="font-bold text-foreground/80">{game.score}</span>
+              <span className="text-rl-orange">{game.goals}G</span>
+              <span className="text-rl-blue">{game.assists}A</span>
+              <span className="text-cyan-400">{game.saves}S</span>
+            </div>
           </div>
         </div>
 
-        {/* W/L badge */}
-        <div className={cn(
-          "flex items-center px-2.5 text-xs font-bold rounded-lg self-stretch shrink-0",
-          isWin ? "bg-rl-green/10 text-rl-green" : "bg-rl-red/10 text-rl-red"
-        )}>
-          {isWin ? "W" : "L"}
-        </div>
+        {/* W/L badge — only show if no numeric score */}
+        {!hasScore && (
+          <div className={cn(
+            "flex items-center px-2 text-xs font-bold rounded-lg self-stretch shrink-0",
+            isWin ? "bg-rl-green/10 text-rl-green" : "bg-rl-red/10 text-rl-red"
+          )}>
+            {isWin ? "W" : "L"}
+          </div>
+        )}
       </button>
 
       {/* Expanded scoreboard */}
       {expanded && game.allPlayers.length > 0 && (
-        <Scoreboard players={game.allPlayers} currentUserId={currentUserId} />
+        <Scoreboard
+          players={game.allPlayers}
+          currentUserId={currentUserId}
+          result={game.result}
+        />
       )}
     </div>
   );
@@ -152,7 +215,7 @@ export default function ActivityFeed({ games, currentUserId = null }: Props) {
         <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1 flex items-center gap-1.5">
           <Clock className="w-3.5 h-3.5" />
           Recent Games
-          <span className="text-muted-foreground/60 normal-case font-normal">· tap to expand scoreboard</span>
+          <span className="text-muted-foreground/50 normal-case font-normal">· tap to expand</span>
         </p>
         <div className="divide-y divide-white/[0.04]">
           {visible.map((game) => (

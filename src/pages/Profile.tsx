@@ -243,7 +243,7 @@ const Profile = () => {
 
         const { data: gamesData } = await supabase
           .from("games")
-          .select("id, result, played_at, game_mode, game_type, game_players(user_id, player_name, score, goals, assists, saves, is_mvp)")
+          .select("id, result, played_at, game_mode, game_type, game_players(user_id, player_name, score, goals, assists, saves, is_mvp, team)")
           .in("id", gameIds)
           .order("played_at", { ascending: false });
 
@@ -301,8 +301,10 @@ const Profile = () => {
 
         // Activity feed (last 20 games, with full scoreboard per game)
         const activity: ActivityGame[] = gamesData.slice(0, 20).map((game) => {
-          const myRow = ((game as any).game_players ?? []).find((p: any) => p.user_id === user.id);
-          const allPlayers = ((game as any).game_players ?? []).map((p: any) => ({
+          const players: any[] = (game as any).game_players ?? [];
+          const myRow = players.find((p) => p.user_id === user.id);
+          const myTeam = myRow?.team ?? null;
+          const allPlayers = players.map((p) => ({
             userId: p.user_id ?? null,
             playerName: p.player_name ?? "Unknown",
             score: safeNum(p.score),
@@ -310,7 +312,15 @@ const Profile = () => {
             assists: safeNum(p.assists),
             saves: safeNum(p.saves),
             isMvp: p.is_mvp ?? false,
+            team: p.team ?? null,
           }));
+          // Compute team goals from player goals, grouped by team
+          let teamGoals: number | null = null;
+          let opponentGoals: number | null = null;
+          if (myTeam) {
+            teamGoals = players.filter((p) => p.team === myTeam).reduce((s, p) => s + safeNum(p.goals), 0);
+            opponentGoals = players.filter((p) => p.team !== myTeam && p.team != null).reduce((s, p) => s + safeNum(p.goals), 0);
+          }
           return {
             id: game.id,
             result: game.result === "win" ? "win" : "loss",
@@ -323,6 +333,8 @@ const Profile = () => {
             saves:   safeNum(myRow?.saves),
             isMvp:   myRow?.is_mvp ?? false,
             allPlayers,
+            teamGoals,
+            opponentGoals,
           };
         });
         setActivityGames(activity);
