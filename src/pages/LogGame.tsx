@@ -404,6 +404,15 @@ const LogGame = () => {
           .from("games")
           .update({ result: "duplicate" })
           .eq("id", overridingConflictId);
+
+        // If the old game was linked to a tournament, re-point the
+        // tournament_games row at the new canonical game so the bracket
+        // and team stats reflect the corrected version.
+        await supabase
+          .from("tournament_games")
+          .update({ game_id: game.id })
+          .eq("game_id", overridingConflictId);
+
         setConflictGame(null);
       }
 

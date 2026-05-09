@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
-import { Trophy, Loader2, Plus, Minimize2, X as XIcon } from "lucide-react";
+import { Trophy, Loader2, Plus, Minimize2, X as XIcon, User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTournamentSession, ROUND_LABELS, TOURNAMENT_TYPE_LABELS, RoundKey } from "@/hooks/useTournamentSession";
@@ -39,10 +39,31 @@ interface Props {
 export default function TournamentModeSheet({ open, onOpenChange }: Props) {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { activeTournament, tournamentGames, currentRound, isActive, endSession } = useTournamentSession();
+  const { activeTournament, tournamentGames, currentRound, isActive, endSession, participants, isOwner } = useTournamentSession();
   const [games, setGames] = useState<GameResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
+  const [participantProfiles, setParticipantProfiles] = useState<Record<string, { rl_name: string; avatar_url: string | null }>>({});
+
+  // Fetch profile data for participants so we can show names + avatars
+  useEffect(() => {
+    if (participants.length === 0) { setParticipantProfiles({}); return; }
+    const ids = participants.map((p) => p.user_id);
+    supabase
+      .from("profiles")
+      .select("user_id, username, rl_account_name, avatar_url")
+      .in("user_id", ids)
+      .then(({ data }) => {
+        const map: Record<string, { rl_name: string; avatar_url: string | null }> = {};
+        (data ?? []).forEach((p: any) => {
+          map[p.user_id] = {
+            rl_name: p.rl_account_name ?? p.username ?? "Unknown",
+            avatar_url: p.avatar_url ?? null,
+          };
+        });
+        setParticipantProfiles(map);
+      });
+  }, [participants.map((p) => p.user_id).join(",")]);
 
   // Refetch game data whenever the sheet opens or the linked games list changes
   useEffect(() => {
@@ -189,7 +210,7 @@ export default function TournamentModeSheet({ open, onOpenChange }: Props) {
           <div className="shrink-0 flex items-center gap-1">
             {showEndConfirm ? (
               <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-card/80 border border-border/50">
-                <span className="text-[11px] text-muted-foreground">End session?</span>
+                <span className="text-[11px] text-muted-foreground">{isOwner ? "End session?" : "Leave session?"}</span>
                 <button
                   onClick={async () => { await endSession(); setShowEndConfirm(false); onOpenChange(false); }}
                   className="text-[11px] font-bold text-rl-red hover:text-rl-red/80 transition-colors px-1.5"
@@ -202,11 +223,11 @@ export default function TournamentModeSheet({ open, onOpenChange }: Props) {
             ) : (
               <button
                 onClick={() => setShowEndConfirm(true)}
-                title="End tournament session"
+                title={isOwner ? "End tournament session" : "Leave tournament session"}
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-muted-foreground hover:text-rl-red hover:bg-rl-red/10 transition-colors"
               >
                 <XIcon className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">End</span>
+                <span className="hidden sm:inline">{isOwner ? "End" : "Leave"}</span>
               </button>
             )}
             <button
@@ -228,6 +249,43 @@ export default function TournamentModeSheet({ open, onOpenChange }: Props) {
             </div>
           ) : (
             <>
+              {/* Co-pilots — only shown when this is a co-op tournament */}
+              {participants.length > 1 && (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Co-pilots</p>
+                  <div className="flex flex-wrap gap-2">
+                    {participants.map((p) => {
+                      const prof = participantProfiles[p.user_id];
+                      const name = prof?.rl_name ?? "…";
+                      const isMe = p.user_id === user?.id;
+                      return (
+                        <div
+                          key={p.id}
+                          className={cn(
+                            "flex items-center gap-2 px-2.5 py-1.5 rounded-full border",
+                            isMe ? "bg-primary/10 border-primary/40" : "bg-card/50 border-border/40"
+                          )}
+                        >
+                          <div className="w-5 h-5 rounded-full overflow-hidden bg-muted/50 flex items-center justify-center shrink-0">
+                            {prof?.avatar_url ? (
+                              <img src={prof.avatar_url} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <User className="w-3 h-3 text-muted-foreground" />
+                            )}
+                          </div>
+                          <span className={cn("text-xs font-medium truncate max-w-[140px]", isMe && "text-primary")}>
+                            {name}
+                          </span>
+                          {p.is_owner && (
+                            <span className="text-[9px] uppercase tracking-wider font-bold text-yellow-400">Host</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Bracket */}
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Bracket</p>

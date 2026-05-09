@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Database } from "@/integrations/supabase/types";
@@ -9,6 +9,7 @@ export type GameMode = Database["public"]["Enums"]["game_mode"];
 
 export type Tournament = Database["public"]["Tables"]["tournaments"]["Row"];
 export type TournamentGame = Database["public"]["Tables"]["tournament_games"]["Row"];
+export type TournamentParticipant = Database["public"]["Tables"]["tournament_participants"]["Row"];
 
 export const ROUND_ORDER: RoundKey[] = [
   "round_1",
@@ -63,53 +64,187 @@ export function useTournamentSession() {
   const { user } = useAuth();
   const [activeTournament, setActiveTournament] = useState<Tournament | null>(null);
   const [tournamentGames, setTournamentGames] = useState<TournamentGame[]>([]);
+  const [participants, setParticipants] = useState<TournamentParticipant[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // ── Load active tournament on mount ─────────────────────────────────────
+  const activeTournamentRef = useRef<Tournament | null>(null);
+  activeTournamentRef.current = activeTournament;
+
+  // ── Helper: load a specific tournament + its games + roster ──────────────
+  const loadTournament = useCallback(async (tournamentId: string) => {
+    const [{ data: t }, { data: tg }, { data: tp }] = await Promise.all([
+      supabase.from("tournaments").select("*").eq("id", tournamentId).single(),
+      supabase.from("tournament_games").select("*").eq("tournament_id", tournamentId),
+      supabase.from("tournament_participants").select("*").eq("tournament_id", tournamentId),
+    ]);
+    if (!t || t.status !== "active") {
+      localStorage.removeItem(ACTIVE_TOURNAMENT_KEY);
+      setActiveTournament(null);
+      setTournamentGames([]);
+      setParticipants([]);
+      return;
+    }
+    localStorage.setItem(ACTIVE_TOURNAMENT_KEY, t.id);
+    setActiveTournament(t);
+    setTournamentGames(tg ?? []);
+    setParticipants(tp ?? []);
+  }, []);
+
+  // ── Bootstrap: find any active tournament where I'm a participant ────────
   useEffect(() => {
     if (!user) { setLoading(false); return; }
-    const storedId = localStorage.getItem(ACTIVE_TOURNAMENT_KEY);
-    if (!storedId) { setLoading(false); return; }
-
     const load = async () => {
-      const { data: t } = await supabase
-        .from("tournaments")
-        .select("*")
-        .eq("id", storedId)
+      // Find tournaments where I'm a participant; pick the most recent active
+      const { data: tps } = await supabase
+        .from("tournament_participants")
+        .select("tournament_id, tournaments!inner(id, status, created_at)")
         .eq("user_id", user.id)
-        .eq("status", "active")
-        .single();
+        .eq("tournaments.status", "active")
+        .order("created_at", { foreignTable: "tournaments", ascending: false })
+        .limit(1);
 
-      if (!t) {
+      const tournamentId = tps?.[0]?.tournament_id;
+      if (!tournamentId) {
         localStorage.removeItem(ACTIVE_TOURNAMENT_KEY);
+        setActiveTournament(null);
+        setTournamentGames([]);
+        setParticipants([]);
         setLoading(false);
         return;
       }
-      setActiveTournament(t);
-
-      const { data: tg } = await supabase
-        .from("tournament_games")
-        .select("*")
-        .eq("tournament_id", storedId);
-      setTournamentGames(tg ?? []);
+      await loadTournament(tournamentId);
       setLoading(false);
     };
     load();
-  }, [user]);
+  }, [user, loadTournament]);
 
-  // ── Start a new tournament ───────────────────────────────────────────────
+  // ── Realtime: react to participant additions, tournament updates, new games
+  useEffect(() => {
+    if (!user) return;
+    const ch = supabase.channel(`tournament-${user.id}`)
+      // 1. I was just added to a new tournament → activate it
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "tournament_participants",
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload: any) => {
+          const tournamentId = payload?.new?.tournament_id;
+          if (tournamentId) loadTournament(tournamentId);
+        }
+      )
+      // 2. Active tournament's status / current_round / outcome changed
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "tournaments" },
+        (payload: any) => {
+          const t = activeTournamentRef.current;
+          if (!t || payload?.new?.id !== t.id) return;
+          if (payload.new.status === "completed") {
+            localStorage.removeItem(ACTIVE_TOURNAMENT_KEY);
+            setActiveTournament(null);
+            setTournamentGames([]);
+            setParticipants([]);
+          } else {
+            setActiveTournament(payload.new);
+          }
+        }
+      )
+      // 3. New game linked to my active tournament → append
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "tournament_games" },
+        (payload: any) => {
+          const t = activeTournamentRef.current;
+          if (!t || payload?.new?.tournament_id !== t.id) return;
+          setTournamentGames((prev) =>
+            prev.some((tg) => tg.id === payload.new.id) ? prev : [...prev, payload.new as TournamentGame]
+          );
+        }
+      )
+      // 4. Roster change → keep participants in sync
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "tournament_participants" },
+        (payload: any) => {
+          const t = activeTournamentRef.current;
+          const tournamentId = (payload?.new?.tournament_id ?? payload?.old?.tournament_id) as string | undefined;
+          if (!t || !tournamentId || tournamentId !== t.id) return;
+          if (payload.eventType === "INSERT") {
+            setParticipants((prev) =>
+              prev.some((p) => p.id === payload.new.id) ? prev : [...prev, payload.new as TournamentParticipant]
+            );
+          } else if (payload.eventType === "DELETE") {
+            setParticipants((prev) => prev.filter((p) => p.id !== payload.old.id));
+            // If I was the one removed, clear local state
+            if (payload.old.user_id === user.id) {
+              localStorage.removeItem(ACTIVE_TOURNAMENT_KEY);
+              setActiveTournament(null);
+              setTournamentGames([]);
+              setParticipants([]);
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(ch);
+    };
+  }, [user, loadTournament]);
+
+  // ── Start a new tournament (optionally with friend partners) ─────────────
   const startTournament = useCallback(
-    async (gameMode: GameMode, tournamentType: TournamentType) => {
+    async (gameMode: GameMode, tournamentType: TournamentType, partnerUserIds: string[] = []) => {
       if (!user) return;
-      const { data, error } = await supabase
+
+      // 1. Insert tournament row
+      const { data: t, error: tErr } = await supabase
         .from("tournaments")
         .insert({ user_id: user.id, game_mode: gameMode, tournament_type: tournamentType })
         .select()
         .single();
-      if (error || !data) throw error;
-      localStorage.setItem(ACTIVE_TOURNAMENT_KEY, data.id);
-      setActiveTournament(data);
+      if (tErr || !t) throw tErr;
+
+      // 2. Insert participant rows: owner + partners
+      const participantRows = [
+        { tournament_id: t.id, user_id: user.id, is_owner: true },
+        ...partnerUserIds.map((pid) => ({ tournament_id: t.id, user_id: pid, is_owner: false })),
+      ];
+      const { data: tps } = await supabase
+        .from("tournament_participants")
+        .insert(participantRows)
+        .select();
+
+      // 3. Send invite notifications to partners (best-effort, fire-and-forget)
+      if (partnerUserIds.length > 0) {
+        const { data: ownerProfile } = await supabase
+          .from("profiles")
+          .select("rl_account_name, username")
+          .eq("user_id", user.id)
+          .single();
+        const ownerName = ownerProfile?.rl_account_name ?? ownerProfile?.username ?? "A friend";
+        const typeLabel = TOURNAMENT_TYPE_LABELS[tournamentType];
+        await Promise.all(
+          partnerUserIds.map((pid) =>
+            supabase.from("notifications").insert({
+              user_id: pid,
+              type: "tournament_invite",
+              title: `${ownerName} started a tournament with you`,
+              body: `${gameMode} ${typeLabel} — Tournament Mode is now active.`,
+              payload: { tournament_id: t.id },
+            })
+          )
+        );
+      }
+
+      localStorage.setItem(ACTIVE_TOURNAMENT_KEY, t.id);
+      setActiveTournament(t);
       setTournamentGames([]);
+      setParticipants(tps ?? []);
     },
     [user]
   );
@@ -120,11 +255,15 @@ export function useTournamentSession() {
       if (!activeTournament) throw new Error("No active tournament");
       const round = activeTournament.current_round as RoundKey;
 
-      // Count existing games in this round
-      const roundGames = tournamentGames.filter((tg) => tg.round === round);
-      const gameNumber = roundGames.length + 1;
+      // Refetch the tournament_games for this round so we get a server-truth
+      // game_number even if our local state is stale (e.g. partner just inserted)
+      const { data: serverRoundGames } = await supabase
+        .from("tournament_games")
+        .select("*")
+        .eq("tournament_id", activeTournament.id)
+        .eq("round", round);
+      const gameNumber = (serverRoundGames?.length ?? 0) + 1;
 
-      // Insert tournament_games row
       const { data: tgRow } = await supabase
         .from("tournament_games")
         .insert({ tournament_id: activeTournament.id, game_id: gameId, round, game_number: gameNumber })
@@ -135,9 +274,7 @@ export function useTournamentSession() {
       setTournamentGames(newTournamentGames);
 
       if (isBo3(round)) {
-        // Count wins/losses in this round after this game
         const roundResults = newTournamentGames.filter((tg) => tg.round === round);
-        // We need game results — fetch them
         const roundGameIds = roundResults.map((tg) => tg.game_id);
         const { data: roundGamesData } = await supabase
           .from("games")
@@ -149,7 +286,6 @@ export function useTournamentSession() {
         if (wins >= 2) {
           const next = nextRound(round);
           if (!next) {
-            // Won the Final
             await supabase
               .from("tournaments")
               .update({ status: "completed", outcome: "winner" })
@@ -176,7 +312,6 @@ export function useTournamentSession() {
           return { action: "bo3_continue", wins, losses, round };
         }
       } else {
-        // Single-match round
         if (result === "win") {
           const next = nextRound(round);
           if (next) {
@@ -187,7 +322,6 @@ export function useTournamentSession() {
             setActiveTournament((prev) => prev ? { ...prev, current_round: next } : prev);
             return { action: "advanced", nextRound: next };
           }
-          // Shouldn't happen (Final is Bo3), but guard
           await supabase
             .from("tournaments")
             .update({ status: "completed", outcome: "winner" })
@@ -209,17 +343,30 @@ export function useTournamentSession() {
     [activeTournament, tournamentGames]
   );
 
-  // ── End session manually (abandon) ──────────────────────────────────────
+  // ── End session (owner only) ──────────────────────────────────────────────
+  // For partners, this becomes a "leave" — we delete their own participant row.
   const endSession = useCallback(async () => {
-    if (!activeTournament) return;
-    await supabase
-      .from("tournaments")
-      .update({ status: "completed", outcome: "eliminated" })
-      .eq("id", activeTournament.id);
+    if (!activeTournament || !user) return;
+    const isOwner = activeTournament.user_id === user.id;
+    if (isOwner) {
+      // Owner ends the whole tournament for everyone
+      await supabase
+        .from("tournaments")
+        .update({ status: "completed", outcome: "eliminated" })
+        .eq("id", activeTournament.id);
+    } else {
+      // Partner leaves — owner + remaining partners continue
+      await supabase
+        .from("tournament_participants")
+        .delete()
+        .eq("tournament_id", activeTournament.id)
+        .eq("user_id", user.id);
+    }
     setActiveTournament(null);
     setTournamentGames([]);
+    setParticipants([]);
     localStorage.removeItem(ACTIVE_TOURNAMENT_KEY);
-  }, [activeTournament]);
+  }, [activeTournament, user]);
 
   // ── Series score for current Bo3 round ──────────────────────────────────
   const currentRound = activeTournament?.current_round as RoundKey | undefined;
@@ -227,9 +374,13 @@ export function useTournamentSession() {
     (tg) => activeTournament && tg.tournament_id === activeTournament.id && tg.round === currentRound
   );
 
+  const isOwner = !!(activeTournament && user && activeTournament.user_id === user.id);
+
   return {
     activeTournament,
     tournamentGames,
+    participants,
+    isOwner,
     currentRound: currentRound ?? null,
     currentRoundGameCount: currentRoundGames.length,
     isActive: !!activeTournament,

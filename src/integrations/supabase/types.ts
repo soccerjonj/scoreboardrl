@@ -384,6 +384,38 @@ export type Database = {
         }
         Relationships: []
       }
+      tournament_participants: {
+        Row: {
+          id: string
+          tournament_id: string
+          user_id: string
+          is_owner: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          tournament_id: string
+          user_id: string
+          is_owner?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          tournament_id?: string
+          user_id?: string
+          is_owner?: boolean
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tournament_participants_tournament_id_fkey"
+            columns: ["tournament_id"]
+            isOneToOne: false
+            referencedRelation: "tournaments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ranks: {
         Row: {
           created_at: string
@@ -480,6 +512,7 @@ export type Database = {
         | "stat_conflict"
         | "stat_edit"
         | "friend_request"
+        | "tournament_invite"
       rank_division: "I" | "II" | "III" | "IV"
       rank_tier:
         | "unranked"
@@ -641,6 +674,7 @@ export const Constants = {
         "stat_conflict",
         "stat_edit",
         "friend_request",
+        "tournament_invite",
       ],
       rank_division: ["I", "II", "III", "IV"],
       rank_tier: [
