@@ -64,7 +64,15 @@ const Notifications = () => {
             {notifications.map((n) => (
               <div
                 key={n.id}
-                onClick={() => { if (!n.read) markRead(n.id); }}
+                onClick={() => {
+                  if (!n.read) markRead(n.id);
+                  if (n.type === "game_shared") {
+                    const gameId = (n.payload as { game_id?: string } | null)?.game_id;
+                    if (gameId) navigate(`/dashboard?game=${gameId}`);
+                  } else if (n.type === "friend_request") {
+                    navigate("/friends");
+                  }
+                }}
                 className={`flex items-start gap-3 p-4 rounded-xl border transition-colors cursor-pointer ${
                   n.read
                     ? "border-border/40 bg-card/60"

@@ -9,13 +9,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Save, Loader2, AlertTriangle, ClipboardList } from "lucide-react";
+import { Save, Loader2, AlertTriangle, ClipboardList, Trophy, X as XIcon } from "lucide-react";
 import { CarryMeter } from "@/components/game/CarryMeter";
 import ScoreboardUploader from "@/components/game/ScoreboardUploader";
 import PhotoGuide from "@/components/game/PhotoGuide";
 import PlayerStatsEditor from "@/components/game/PlayerStatsEditor";
 import { calculateContributionScores } from "@/lib/carryScore";
 import { useNotifications } from "@/hooks/useNotifications";
+import { useTournamentSession, ROUND_LABELS, TOURNAMENT_TYPE_LABELS } from "@/hooks/useTournamentSession";
+import TournamentRoundSheet from "@/components/tournament/TournamentRoundSheet";
+import StartTournamentSheet from "@/components/tournament/StartTournamentSheet";
+import type { LinkGameResult, RoundResult, RoundKey } from "@/hooks/useTournamentSession";
 import type { Database } from "@/integrations/supabase/types";
 
 type GamePlayerRow = Database["public"]["Tables"]["game_players"]["Row"];
@@ -146,8 +150,21 @@ const LogGame = () => {
   const [mmrChange, setMmrChange] = useState<number | null>(null);
   const [conflictGame, setConflictGame] = useState<GameWithPlayers | null>(null);
   const [wasPhotoParsed, setWasPhotoParsed] = useState(false);
+  const [showEndSessionConfirm, setShowEndSessionConfirm] = useState(false);
+  const [showStartTournament, setShowStartTournament] = useState(false);
+  const [tournamentLinkResult, setTournamentLinkResult] = useState<LinkGameResult | null>(null);
+  const [tournamentBracketRounds, setTournamentBracketRounds] = useState<RoundResult[]>([]);
+  const [showRoundSheet, setShowRoundSheet] = useState(false);
 
   const { sendNotification } = useNotifications();
+  const {
+    activeTournament,
+    isActive: isTournamentActive,
+    currentRound: tournamentRound,
+    tournamentGames,
+    linkGame: linkGameToTournament,
+    endSession: endTournamentSession,
+  } = useTournamentSession();
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -490,6 +507,52 @@ const LogGame = () => {
         }
       }
 
+      // ── Link to active tournament if one is in progress ───────────────────
+      if (isTournamentActive && activeTournament) {
+        try {
+          const linkResult = await linkGameToTournament(game.id, result);
+
+          // Build bracket rounds for the sheet
+          const { data: allTgRows } = await supabase
+            .from("tournament_games")
+            .select("*")
+            .eq("tournament_id", activeTournament.id);
+          const tgRows = allTgRows ?? [];
+
+          const gameIds = tgRows.map((tg) => tg.game_id);
+          const { data: gamesData } = gameIds.length > 0
+            ? await supabase.from("games").select("id, result").in("id", gameIds)
+            : { data: [] };
+          const resultMap = new Map((gamesData ?? []).map((g) => [g.id, g.result as "win" | "loss"]));
+
+          const roundsMap = new Map<string, RoundResult>();
+          tgRows.forEach((tg) => {
+            const gameResult = resultMap.get(tg.game_id);
+            if (!gameResult) return;
+            const existing = roundsMap.get(tg.round);
+            if (existing) {
+              existing.games.push({ result: gameResult, game_number: tg.game_number });
+            } else {
+              roundsMap.set(tg.round, { round: tg.round as RoundKey, games: [{ result: gameResult, game_number: tg.game_number }] });
+            }
+          });
+
+          // Mark current round as active if still in progress
+          if (linkResult.action === "bo3_continue") {
+            const cur = roundsMap.get(linkResult.round);
+            if (cur) cur.isCurrentRound = true;
+          }
+
+          setTournamentBracketRounds(Array.from(roundsMap.values()));
+          setTournamentLinkResult(linkResult);
+          setShowRoundSheet(true);
+          setSaving(false);
+          return; // Don't navigate yet — sheet will handle it
+        } catch {
+          // Non-fatal: tournament link failed, still save the game normally
+        }
+      }
+
       toast({ title: "Game saved!", description: "Your game has been logged successfully." });
       navigate("/dashboard");
     } catch (err: any) {
@@ -516,6 +579,53 @@ const LogGame = () => {
   return (
     <AppLayout>
       <div className="space-y-6">
+        {/* Tournament banner — active or start prompt */}
+        {isTournamentActive && activeTournament && tournamentRound ? (
+          <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-yellow-400/30 bg-yellow-400/8">
+            <div className="flex items-center gap-2">
+              <Trophy className="w-4 h-4 text-yellow-400 shrink-0" />
+              <span className="text-sm font-semibold text-yellow-300">
+                Tournament Active
+              </span>
+              <span className="text-xs text-yellow-400/70">
+                · {activeTournament.game_mode} {TOURNAMENT_TYPE_LABELS[activeTournament.tournament_type as keyof typeof TOURNAMENT_TYPE_LABELS]}
+                · {ROUND_LABELS[tournamentRound]}
+              </span>
+            </div>
+            {showEndSessionConfirm ? (
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-xs text-muted-foreground">End session?</span>
+                <button
+                  onClick={async () => { await endTournamentSession(); setShowEndSessionConfirm(false); }}
+                  className="text-xs font-medium text-rl-red hover:text-rl-red/80 transition-colors"
+                >Yes</button>
+                <button
+                  onClick={() => setShowEndSessionConfirm(false)}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >No</button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowEndSessionConfirm(true)}
+                className="p-1 rounded-md text-muted-foreground hover:text-foreground transition-colors shrink-0"
+              >
+                <XIcon className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        ) : !isTournamentActive && (
+          <button
+            onClick={() => setShowStartTournament(true)}
+            className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-border/40 bg-card/60 hover:bg-card/90 hover:border-primary/30 transition-colors text-left"
+          >
+            <div className="flex items-center gap-2">
+              <Trophy className="w-4 h-4 text-muted-foreground shrink-0" />
+              <span className="text-sm text-muted-foreground">Playing in a tournament?</span>
+            </div>
+            <span className="text-xs font-semibold text-primary shrink-0">Start Session →</span>
+          </button>
+        )}
+
         {step === "upload" && (
           <Card className="border-border/50 bg-card/80">
             <CardHeader>
@@ -880,6 +990,15 @@ const LogGame = () => {
           </>
         )}
       </div>
+
+      <TournamentRoundSheet
+        open={showRoundSheet}
+        onOpenChange={setShowRoundSheet}
+        linkResult={tournamentLinkResult}
+        bracketRounds={tournamentBracketRounds}
+        outcome={tournamentLinkResult?.action === "champion" ? "winner" : tournamentLinkResult?.action === "eliminated" ? "eliminated" : null}
+      />
+      <StartTournamentSheet open={showStartTournament} onOpenChange={setShowStartTournament} />
     </AppLayout>
   );
 };

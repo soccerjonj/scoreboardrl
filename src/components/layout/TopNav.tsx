@@ -13,8 +13,8 @@ const tabs = [
   { to: "/stats",       label: "Stats",       icon: BarChart2 },
   { to: "/log-game",    label: "Log Game",    icon: PlusCircle },
   { to: "/friends",     label: "Friends",     icon: Users },
-  { to: "/leaderboard", label: "Leaderboard", icon: Trophy },
-  { to: "/profile",     label: "Profile",     icon: User },
+  { to: "/leaderboard",  label: "Leaderboard",  icon: Trophy },
+  { to: "/profile",      label: "Profile",      icon: User },
 ];
 
 const TopNav = () => {

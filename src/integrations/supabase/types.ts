@@ -264,7 +264,10 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          banner_url: string | null
+          bio: string | null
           created_at: string
+          favorite_car: string | null
           id: string
           rl_account_name: string | null
           show_on_leaderboard: boolean
@@ -274,7 +277,10 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          banner_url?: string | null
+          bio?: string | null
           created_at?: string
+          favorite_car?: string | null
           id?: string
           rl_account_name?: string | null
           show_on_leaderboard?: boolean
@@ -284,13 +290,91 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          banner_url?: string | null
+          bio?: string | null
           created_at?: string
+          favorite_car?: string | null
           id?: string
           rl_account_name?: string | null
           show_on_leaderboard?: boolean
           updated_at?: string
           user_id?: string
           username?: string
+        }
+        Relationships: []
+      }
+      tournament_games: {
+        Row: {
+          created_at: string
+          game_id: string
+          game_number: number
+          id: string
+          round: string
+          tournament_id: string
+        }
+        Insert: {
+          created_at?: string
+          game_id: string
+          game_number?: number
+          id?: string
+          round: string
+          tournament_id: string
+        }
+        Update: {
+          created_at?: string
+          game_id?: string
+          game_number?: number
+          id?: string
+          round?: string
+          tournament_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tournament_games_tournament_id_fkey"
+            columns: ["tournament_id"]
+            isOneToOne: false
+            referencedRelation: "tournaments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tournament_games_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: true
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tournaments: {
+        Row: {
+          created_at: string
+          current_round: string
+          game_mode: Database["public"]["Enums"]["game_mode"]
+          id: string
+          outcome: string | null
+          status: string
+          tournament_type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_round?: string
+          game_mode: Database["public"]["Enums"]["game_mode"]
+          id?: string
+          outcome?: string | null
+          status?: string
+          tournament_type?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          current_round?: string
+          game_mode?: Database["public"]["Enums"]["game_mode"]
+          id?: string
+          outcome?: string | null
+          status?: string
+          tournament_type?: string
+          user_id?: string
         }
         Relationships: []
       }

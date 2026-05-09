@@ -1,13 +1,20 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Loader2, Star, Trophy, User } from "lucide-react";
+import { ArrowLeft, Loader2, Star, User } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
-import { CARS, CarBadge } from "@/components/profile/CarSilhouette";
 import { getRankIcon } from "@/lib/rankIcons";
+import ProfileHeader from "@/components/profile/ProfileHeader";
+import StatsShowcase from "@/components/profile/StatsShowcase";
+import TrophyShelf from "@/components/profile/TrophyShelf";
+import ActivityFeed from "@/components/profile/ActivityFeed";
+import PerformanceChart from "@/components/profile/PerformanceChart";
+import { ROUND_ORDER } from "@/hooks/useTournamentSession";
+import type { RoundKey } from "@/hooks/useTournamentSession";
+import type { BestGame, ActivityGame, TournamentSummary, LeaderboardStanding, ChartPoint, TeammateProfile } from "@/types/profile";
 
 type GameMode = Database["public"]["Enums"]["game_mode"];
 type RankTier = Database["public"]["Enums"]["rank_tier"];
@@ -23,19 +30,9 @@ type FriendProfileData = {
   username: string | null;
   rl_account_name: string | null;
   avatar_url: string | null;
+  banner_url: string | null;
   bio: string | null;
   favorite_car: string | null;
-};
-
-type PlayerStatsRow = {
-  game_id: string;
-  score: number | null;
-  goals: number | null;
-  assists: number | null;
-  saves: number | null;
-  shots: number | null;
-  is_mvp: boolean | null;
-  contribution_score: number | null;
 };
 
 type ProfileStats = {
@@ -58,7 +55,7 @@ type ProfileStats = {
   topTeammates: Array<{ userId: string; name: string; games: number; wins: number }>;
 };
 
-const gameModes: GameMode[] = ["1v1", "2v2", "3v3", "4v4"];
+const gameModes: GameMode[] = ["1v1", "2v2", "3v3"];
 const gameModeLabels: Record<GameMode, string> = { "1v1": "1v1", "2v2": "2v2", "3v3": "3v3", "4v4": "4v4" };
 
 const rankTierOptions: { value: RankTier; label: string }[] = [
@@ -102,11 +99,16 @@ const FriendProfile = () => {
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
-  const [loadingStats, setLoadingStats] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const [profile, setProfile] = useState<FriendProfileData | null>(null);
   const [ranks, setRanks] = useState<Record<GameMode, RankInput>>(createEmptyRanks());
   const [profileStats, setProfileStats] = useState<ProfileStats | null>(null);
+  const [tournamentData, setTournamentData] = useState<TournamentSummary | null>(null);
+  const [activityGames, setActivityGames] = useState<ActivityGame[]>([]);
+  const [bestGame, setBestGame] = useState<BestGame | null>(null);
+  const [leaderboardStanding, setLeaderboardStanding] = useState<LeaderboardStanding | null>(null);
+  const [chartData, setChartData] = useState<ChartPoint[]>([]);
+  const [teammates, setTeammates] = useState<TeammateProfile[]>([]);
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/auth");
@@ -123,7 +125,7 @@ const FriendProfile = () => {
         const [profileRes, ranksRes] = await Promise.all([
           supabase
             .from("profiles")
-            .select("username, rl_account_name, avatar_url, bio, favorite_car")
+            .select("username, rl_account_name, avatar_url, banner_url, bio, favorite_car")
             .eq("user_id", userId)
             .single(),
           supabase
@@ -150,50 +152,66 @@ const FriendProfile = () => {
         });
         setRanks(nextRanks);
 
-        setLoadingStats(true);
+        // Tournament data (now readable by all authenticated users via new policy)
         try {
-          const { data: myPlayerRows, error: playersError } = await supabase
+          const { data: tourneyData } = await supabase
+            .from("tournaments")
+            .select("outcome, current_round, status")
+            .eq("user_id", userId);
+
+          const wins = (tourneyData ?? []).filter((t: any) => t.outcome === "winner").length;
+          const roundIndices = (tourneyData ?? []).map((t: any) => ROUND_ORDER.indexOf(t.current_round as RoundKey));
+          const highestIdx = roundIndices.length > 0 ? Math.max(...roundIndices) : -1;
+          setTournamentData({
+            totalEntered: tourneyData?.length ?? 0,
+            wins,
+            highestRoundReached: highestIdx >= 0 ? ROUND_ORDER[highestIdx] : null,
+          });
+        } catch { /* non-critical — policy may not be applied yet */ }
+
+        // Stats
+        try {
+          const { data: playerRows, error: playersError } = await supabase
             .from("game_players")
             .select("game_id, score, goals, assists, saves, shots, is_mvp, contribution_score")
             .eq("user_id", userId);
 
           if (playersError) throw playersError;
-          if (!myPlayerRows || myPlayerRows.length === 0) {
+          if (!playerRows || playerRows.length === 0) {
             setProfileStats(null);
             return;
           }
 
-          const playerRows = myPlayerRows as PlayerStatsRow[];
-          const gameIds = playerRows.map((r) => r.game_id);
           const n = playerRows.length;
 
           const { records, totals } = playerRows.reduce(
             ({ records: best, totals: t }, row) => ({
               records: {
-                bestScore: Math.max(best.bestScore, safeNum(row.score)),
-                bestGoals: Math.max(best.bestGoals, safeNum(row.goals)),
-                bestAssists: Math.max(best.bestAssists, safeNum(row.assists)),
-                bestSaves: Math.max(best.bestSaves, safeNum(row.saves)),
+                bestScore:             Math.max(best.bestScore,             safeNum(row.score)),
+                bestGoals:             Math.max(best.bestGoals,             safeNum(row.goals)),
+                bestAssists:           Math.max(best.bestAssists,           safeNum(row.assists)),
+                bestSaves:             Math.max(best.bestSaves,             safeNum(row.saves)),
                 bestContributionScore: Math.max(best.bestContributionScore, safeNum(row.contribution_score)),
               },
               totals: {
-                score: t.score + safeNum(row.score),
-                goals: t.goals + safeNum(row.goals),
+                score:   t.score   + safeNum(row.score),
+                goals:   t.goals   + safeNum(row.goals),
                 assists: t.assists + safeNum(row.assists),
-                saves: t.saves + safeNum(row.saves),
-                shots: t.shots + safeNum(row.shots),
-                mvps: t.mvps + (row.is_mvp ? 1 : 0),
+                saves:   t.saves   + safeNum(row.saves),
+                shots:   t.shots   + safeNum(row.shots),
+                mvps:    t.mvps    + (row.is_mvp ? 1 : 0),
               },
             }),
             {
               records: { bestScore: 0, bestGoals: 0, bestAssists: 0, bestSaves: 0, bestContributionScore: 0 },
-              totals: { score: 0, goals: 0, assists: 0, saves: 0, shots: 0, mvps: 0 },
+              totals:  { score: 0, goals: 0, assists: 0, saves: 0, shots: 0, mvps: 0 },
             }
           );
 
+          const gameIds = playerRows.map((r) => r.game_id);
           const { data: gamesData, error: gamesError } = await supabase
             .from("games")
-            .select("id, result, played_at, game_mode, game_players(user_id, player_name)")
+            .select("id, result, played_at, game_mode, game_type, game_players(user_id, player_name, score, goals, assists, saves, shots, is_mvp, team)")
             .in("id", gameIds)
             .order("played_at", { ascending: false });
 
@@ -205,62 +223,154 @@ const FriendProfile = () => {
 
           const totalGames = gamesData.length;
           const wins = gamesData.filter((g) => g.result === "win").length;
-          const recentForm: Array<"W" | "L"> = gamesData
-            .slice(0, 5)
-            .map((g) => (g.result === "win" ? "W" : "L"));
+          const recentForm: Array<"W" | "L"> = gamesData.slice(0, 5).map((g) => (g.result === "win" ? "W" : "L"));
 
           const teammateMap = new Map<string, { name: string; games: number; wins: number }>();
           gamesData.forEach((game) => {
             const isWin = game.result === "win";
-            const players = ((game as { game_players?: Array<{ user_id: string | null; player_name: string | null }> }).game_players || []);
-            players.forEach((p) => {
+            const players = ((game as any).game_players || []);
+            players.forEach((p: any) => {
               if (!p.user_id || p.user_id === userId) return;
               const prev = teammateMap.get(p.user_id);
               teammateMap.set(p.user_id, {
-                name: p.player_name ?? "Unknown",
+                name:  p.player_name ?? "Unknown",
                 games: (prev?.games ?? 0) + 1,
-                wins: (prev?.wins ?? 0) + (isWin ? 1 : 0),
+                wins:  (prev?.wins  ?? 0) + (isWin ? 1 : 0),
               });
             });
           });
-
           const topTeammates = Array.from(teammateMap.entries())
             .map(([id, data]) => ({ userId: id, ...data }))
             .sort((a, b) => b.games - a.games)
             .slice(0, 3);
 
+          // Fetch avatars for top teammates
+          if (topTeammates.length > 0) {
+            const { data: tmProfiles } = await supabase
+              .from("profiles")
+              .select("user_id, avatar_url")
+              .in("user_id", topTeammates.map((t) => t.userId));
+            const avatarMap = new Map((tmProfiles ?? []).map((p) => [p.user_id, p.avatar_url ?? null]));
+            setTeammates(topTeammates.map((t) => ({ ...t, avatarUrl: avatarMap.get(t.userId) ?? null })));
+          } else {
+            setTeammates([]);
+          }
+
+          // Normalized contribution
           const modeMap = new Map(gamesData.map((g) => [g.id, g.game_mode as string]));
-          let normalizedContributionTotal = 0;
-          let normalizedContributionCount = 0;
+          let normTotal = 0, normCount = 0;
           playerRows.forEach((row) => {
             const mode = modeMap.get(row.game_id);
-            const teamSize = mode === "1v1" ? 1 : mode === "2v2" ? 2 : mode === "3v3" ? 3 : 4;
-            const contribution = safeNum(row.contribution_score);
-            if (contribution > 0 && teamSize > 1) {
-              normalizedContributionTotal += contribution * teamSize;
-              normalizedContributionCount++;
-            }
+            const ts = mode === "1v1" ? 1 : mode === "2v2" ? 2 : mode === "3v3" ? 3 : 4;
+            const cs = safeNum(row.contribution_score);
+            if (cs > 0 && ts > 1) { normTotal += cs * ts; normCount++; }
           });
 
           setProfileStats({
-            totalGames,
-            wins,
-            losses: totalGames - wins,
-            recentForm,
-            avgScore: n > 0 ? totals.score / n : 0,
-            avgGoals: n > 0 ? totals.goals / n : 0,
-            avgAssists: n > 0 ? totals.assists / n : 0,
-            avgSaves: n > 0 ? totals.saves / n : 0,
-            avgShots: n > 0 ? totals.shots / n : 0,
-            avgContribution: normalizedContributionCount > 0 ? normalizedContributionTotal / normalizedContributionCount : null,
-            mvpRate: n > 0 ? (totals.mvps / n) * 100 : 0,
-            ...records,
-            topTeammates,
+            totalGames, wins, losses: totalGames - wins, recentForm,
+            avgScore:        n > 0 ? totals.score   / n : 0,
+            avgGoals:        n > 0 ? totals.goals   / n : 0,
+            avgAssists:      n > 0 ? totals.assists / n : 0,
+            avgSaves:        n > 0 ? totals.saves   / n : 0,
+            avgShots:        n > 0 ? totals.shots   / n : 0,
+            avgContribution: normCount > 0 ? normTotal / normCount : null,
+            mvpRate:         n > 0 ? (totals.mvps / n) * 100 : 0,
+            ...records, topTeammates,
           });
+
+          // Activity feed (last 20 games, with full scoreboard)
+          const activity: ActivityGame[] = gamesData.slice(0, 20).map((game) => {
+            const players: any[] = (game as any).game_players ?? [];
+            const myRow = players.find((p) => p.user_id === userId);
+            const myTeam = myRow?.team ?? null;
+            const allPlayers = players.map((p) => ({
+              userId: p.user_id ?? null,
+              playerName: p.player_name ?? "Unknown",
+              score: safeNum(p.score),
+              goals: safeNum(p.goals),
+              assists: safeNum(p.assists),
+              saves: safeNum(p.saves),
+              shots: safeNum(p.shots),
+              isMvp: p.is_mvp ?? false,
+              team: p.team ?? null,
+            }));
+            let teamGoals: number | null = null;
+            let opponentGoals: number | null = null;
+            if (myTeam) {
+              teamGoals = players.filter((p) => p.team === myTeam).reduce((s, p) => s + safeNum(p.goals), 0);
+              opponentGoals = players.filter((p) => p.team !== myTeam && p.team != null).reduce((s, p) => s + safeNum(p.goals), 0);
+            }
+            return {
+              id: game.id,
+              result: game.result === "win" ? "win" : "loss",
+              gameMode: game.game_mode,
+              gameType: (game as any).game_type ?? "competitive",
+              playedAt: game.played_at,
+              score:   safeNum(myRow?.score),
+              goals:   safeNum(myRow?.goals),
+              assists: safeNum(myRow?.assists),
+              saves:   safeNum(myRow?.saves),
+              isMvp:   myRow?.is_mvp ?? false,
+              allPlayers,
+              teamGoals,
+              opponentGoals,
+            };
+          });
+          setActivityGames(activity);
+
+          // Performance chart — MMR history
+          try {
+            const { data: mmrRows } = await supabase
+              .from("mmr_history" as any)
+              .select("mmr, game_mode, recorded_at")
+              .eq("user_id", userId)
+              .order("recorded_at", { ascending: true })
+              .limit(120);
+            if (mmrRows && (mmrRows as any[]).length > 0) {
+              const modeCounts = new Map<string, number>();
+              (mmrRows as any[]).forEach((r) => modeCounts.set(r.game_mode, (modeCounts.get(r.game_mode) ?? 0) + 1));
+              const preferredMode = (["2v2", "3v3", "1v1"] as GameMode[]).reduce((best, m) =>
+                (modeCounts.get(m) ?? 0) > (modeCounts.get(best) ?? 0) ? m : best
+              , "2v2");
+              const modeRows = (mmrRows as any[]).filter((r) => r.game_mode === preferredMode).slice(-30);
+              setChartData(modeRows.map((r, i) => ({ index: i + 1, score: r.mmr, date: r.recorded_at, gameMode: preferredMode })));
+            } else {
+              setChartData([]);
+            }
+          } catch { setChartData([]); }
+
+          // Best game
+          if (playerRows.length > 0) {
+            const bestRow = playerRows.reduce((best, row) =>
+              safeNum(row.contribution_score) > safeNum(best.contribution_score) ? row : best
+            , playerRows[0]);
+            const bestGameData = gamesData.find((g) => g.id === bestRow.game_id);
+            if (bestGameData) {
+              const myRow = ((bestGameData as any).game_players ?? []).find((p: any) => p.user_id === userId);
+              setBestGame({
+                date: bestGameData.played_at,
+                gameMode: bestGameData.game_mode,
+                gameType: (bestGameData as any).game_type ?? "competitive",
+                score:   safeNum(myRow?.score),
+                goals:   safeNum(myRow?.goals),
+                assists: safeNum(myRow?.assists),
+                saves:   safeNum(myRow?.saves),
+                contributionScore: safeNum(bestRow.contribution_score),
+                isMvp: myRow?.is_mvp ?? false,
+              });
+            }
+          }
+
+          // Leaderboard standing
+          try {
+            const { data: lbData } = await (supabase as any).rpc("get_leaderboard", { p_window: "7d", p_stat: "goals" });
+            const entry = (lbData ?? []).find((e: any) => e.user_id === userId);
+            if (entry && entry.rank <= 20) {
+              setLeaderboardStanding({ stat: "Goals", rank: entry.rank, window: "7d" });
+            }
+          } catch { /* non-critical */ }
         } catch {
           setProfileStats(null);
-        } finally {
-          setLoadingStats(false);
         }
       } catch {
         setNotFound(true);
@@ -295,169 +405,98 @@ const FriendProfile = () => {
   }
 
   const displayName = profile.rl_account_name?.trim() || profile.username || "Unknown Player";
-  const favoriteCarObj = profile.favorite_car ? CARS.find((car) => car.name === profile.favorite_car) ?? null : null;
-  const winRate = profileStats && profileStats.totalGames > 0
-    ? Math.round((profileStats.wins / profileStats.totalGames) * 100)
-    : null;
+
+  const rankedModes = gameModes.filter((m) => ranks[m].rank_tier !== "unranked");
 
   return (
     <AppLayout>
       <div className="space-y-4">
-        <Card className="overflow-hidden">
-          <div className="h-24 bg-gradient-to-br from-primary/30 via-rl-purple/15 to-secondary/10 relative">
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,hsl(var(--primary)/0.2),transparent_60%)]" />
-          </div>
+        {/* Back button */}
+        <button
+          onClick={() => navigate("/friends")}
+          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors -mb-1"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Friends
+        </button>
 
-          <div className="px-5 pt-0 pb-4">
-            <div className="flex items-end gap-4 -mt-10 mb-3">
-              <div className="w-20 h-20 rounded-full border-[3px] border-primary/40 bg-muted/40 overflow-hidden shrink-0 shadow-[0_0_20px_hsl(var(--primary)/0.25)]">
-                {profile.avatar_url
-                  ? <img src={profile.avatar_url} alt={displayName} className="w-full h-full object-cover" />
-                  : <div className="w-full h-full flex items-center justify-center"><User className="w-9 h-9 text-muted-foreground/60" /></div>
-                }
-              </div>
-              <div className="pb-1 min-w-0 flex-1">
-                <h2 className="font-display font-bold text-xl truncate">{displayName}</h2>
-              </div>
-            </div>
-            {profile.bio && <p className="text-sm text-muted-foreground mb-2">{profile.bio}</p>}
-            {favoriteCarObj && (
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Favorite Car</span>
-                <CarBadge car={favoriteCarObj} />
-              </div>
-            )}
-          </div>
-
-          {profileStats && profileStats.totalGames > 0 && (
-            <div className="border-t border-white/[0.06] bg-white/[0.02]">
-              <div className="px-5 py-3 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rl-green/10 border border-rl-green/20">
-                    <span className="font-display font-bold text-sm text-rl-green">{profileStats.wins}W</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rl-red/10 border border-rl-red/20">
-                    <span className="font-display font-bold text-sm text-rl-red">{profileStats.losses}L</span>
-                  </div>
-                  {winRate !== null && (
-                    <span className="text-xs text-muted-foreground font-mono">{winRate}%</span>
-                  )}
-                </div>
-                {profileStats.recentForm.length > 0 && (
-                  <div className="flex items-center gap-1">
-                    {profileStats.recentForm.map((result, i) => (
-                      <div key={i} className={`w-5 h-5 rounded text-[9px] font-bold flex items-center justify-center ${
-                        result === "W"
-                          ? "bg-rl-green/20 text-rl-green border border-rl-green/30"
-                          : "bg-rl-red/20 text-rl-red border border-rl-red/30"
-                      }`}>{result}</div>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div className="border-t border-white/[0.05] grid grid-cols-4 divide-x divide-white/[0.05]">
-                {[
-                  { label: "Games", value: profileStats.totalGames, fmt: (v: number) => String(v), color: "text-primary" },
-                  { label: "Avg Score", value: profileStats.avgScore, fmt: (v: number) => v.toFixed(0), color: "text-secondary" },
-                  { label: "Contrib", value: profileStats.avgContribution, fmt: (v: number) => Math.round(v).toString(), color: "text-rl-purple" },
-                  { label: "MVP Rate", value: profileStats.mvpRate, fmt: (v: number) => `${Math.round(v)}%`, color: "text-yellow-400" },
-                ].map(({ label, value, fmt, color }) => (
-                  <div key={label} className="py-3 text-center">
-                    <p className={`font-display font-bold text-lg leading-tight ${color}`}>
-                      {value !== null ? fmt(value) : <span className="text-muted-foreground">-</span>}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">{label}</p>
-                  </div>
-                ))}
-              </div>
-              <div className="border-t border-white/[0.05] grid grid-cols-4 divide-x divide-white/[0.05]">
-                {[
-                  { label: "Goals", value: profileStats.avgGoals, fmt: (v: number) => v.toFixed(2) },
-                  { label: "Assists", value: profileStats.avgAssists, fmt: (v: number) => v.toFixed(2) },
-                  { label: "Saves", value: profileStats.avgSaves, fmt: (v: number) => v.toFixed(2) },
-                  { label: "Shots", value: profileStats.avgShots, fmt: (v: number) => v.toFixed(2) },
-                ].map(({ label, value, fmt }) => (
-                  <div key={label} className="py-3 text-center">
-                    <p className="font-display font-bold text-sm leading-tight text-foreground/90">
-                      {value !== null ? fmt(value) : <span className="text-muted-foreground">-</span>}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">{label}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+        {/* Profile Header */}
+        <Card className="overflow-hidden p-0">
+          <ProfileHeader
+            displayName={displayName}
+            avatarUrl={profile.avatar_url}
+            bannerUrl={profile.banner_url}
+            bio={profile.bio}
+            favoriteCar={profile.favorite_car}
+            ranks={ranks}
+            profileUserId={userId!}
+            totalGames={profileStats?.totalGames}
+            wins={profileStats?.wins}
+          />
         </Card>
 
-        <Card className="border-border/50 bg-card/80">
-          <CardContent className="pt-4 pb-3 space-y-1">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Competitive Ranks</p>
-            {gameModes.map((mode) => {
-              const rank = ranks[mode];
-              const colorClass = RANK_COLORS[rank.rank_tier] ?? "text-foreground";
-              return (
-                <div key={mode} className="flex items-center justify-between py-2 px-3 rounded-lg bg-background/60">
-                  <span className="font-display font-bold text-sm text-muted-foreground w-8">{gameModeLabels[mode]}</span>
-                  <div className="flex items-center gap-2 flex-1 ml-2">
-                    <img
-                      src={getRankIcon(rank.rank_tier)}
-                      alt={getRankLabel(rank.rank_tier)}
-                      className="w-8 h-8 object-contain"
-                    />
-                    <span className={`font-semibold text-sm ${colorClass}`}>
-                      {getRankLabel(rank.rank_tier)}
-                      {rank.rank_division && rank.rank_tier !== "unranked" && rank.rank_tier !== "supersonic_legend" ? ` ${rank.rank_division}` : ""}
-                    </span>
-                  </div>
-                  {rank.mmr != null && (
-                    <span className="text-xs text-muted-foreground font-mono">{rank.mmr} MMR</span>
-                  )}
-                </div>
-              );
-            })}
-          </CardContent>
-        </Card>
-
+        {/* Stats Showcase */}
         {profileStats && profileStats.totalGames > 0 && (
+          <StatsShowcase
+            stats={profileStats}
+            leaderboardStanding={leaderboardStanding}
+          />
+        )}
+
+        {/* Performance Chart */}
+        <PerformanceChart data={chartData} />
+
+        {/* Activity Feed */}
+        <ActivityFeed games={activityGames} currentUserId={userId} />
+
+        {/* Tournament Trophy Shelf */}
+        <TrophyShelf tournaments={tournamentData} isOwnProfile={false} />
+
+        {/* Competitive Ranks — compact horizontal strip */}
+        {rankedModes.length > 0 && (
           <Card className="border-border/50 bg-card/80">
             <CardContent className="pt-4 pb-3">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
-                <Trophy className="w-3.5 h-3.5 text-yellow-400" /> Personal Records
-              </p>
-              <div className="grid grid-cols-5 gap-2">
-                {[
-                  { label: "Score", value: profileStats.bestScore },
-                  { label: "Goals", value: profileStats.bestGoals },
-                  { label: "Assists", value: profileStats.bestAssists },
-                  { label: "Saves", value: profileStats.bestSaves },
-                  { label: "Contribution", value: profileStats.bestContributionScore > 0 ? profileStats.bestContributionScore : null },
-                ].map(({ label, value }) => (
-                  <div key={label} className="flex flex-col items-center gap-0.5 py-2 px-1 rounded-lg bg-background/60">
-                    <span className="font-display font-bold text-lg leading-none">
-                      {value !== null ? value : <span className="text-muted-foreground text-sm">-</span>}
-                    </span>
-                    <span className="text-[10px] text-muted-foreground leading-none">{label}</span>
-                  </div>
-                ))}
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Competitive Ranks</p>
+              <div className="flex gap-3 flex-wrap">
+                {rankedModes.map((mode) => {
+                  const rank = ranks[mode];
+                  const colorClass = RANK_COLORS[rank.rank_tier] ?? "text-foreground";
+                  return (
+                    <div key={mode} className="flex flex-col items-center gap-1 px-3 py-2 rounded-xl bg-background/60 border border-border/40 min-w-[72px]">
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase">{gameModeLabels[mode]}</span>
+                      <img src={getRankIcon(rank.rank_tier)} alt={getRankLabel(rank.rank_tier)} className="w-9 h-9 object-contain" />
+                      <span className={`text-xs font-semibold text-center leading-tight ${colorClass}`}>
+                        {getRankLabel(rank.rank_tier)}
+                        {rank.rank_division && rank.rank_tier !== "supersonic_legend" ? ` ${rank.rank_division}` : ""}
+                      </span>
+                      {rank.mmr != null && <span className="text-[10px] text-muted-foreground font-mono">{rank.mmr}</span>}
+                    </div>
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
         )}
 
-        {!loadingStats && profileStats && profileStats.topTeammates.length > 0 && (
+        {/* Most Played With */}
+        {teammates.length > 0 && (
           <Card className="border-border/50 bg-card/80">
             <CardContent className="pt-4 pb-3">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
                 <Star className="w-3.5 h-3.5 text-rose-400" /> Most Played With
               </p>
               <div className="space-y-2">
-                {profileStats.topTeammates.map((tm, i) => {
+                {teammates.map((tm, i) => {
                   const tmWinRate = tm.games > 0 ? Math.round((tm.wins / tm.games) * 100) : 0;
+                  const initials = tm.name.slice(0, 2).toUpperCase();
                   return (
-                    <div key={tm.userId} className="flex items-center gap-3 py-1.5 px-3 rounded-lg bg-background/60">
+                    <a key={tm.userId} href={`/profile/${tm.userId}`} className="flex items-center gap-3 py-1.5 px-3 rounded-lg bg-background/60 hover:bg-muted/40 transition-colors">
                       <span className="text-xs font-bold text-muted-foreground w-4">#{i + 1}</span>
-                      <div className="w-7 h-7 rounded-full bg-muted/60 flex items-center justify-center shrink-0">
-                        <User className="w-3.5 h-3.5 text-muted-foreground" />
+                      <div className="w-8 h-8 rounded-full bg-muted/60 border border-border/40 overflow-hidden shrink-0 flex items-center justify-center">
+                        {tm.avatarUrl
+                          ? <img src={tm.avatarUrl} alt={tm.name} className="w-full h-full object-cover" />
+                          : <span className="text-[10px] font-bold text-muted-foreground">{initials}</span>
+                        }
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-sm truncate">{tm.name}</p>
@@ -466,7 +505,7 @@ const FriendProfile = () => {
                       <div className={`text-xs font-mono font-bold px-2 py-0.5 rounded-full ${tmWinRate >= 50 ? "text-rl-green bg-rl-green/10" : "text-rl-red bg-rl-red/10"}`}>
                         {tmWinRate}%
                       </div>
-                    </div>
+                    </a>
                   );
                 })}
               </div>
