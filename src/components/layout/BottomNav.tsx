@@ -23,7 +23,11 @@ const BottomNav = () => {
       <div>
         <div className="flex items-center justify-around h-16 max-w-lg mx-auto px-2">
           {tabs.map((tab) => {
-            const active = location.pathname === tab.to;
+            // /profile/:userId is a friend's profile — keep Friends tab highlighted
+            const isFriendProfilePage = /^\/profile\/.+/.test(location.pathname);
+            const active = isFriendProfilePage
+              ? tab.to === "/friends"
+              : location.pathname === tab.to;
             const isLog  = tab.to === "/log-game";
 
             return (
