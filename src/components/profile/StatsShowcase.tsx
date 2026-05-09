@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Crown } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -23,7 +24,7 @@ type ProfileStats = {
 };
 
 type Props = {
-  stats: ProfileStats;
+  statsByMode: Record<string, ProfileStats>;
   leaderboardStanding: LeaderboardStanding | null;
 };
 
@@ -44,7 +45,16 @@ function StatCell({ label, value, color }: StatCellProps) {
   );
 }
 
-export default function StatsShowcase({ stats, leaderboardStanding }: Props) {
+const MODE_ORDER = ["all", "1v1", "2v2", "3v3"] as const;
+const MODE_LABELS: Record<string, string> = { all: "All", "1v1": "1v1", "2v2": "2v2", "3v3": "3v3" };
+
+export default function StatsShowcase({ statsByMode, leaderboardStanding }: Props) {
+  const availableModes = MODE_ORDER.filter((m) => !!statsByMode[m]);
+  const [selectedMode, setSelectedMode] = useState<string>("all");
+
+  const stats = statsByMode[selectedMode] ?? statsByMode["all"];
+  if (!stats) return null;
+
   const winRate = stats.totalGames > 0 ? Math.round((stats.wins / stats.totalGames) * 100) : 0;
   const isTopTen = leaderboardStanding && leaderboardStanding.rank <= 10;
 
@@ -76,7 +86,28 @@ export default function StatsShowcase({ stats, leaderboardStanding }: Props) {
           )
         )}
 
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Career Stats</p>
+        {/* Header row: label + compact mode pills */}
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground shrink-0">Career Stats</p>
+          {availableModes.length > 1 && (
+            <div className="flex items-center gap-0.5 bg-background/50 rounded-lg p-0.5 border border-border/30">
+              {availableModes.map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => setSelectedMode(mode)}
+                  className={cn(
+                    "px-2 py-0.5 rounded-md text-[10px] font-semibold transition-all duration-150",
+                    selectedMode === mode
+                      ? "bg-primary/20 text-primary shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {MODE_LABELS[mode]}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* W/L + form strip */}
         <div className="flex items-center gap-3">
@@ -101,7 +132,7 @@ export default function StatsShowcase({ stats, leaderboardStanding }: Props) {
           )}
         </div>
 
-        {/* 7-stat grid — no boxes */}
+        {/* 7-stat grid */}
         <div className="grid grid-cols-3 gap-x-4 gap-y-4 py-1">
           <StatCell label="Goals / game"   value={stats.avgGoals.toFixed(1)}   color="text-rl-orange" />
           <StatCell label="Assists / game" value={stats.avgAssists.toFixed(1)} color="text-rl-blue" />

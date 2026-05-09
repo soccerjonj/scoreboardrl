@@ -113,6 +113,7 @@ const Profile = () => {
   const [favoriteCar, setFavoriteCar]         = useState<string | null>(null);
   const [ranks, setRanks]                     = useState<Record<GameMode, RankInput>>(createEmptyRanks());
   const [profileStats, setProfileStats]       = useState<ProfileStats | null>(null);
+  const [statsByMode, setStatsByMode]         = useState<Record<string, ProfileStats>>({});
 
   // New social data
   const [tournamentData, setTournamentData]           = useState<TournamentSummary | null>(null);
@@ -283,7 +284,61 @@ const Profile = () => {
           if (cs > 0 && ts > 1) { normTotal += cs * ts; normCount++; }
         });
 
-        setProfileStats({
+        // Helper: compute ProfileStats for any filtered subset of rows + games
+        const buildStats = (
+          rows: typeof myPlayerRows,
+          games: typeof gamesData
+        ): ProfileStats | null => {
+          if (!rows.length || !games.length) return null;
+          const cnt = rows.length;
+          const { records: r, totals: t } = rows.reduce(
+            ({ records: br, totals: bt }, row) => ({
+              records: {
+                bestScore:             Math.max(br.bestScore,             safeNum(row.score)),
+                bestGoals:             Math.max(br.bestGoals,             safeNum(row.goals)),
+                bestAssists:           Math.max(br.bestAssists,           safeNum(row.assists)),
+                bestSaves:             Math.max(br.bestSaves,             safeNum(row.saves)),
+                bestContributionScore: Math.max(br.bestContributionScore, safeNum(row.contribution_score)),
+              },
+              totals: {
+                score:        bt.score        + safeNum(row.score),
+                goals:        bt.goals        + safeNum(row.goals),
+                assists:      bt.assists      + safeNum(row.assists),
+                saves:        bt.saves        + safeNum(row.saves),
+                shots:        bt.shots        + safeNum(row.shots),
+                mvps:         bt.mvps         + ((row as any).is_mvp ? 1 : 0),
+                contribution: bt.contribution + safeNum(row.contribution_score),
+                contribGames: bt.contribGames + (safeNum(row.contribution_score) > 0 ? 1 : 0),
+              },
+            }),
+            { records: { bestScore: 0, bestGoals: 0, bestAssists: 0, bestSaves: 0, bestContributionScore: 0 },
+              totals:  { score: 0, goals: 0, assists: 0, saves: 0, shots: 0, mvps: 0, contribution: 0, contribGames: 0 } }
+          );
+          const gWins = games.filter(g => g.result === "win").length;
+          const gTotal = games.length;
+          const mm = new Map(games.map(g => [g.id, g.game_mode as string]));
+          let nt = 0, nc = 0;
+          rows.forEach(row => {
+            const ts = mm.get(row.game_id) === "1v1" ? 1 : mm.get(row.game_id) === "2v2" ? 2 : mm.get(row.game_id) === "3v3" ? 3 : 4;
+            const cs = safeNum(row.contribution_score);
+            if (cs > 0 && ts > 1) { nt += cs * ts; nc++; }
+          });
+          return {
+            totalGames: gTotal, wins: gWins, losses: gTotal - gWins,
+            recentForm: games.slice(0, 5).map(g => g.result === "win" ? "W" : "L") as Array<"W" | "L">,
+            avgScore:        cnt > 0 ? t.score   / cnt : 0,
+            avgGoals:        cnt > 0 ? t.goals   / cnt : 0,
+            avgAssists:      cnt > 0 ? t.assists / cnt : 0,
+            avgSaves:        cnt > 0 ? t.saves   / cnt : 0,
+            avgShots:        cnt > 0 ? t.shots   / cnt : 0,
+            avgContribution: nc > 0 ? nt / nc : null,
+            mvpRate:         cnt > 0 ? (t.mvps / cnt) * 100 : 0,
+            topTeammates: [],
+            ...r,
+          };
+        };
+
+        const allStats: ProfileStats = {
           totalGames, wins, losses: totalGames - wins, recentForm,
           avgScore:        n > 0 ? totals.score   / n : 0,
           avgGoals:        n > 0 ? totals.goals   / n : 0,
@@ -293,7 +348,19 @@ const Profile = () => {
           avgContribution: normCount > 0 ? normTotal / normCount : null,
           mvpRate:         n > 0 ? (totals.mvps / n) * 100 : 0,
           ...records, topTeammates,
-        });
+        };
+        setProfileStats(allStats);
+
+        // Per-mode stats for the mode filter in StatsShowcase
+        const modeStatsMap: Record<string, ProfileStats> = { all: allStats };
+        for (const m of ["1v1", "2v2", "3v3"] as GameMode[]) {
+          const mGames = gamesData.filter(g => g.game_mode === m);
+          const mGameIds = new Set(mGames.map(g => g.id));
+          const mRows = myPlayerRows.filter(r => mGameIds.has(r.game_id));
+          const ms = buildStats(mRows, mGames);
+          if (ms) modeStatsMap[m] = ms;
+        }
+        setStatsByMode(modeStatsMap);
 
         // Activity feed (last 20 games, with full scoreboard per game)
         const activity: ActivityGame[] = gamesData.slice(0, 20).map((game) => {
@@ -534,7 +601,7 @@ const Profile = () => {
           {/* Stats Showcase */}
           {profileStats && profileStats.totalGames > 0 && (
             <StatsShowcase
-              stats={profileStats}
+              statsByMode={statsByMode}
               leaderboardStanding={leaderboardStanding}
             />
           )}
