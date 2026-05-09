@@ -783,7 +783,7 @@ const Dashboard = () => {
                                                 <Link
                                                   to={`/profile/${p.user_id}`}
                                                   onClick={(e) => e.stopPropagation()}
-                                                  className="inline-flex items-center gap-0.5 text-xs font-medium leading-snug break-words min-w-0 text-primary/75 underline decoration-primary/25 underline-offset-2 hover:text-primary hover:decoration-primary/60 transition-colors"
+                                                  className="inline-flex items-center gap-0.5 text-xs font-medium leading-snug break-words min-w-0 text-foreground underline decoration-muted-foreground/40 underline-offset-2 hover:text-primary hover:decoration-primary/60 transition-colors"
                                                 >
                                                   {p.player_name}
                                                   <ExternalLink className="w-2.5 h-2.5 shrink-0 opacity-60" />
