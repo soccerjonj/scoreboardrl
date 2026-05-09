@@ -1,5 +1,5 @@
 import { Home, PlusCircle, Users, User, Bell, BarChart2, Trophy, Zap, Settings } from "lucide-react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useNotifications } from "@/hooks/useNotifications";
@@ -17,8 +17,11 @@ const tabs = [
   { to: "/profile",      label: "Profile",      icon: User },
 ];
 
+const FRIEND_PROFILE_RE = /^\/profile\/.+/;
+
 const TopNav = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { unreadCount } = useNotifications();
   const quota = useQuota();
   const [showUpgrade, setShowUpgrade] = useState(false);
@@ -31,17 +34,40 @@ const TopNav = () => {
 
         <nav className="flex items-center gap-0.5">
           {tabs.map((tab) => {
-            const active = location.pathname === tab.to;
+            const isFriendProfilePage = FRIEND_PROFILE_RE.test(location.pathname);
+            const active = isFriendProfilePage
+              ? tab.to === "/friends"
+              : location.pathname === tab.to;
+            const isFriendsTab = tab.to === "/friends";
+
+            const className = cn(
+              "flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm font-medium transition-colors relative",
+              active
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+            );
+
+            if (isFriendsTab) {
+              return (
+                <button
+                  key={tab.to}
+                  onClick={() => {
+                    const saved = sessionStorage.getItem("lastFriendPath");
+                    navigate(saved || "/friends");
+                  }}
+                  className={className}
+                >
+                  <tab.icon className="w-4 h-4 shrink-0" />
+                  {tab.label}
+                </button>
+              );
+            }
+
             return (
               <NavLink
                 key={tab.to}
                 to={tab.to}
-                className={cn(
-                  "flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm font-medium transition-colors relative",
-                  active
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                )}
+                className={className}
               >
                 <tab.icon className="w-4 h-4 shrink-0" />
                 {tab.label}

@@ -1,7 +1,10 @@
 import { Home, BarChart2, PlusCircle, Users, User } from "lucide-react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useNotifications } from "@/hooks/useNotifications";
+import { useEffect } from "react";
+
+const FRIEND_PROFILE_RE = /^\/profile\/.+/;
 
 const tabs = [
   { to: "/dashboard", label: "Home",    icon: Home },
@@ -13,7 +16,15 @@ const tabs = [
 
 const BottomNav = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { unreadCount } = useNotifications();
+
+  // Persist the last friend profile so the Friends tab can return to it
+  useEffect(() => {
+    if (FRIEND_PROFILE_RE.test(location.pathname)) {
+      sessionStorage.setItem("lastFriendPath", location.pathname);
+    }
+  }, [location.pathname]);
 
   return (
     <nav
@@ -23,12 +34,67 @@ const BottomNav = () => {
       <div>
         <div className="flex items-center justify-around h-16 max-w-lg mx-auto px-2">
           {tabs.map((tab) => {
-            // /profile/:userId is a friend's profile — keep Friends tab highlighted
-            const isFriendProfilePage = /^\/profile\/.+/.test(location.pathname);
+            const isFriendProfilePage = FRIEND_PROFILE_RE.test(location.pathname);
             const active = isFriendProfilePage
               ? tab.to === "/friends"
               : location.pathname === tab.to;
-            const isLog  = tab.to === "/log-game";
+            const isLog        = tab.to === "/log-game";
+            const isFriendsTab = tab.to === "/friends";
+
+            const iconContent = isLog ? (
+              <div className={cn(
+                "w-11 h-11 rounded-2xl flex items-center justify-center transition-all duration-200",
+                active
+                  ? "bg-primary shadow-[0_0_20px_hsl(var(--primary)/0.55)] scale-105"
+                  : "bg-primary/20 border border-primary/30"
+              )}>
+                <tab.icon className={cn("w-5 h-5", active ? "text-white" : "text-primary")} />
+              </div>
+            ) : (
+              <>
+                <div className={cn(
+                  "relative w-10 h-8 rounded-xl flex items-center justify-center transition-all duration-200",
+                  active ? "bg-primary/15" : ""
+                )}>
+                  <tab.icon className={cn(
+                    "w-5 h-5 transition-all duration-200",
+                    active
+                      ? "text-primary drop-shadow-[0_0_8px_hsl(var(--primary)/0.8)]"
+                      : "text-muted-foreground"
+                  )} />
+                  {tab.to === "/friends" && unreadCount > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] rounded-full bg-rl-red text-[9px] font-bold text-white flex items-center justify-center px-0.5 leading-none">
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </span>
+                  )}
+                </div>
+                <span className={cn(
+                  "text-[10px] font-medium transition-colors duration-200",
+                  active ? "text-primary" : "text-muted-foreground"
+                )}>
+                  {tab.label}
+                </span>
+                {active && (
+                  <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary shadow-[0_0_6px_hsl(var(--primary)/0.9)]" />
+                )}
+              </>
+            );
+
+            // Friends tab: navigate to the last visited friend profile if there is one
+            if (isFriendsTab) {
+              return (
+                <button
+                  key={tab.to}
+                  onClick={() => {
+                    const saved = sessionStorage.getItem("lastFriendPath");
+                    navigate(saved || "/friends");
+                  }}
+                  className="flex flex-col items-center justify-center gap-1 w-16 h-full relative"
+                >
+                  {iconContent}
+                </button>
+              );
+            }
 
             return (
               <NavLink
@@ -36,44 +102,7 @@ const BottomNav = () => {
                 to={tab.to}
                 className="flex flex-col items-center justify-center gap-1 w-16 h-full relative"
               >
-                {isLog ? (
-                  <div className={cn(
-                    "w-11 h-11 rounded-2xl flex items-center justify-center transition-all duration-200",
-                    active
-                      ? "bg-primary shadow-[0_0_20px_hsl(var(--primary)/0.55)] scale-105"
-                      : "bg-primary/20 border border-primary/30"
-                  )}>
-                    <tab.icon className={cn("w-5 h-5", active ? "text-white" : "text-primary")} />
-                  </div>
-                ) : (
-                  <>
-                    <div className={cn(
-                      "relative w-10 h-8 rounded-xl flex items-center justify-center transition-all duration-200",
-                      active ? "bg-primary/15" : ""
-                    )}>
-                      <tab.icon className={cn(
-                        "w-5 h-5 transition-all duration-200",
-                        active
-                          ? "text-primary drop-shadow-[0_0_8px_hsl(var(--primary)/0.8)]"
-                          : "text-muted-foreground"
-                      )} />
-                      {tab.to === "/friends" && unreadCount > 0 && (
-                        <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] rounded-full bg-rl-red text-[9px] font-bold text-white flex items-center justify-center px-0.5 leading-none">
-                          {unreadCount > 9 ? "9+" : unreadCount}
-                        </span>
-                      )}
-                    </div>
-                    <span className={cn(
-                      "text-[10px] font-medium transition-colors duration-200",
-                      active ? "text-primary" : "text-muted-foreground"
-                    )}>
-                      {tab.label}
-                    </span>
-                    {active && (
-                      <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary shadow-[0_0_6px_hsl(var(--primary)/0.9)]" />
-                    )}
-                  </>
-                )}
+                {iconContent}
               </NavLink>
             );
           })}
