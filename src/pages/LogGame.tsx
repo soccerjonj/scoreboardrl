@@ -18,6 +18,7 @@ import { calculateContributionScores } from "@/lib/carryScore";
 import { useNotifications } from "@/hooks/useNotifications";
 import { useTournamentSession, ROUND_LABELS, TOURNAMENT_TYPE_LABELS } from "@/hooks/useTournamentSession";
 import TournamentRoundSheet from "@/components/tournament/TournamentRoundSheet";
+import StartTournamentSheet from "@/components/tournament/StartTournamentSheet";
 import type { LinkGameResult, RoundResult, RoundKey } from "@/hooks/useTournamentSession";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -150,6 +151,7 @@ const LogGame = () => {
   const [conflictGame, setConflictGame] = useState<GameWithPlayers | null>(null);
   const [wasPhotoParsed, setWasPhotoParsed] = useState(false);
   const [showEndSessionConfirm, setShowEndSessionConfirm] = useState(false);
+  const [showStartTournament, setShowStartTournament] = useState(false);
   const [tournamentLinkResult, setTournamentLinkResult] = useState<LinkGameResult | null>(null);
   const [tournamentBracketRounds, setTournamentBracketRounds] = useState<RoundResult[]>([]);
   const [showRoundSheet, setShowRoundSheet] = useState(false);
@@ -577,8 +579,8 @@ const LogGame = () => {
   return (
     <AppLayout>
       <div className="space-y-6">
-        {/* Tournament active banner */}
-        {isTournamentActive && activeTournament && tournamentRound && (
+        {/* Tournament banner — active or start prompt */}
+        {isTournamentActive && activeTournament && tournamentRound ? (
           <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-yellow-400/30 bg-yellow-400/8">
             <div className="flex items-center gap-2">
               <Trophy className="w-4 h-4 text-yellow-400 shrink-0" />
@@ -611,6 +613,17 @@ const LogGame = () => {
               </button>
             )}
           </div>
+        ) : !isTournamentActive && (
+          <button
+            onClick={() => setShowStartTournament(true)}
+            className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-border/40 bg-card/60 hover:bg-card/90 hover:border-primary/30 transition-colors text-left"
+          >
+            <div className="flex items-center gap-2">
+              <Trophy className="w-4 h-4 text-muted-foreground shrink-0" />
+              <span className="text-sm text-muted-foreground">Playing in a tournament?</span>
+            </div>
+            <span className="text-xs font-semibold text-primary shrink-0">Start Session →</span>
+          </button>
         )}
 
         {step === "upload" && (
@@ -985,6 +998,7 @@ const LogGame = () => {
         bracketRounds={tournamentBracketRounds}
         outcome={tournamentLinkResult?.action === "champion" ? "winner" : tournamentLinkResult?.action === "eliminated" ? "eliminated" : null}
       />
+      <StartTournamentSheet open={showStartTournament} onOpenChange={setShowStartTournament} />
     </AppLayout>
   );
 };
