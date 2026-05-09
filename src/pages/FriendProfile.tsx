@@ -107,7 +107,7 @@ const FriendProfile = () => {
   const [activityGames, setActivityGames] = useState<ActivityGame[]>([]);
   const [bestGame, setBestGame] = useState<BestGame | null>(null);
   const [leaderboardStanding, setLeaderboardStanding] = useState<LeaderboardStanding | null>(null);
-  const [chartData, setChartData] = useState<ChartPoint[]>([]);
+  const [chartData, setChartData] = useState<{ points: Record<string, string | number | null>[]; activeModes: string[] }>({ points: [], activeModes: [] });
   const [teammates, setTeammates] = useState<TeammateProfile[]>([]);
 
   useEffect(() => {
@@ -319,26 +319,43 @@ const FriendProfile = () => {
           });
           setActivityGames(activity);
 
-          // Performance chart — MMR per game from game_players.mmr
-          const mmrByMode = new Map<string, ChartPoint[]>();
+          // Performance chart — multi-mode MMR overlay, last 30 days
+          const CHART_MODES = ["1v1", "2v2", "3v3"] as const;
+          const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+          const mmrByMode = new Map<string, Array<{ mmr: number; date: string }>>();
           gamesData.forEach((game) => {
+            if (new Date(game.played_at).getTime() < cutoff) return;
             const myRow = playerRows.find((r) => r.game_id === game.id);
             const mmrVal = (myRow as any)?.mmr;
             if (mmrVal == null || typeof mmrVal !== "number") return;
             const mode = game.game_mode;
             if (!mmrByMode.has(mode)) mmrByMode.set(mode, []);
-            mmrByMode.get(mode)!.push({ index: 0, score: mmrVal, date: game.played_at, gameMode: mode });
+            mmrByMode.get(mode)!.push({ mmr: mmrVal, date: game.played_at });
           });
           mmrByMode.forEach((pts, mode) => {
-            pts.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-            pts.forEach((p, i) => { p.index = i + 1; });
-            mmrByMode.set(mode, pts);
+            mmrByMode.set(mode, pts.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
           });
-          const preferredMode = (["2v2", "3v3", "1v1"] as GameMode[]).reduce((best, m) =>
-            (mmrByMode.get(m)?.length ?? 0) > (mmrByMode.get(best)?.length ?? 0) ? m : best
-          , "2v2");
-          const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
-          setChartData((mmrByMode.get(preferredMode) ?? []).filter((p) => new Date(p.date).getTime() >= cutoff));
+          const activeModes = CHART_MODES.filter((m) => (mmrByMode.get(m)?.length ?? 0) >= 2);
+          if (activeModes.length > 0) {
+            const allDates = Array.from(new Set(activeModes.flatMap((m) => mmrByMode.get(m)!.map((p) => p.date)))).sort();
+            const lastKnown: Record<string, number | null> = {};
+            activeModes.forEach((m) => { lastKnown[m] = null; });
+            const points = allDates.map((date) => {
+              activeModes.forEach((m) => {
+                const pt = mmrByMode.get(m)!.find((p) => p.date === date);
+                if (pt) lastKnown[m] = pt.mmr;
+              });
+              const entry: Record<string, string | number | null> = {
+                label: date,
+                fullLabel: new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+              };
+              activeModes.forEach((m) => { entry[m] = lastKnown[m]; });
+              return entry;
+            });
+            setChartData({ points, activeModes });
+          } else {
+            setChartData({ points: [], activeModes: [] });
+          }
 
           // Best game
           if (playerRows.length > 0) {
@@ -445,7 +462,7 @@ const FriendProfile = () => {
         )}
 
         {/* Performance Chart */}
-        <PerformanceChart data={chartData} />
+        <PerformanceChart points={chartData.points} activeModes={chartData.activeModes} />
 
         {/* Activity Feed */}
         <ActivityFeed games={activityGames} currentUserId={userId} />
