@@ -35,7 +35,7 @@ type GameRow = Database["public"]["Tables"]["games"]["Row"];
 type GamePlayerRow = Database["public"]["Tables"]["game_players"]["Row"];
 type GameWithPlayers = GameRow & { game_players: GamePlayerRow[] };
 
-type FriendProfile = { user_id: string; username: string; rl_account_name: string | null };
+type FriendProfile = { user_id: string; username: string; rl_account_name: string | null; avatar_url: string | null };
 
 type ChartDatum = {
   label: string;
@@ -196,46 +196,114 @@ const SoloSummaryGrid = ({ summary }: { summary: SummaryStats }) => (
 
 // ─── Comparison table ─────────────────────────────────────────────────────────
 
+const AvatarCircle = ({ url, name, size = "md" }: { url: string | null; name: string; size?: "sm" | "md" }) => {
+  const dim = size === "sm" ? "w-7 h-7 text-[10px]" : "w-9 h-9 text-xs";
+  return (
+    <div className={cn(dim, "rounded-full bg-muted overflow-hidden shrink-0 flex items-center justify-center border border-border/40")}>
+      {url
+        ? <img src={url} alt={name} className="w-full h-full object-cover" />
+        : <span className="font-bold text-muted-foreground">{name.slice(0, 2).toUpperCase()}</span>
+      }
+    </div>
+  );
+};
+
 const ComparisonTable = ({
   userSummary, teammateSummary, teammateName,
-}: { userSummary: SummaryStats; teammateSummary: SummaryStats; teammateName: string }) => (
-  <Card className="overflow-hidden animate-fade-in-up">
-    <CardHeader className="pb-2">
-      <CardTitle className="text-base font-display">Head-to-Head</CardTitle>
-      <CardDescription className="text-xs">
-        {userSummary.games} shared game{userSummary.games !== 1 ? "s" : ""} with {teammateName}
-      </CardDescription>
-    </CardHeader>
-    <CardContent className="p-0">
-      <div className="grid grid-cols-3 px-4 py-2.5 bg-muted/40 text-xs font-semibold border-b border-border/30">
-        <span className="text-primary">You</span>
-        <span className="text-center text-muted-foreground">Stat</span>
-        <span className="text-right text-secondary">{teammateName}</span>
-      </div>
-      {STAT_ROWS.map((row, i) => {
-        const uVal = userSummary[row.key] as number | null;
-        const tVal = teammateSummary[row.key] as number | null;
-        let uWins = false, tWins = false;
-        if (uVal !== null && tVal !== null && row.highlight) {
-          if (row.highlight === "higher") { uWins = uVal > tVal; tWins = tVal > uVal; }
-          else { uWins = uVal < tVal; tWins = tVal < uVal; }
-        }
-        return (
-          <div key={row.key} className={cn("grid grid-cols-3 px-4 py-2.5 text-sm border-b border-border/20 last:border-0", i % 2 !== 0 && "bg-muted/10")}>
-            <span className={cn("font-mono font-bold", uWins ? "text-rl-green" : tWins ? "text-muted-foreground/60" : "")}>{row.formatter(uVal)}</span>
-            <span className="text-center text-xs text-muted-foreground">{row.label}</span>
-            <span className={cn("text-right font-mono font-bold", tWins ? "text-rl-green" : uWins ? "text-muted-foreground/60" : "")}>{row.formatter(tVal)}</span>
+  userAvatarUrl, teammateAvatarUrl, overallWinRate,
+}: {
+  userSummary: SummaryStats; teammateSummary: SummaryStats; teammateName: string;
+  userAvatarUrl?: string | null; teammateAvatarUrl?: string | null; overallWinRate?: number | null;
+}) => {
+  const wins    = userSummary.wins;
+  const losses  = userSummary.games - wins;
+  const winRate = userSummary.winRate ?? 0;
+  const betterDelta = overallWinRate != null ? winRate - overallWinRate : null;
+
+  return (
+    <Card className="overflow-hidden animate-fade-in-up">
+      <CardContent className="p-0">
+        {/* ── Header: avatars + win rate bar ── */}
+        <div className="px-4 pt-4 pb-3 space-y-3">
+          {/* Player labels */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <AvatarCircle url={userAvatarUrl ?? null} name="You" />
+              <span className="text-sm font-semibold text-primary">You</span>
+            </div>
+            <span className="text-[10px] text-muted-foreground">
+              {userSummary.games} game{userSummary.games !== 1 ? "s" : ""}
+            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-right">{teammateName}</span>
+              <AvatarCircle url={teammateAvatarUrl ?? null} name={teammateName} />
+            </div>
           </div>
-        );
-      })}
-      <div className="grid grid-cols-3 px-4 py-2.5 text-sm bg-muted/20 rounded-b-xl">
-        <span className="font-mono font-bold text-muted-foreground">{userSummary.games}</span>
-        <span className="text-center text-xs text-muted-foreground">Games</span>
-        <span className="text-right font-mono font-bold text-muted-foreground">{teammateSummary.games}</span>
-      </div>
-    </CardContent>
-  </Card>
-);
+
+          {/* Win rate bar */}
+          <div className="space-y-1">
+            <div className="h-2 rounded-full overflow-hidden bg-muted/50 flex">
+              <div
+                className="bg-rl-green rounded-l-full transition-all duration-500"
+                style={{ width: `${winRate}%` }}
+              />
+            </div>
+            <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+              <span className="text-rl-green font-semibold">{wins}W</span>
+              <span className="font-semibold text-foreground">{Math.round(winRate)}% win rate</span>
+              <span className="text-rl-red font-semibold">{losses}L</span>
+            </div>
+          </div>
+
+          {/* Better together callout */}
+          {betterDelta != null && Math.abs(betterDelta) >= 5 && (
+            <div className={cn(
+              "flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg",
+              betterDelta > 0
+                ? "bg-rl-green/10 text-rl-green"
+                : "bg-rl-red/10 text-rl-red"
+            )}>
+              <span>{betterDelta > 0 ? "🤝" : "📉"}</span>
+              <span>
+                You win <span className="font-bold">{Math.round(Math.abs(betterDelta))}%</span>
+                {betterDelta > 0 ? " more" : " less"} with {teammateName} than your overall average.
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* ── Stat rows ── */}
+        <div className="border-t border-border/30">
+          <div className="grid grid-cols-3 px-4 py-2 bg-muted/30 text-[10px] font-semibold uppercase tracking-wide">
+            <span className="text-primary">You</span>
+            <span className="text-center text-muted-foreground">Stat</span>
+            <span className="text-right text-muted-foreground">{teammateName}</span>
+          </div>
+          {STAT_ROWS.map((row) => {
+            const uVal = userSummary[row.key] as number | null;
+            const tVal = teammateSummary[row.key] as number | null;
+            let uWins = false, tWins = false;
+            if (uVal !== null && tVal !== null && row.highlight) {
+              if (row.highlight === "higher") { uWins = uVal > tVal; tWins = tVal > uVal; }
+              else { uWins = uVal < tVal; tWins = tVal < uVal; }
+            }
+            return (
+              <div key={row.key} className="grid grid-cols-3 px-4 py-2.5 text-sm border-b border-border/20 last:border-0">
+                <span className={cn("font-mono font-bold", uWins ? "text-rl-green" : tWins ? "text-muted-foreground/50" : "")}>
+                  {row.formatter(uVal)}
+                </span>
+                <span className="text-center text-xs text-muted-foreground">{row.label}</span>
+                <span className={cn("text-right font-mono font-bold", tWins ? "text-rl-green" : uWins ? "text-muted-foreground/50" : "")}>
+                  {row.formatter(tVal)}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
 
 // ─── Chart card ───────────────────────────────────────────────────────────────
 
@@ -434,6 +502,7 @@ const Stats = () => {
 
   const [friends, setFriends] = useState<FriendProfile[]>([]);
   const [userRlName, setUserRlName] = useState<string | null>(null);
+  const [userAvatarUrl, setUserAvatarUrl] = useState<string | null>(null);
   const [selectedMode, setSelectedMode] = useState<GameMode | "all">("all");
   const [selectedType, setSelectedType] = useState<GameType | "all">("all");
   const [selectedFriendId, setSelectedFriendId] = useState<string>("all");
@@ -470,7 +539,7 @@ const Stats = () => {
       setLoading(true);
       try {
         const [profileRes, friendsRes] = await Promise.all([
-          supabase.from("profiles").select("rl_account_name").eq("user_id", user.id).single(),
+          supabase.from("profiles").select("rl_account_name, avatar_url").eq("user_id", user.id).single(),
           supabase.from("friend_requests").select("sender_id, receiver_id").eq("status", "accepted").or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`),
         ]);
         if (profileRes.error) throw profileRes.error;
@@ -490,11 +559,12 @@ const Stats = () => {
 
         let friendProfiles: FriendProfile[] = [];
         if (friendIds.size > 0) {
-          const { data } = await supabase.from("profiles").select("user_id, username, rl_account_name").in("user_id", Array.from(friendIds));
+          const { data } = await supabase.from("profiles").select("user_id, username, rl_account_name, avatar_url").in("user_id", Array.from(friendIds));
           friendProfiles = data || [];
         }
 
         setUserRlName(profileRes.data?.rl_account_name ?? null);
+        setUserAvatarUrl((profileRes.data as any)?.avatar_url ?? null);
         setFriends(friendProfiles);
         setGames((gamesRes.data || []) as GameWithPlayers[]);
       } catch (err: any) {
@@ -679,6 +749,29 @@ const Stats = () => {
       .sort((a, b) => b.contributionScore - a.contributionScore)
       .slice(0, 5),
   [rangeFilteredGames, userTarget]);
+
+  // Overall (unfiltered) win rate — used for "Better Together" delta
+  const overallWinRate = useMemo(() => {
+    const played = games.filter((g) => findPlayer(g.game_players || [], userTarget));
+    if (!played.length) return null;
+    return (played.filter((g) => g.result === "win").length / played.length) * 100;
+  }, [games, userTarget]);
+
+  // Best shared game — highest user score in a game where both played
+  const bestSharedGame = useMemo(() => {
+    if (!teammateTarget) return null;
+    const candidates = rangeFilteredGames
+      .map((g) => ({
+        game: g,
+        userRow: findPlayer(g.game_players || [], userTarget),
+        teammateRow: findPlayer(g.game_players || [], teammateTarget),
+      }))
+      .filter(({ userRow, teammateRow }) => userRow && teammateRow);
+    if (!candidates.length) return null;
+    return candidates.reduce((best, curr) =>
+      safeNumber(curr.userRow?.score) > safeNumber(best.userRow?.score) ? curr : best
+    );
+  }, [rangeFilteredGames, userTarget, teammateTarget]);
 
   // MMR history — multi-mode overlay from game_players.mmr (per-game values)
   const mmrChartData = useMemo(() => {
@@ -930,10 +1023,59 @@ const Stats = () => {
           )
         ) : viewMode === "summary" ? (
           <div className="space-y-4">
-            {selectedFriend && teammateSummary
-              ? <ComparisonTable userSummary={userSummary} teammateSummary={teammateSummary} teammateName={selectedFriend.label} />
-              : <SoloSummaryGrid summary={userSummary} />
-            }
+            {selectedFriend && teammateSummary ? (
+              <>
+                {/* Back to profile link */}
+                <Link
+                  to={`/profile/${selectedFriend.id}`}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors w-fit"
+                >
+                  <span className="text-base leading-none">←</span>
+                  {selectedFriend.label}'s profile
+                </Link>
+
+                <ComparisonTable
+                  userSummary={userSummary}
+                  teammateSummary={teammateSummary}
+                  teammateName={selectedFriend.label}
+                  userAvatarUrl={userAvatarUrl}
+                  teammateAvatarUrl={selectedFriend.avatar_url}
+                  overallWinRate={overallWinRate}
+                />
+
+                {/* Best shared game */}
+                {bestSharedGame && (
+                  <Card className="border-border/50 bg-card/80 overflow-hidden animate-fade-in-up">
+                    <CardContent className="px-4 py-3 flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-yellow-400/10 border border-yellow-400/20 flex items-center justify-center shrink-0">
+                        <Trophy className="w-4 h-4 text-yellow-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Best game together</p>
+                        <p className="text-sm font-display font-bold mt-0.5">
+                          {safeNumber(bestSharedGame.userRow?.score).toLocaleString()} pts
+                          <span className={cn("ml-2 text-xs font-normal", bestSharedGame.game.result === "win" ? "text-rl-green" : "text-rl-red")}>
+                            {bestSharedGame.game.result === "win" ? "W" : "L"}
+                          </span>
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-[10px] text-muted-foreground">
+                          {new Date(bestSharedGame.game.played_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                        </p>
+                        {bestSharedGame.teammateRow && (
+                          <p className="text-[10px] text-muted-foreground">
+                            {selectedFriend.label} · {safeNumber(bestSharedGame.teammateRow.score).toLocaleString()} pts
+                          </p>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </>
+            ) : (
+              <SoloSummaryGrid summary={userSummary} />
+            )}
             {bestContributionGames.length > 0 && (
               <BestContributionCard
                 bestContributionGames={bestContributionGames}
