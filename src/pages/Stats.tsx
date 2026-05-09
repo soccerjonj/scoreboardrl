@@ -166,10 +166,10 @@ const STAT_ROWS: StatRowDef[] = [
 
 // ─── Solo summary list ────────────────────────────────────────────────────────
 
-const STAT_GROUPS: Array<{ label: string; keys: Array<keyof SummaryStats> }> = [
-  { label: "Attacking",   keys: ["goalsPerGame", "assistsPerGame", "shotsPerGame"] },
-  { label: "Defensive",   keys: ["savesPerGame", "teamGoalsForPerGame", "teamGoalsAgainstPerGame"] },
-  { label: "Performance", keys: ["pointsPerGame", "mvpRate", "avgContributionScore"] },
+const STAT_GROUPS: Array<{ label: string; keys: Array<keyof SummaryStats>; accent: string }> = [
+  { label: "Attacking",   keys: ["goalsPerGame", "assistsPerGame", "shotsPerGame"],                           accent: "hsl(25, 95%, 60%)"  },
+  { label: "Defensive",   keys: ["savesPerGame", "teamGoalsForPerGame", "teamGoalsAgainstPerGame"],           accent: "hsl(270, 70%, 65%)" },
+  { label: "Performance", keys: ["pointsPerGame", "mvpRate", "avgContributionScore"],                        accent: "hsl(212, 95%, 58%)" },
 ];
 
 const SoloSummaryList = ({ summary }: { summary: SummaryStats }) => {
@@ -209,17 +209,13 @@ const SoloSummaryList = ({ summary }: { summary: SummaryStats }) => {
       {STAT_GROUPS.map((group) => (
         <div key={group.label} className="space-y-1.5">
           <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 px-0.5">{group.label}</p>
-          <Card className="overflow-hidden">
+          <Card className="overflow-hidden border-l-2" style={{ borderLeftColor: group.accent }}>
             <CardContent className="p-0 divide-y divide-border/20">
               {group.keys.map((key) => {
                 const row = STAT_ROWS.find((r) => r.key === key)!;
                 const val = summary[key] as number | null;
-                const Icon = row.icon;
                 return (
-                  <div key={String(key)} className="flex items-center gap-3 px-4 py-3">
-                    <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-gradient-to-br", row.bg)}>
-                      <Icon className={cn("w-3.5 h-3.5", row.color)} />
-                    </div>
+                  <div key={String(key)} className="flex items-center px-4 py-3">
                     <span className="text-sm text-muted-foreground flex-1">{row.label}</span>
                     <span className={cn("font-display font-bold text-base tabular-nums", val !== null ? row.color : "text-muted-foreground/40")}>
                       {row.formatter(val)}
