@@ -270,7 +270,7 @@ const Profile = () => {
 
         const { data: gamesData } = await supabase
           .from("games")
-          .select("id, result, played_at, game_mode, game_type, game_players(user_id, player_name, score, goals, assists, saves, is_mvp, team)")
+          .select("id, result, played_at, game_mode, game_type, game_players(user_id, player_name, score, goals, assists, saves, shots, is_mvp, team)")
           .in("id", gameIds)
           .order("played_at", { ascending: false });
 
@@ -338,6 +338,7 @@ const Profile = () => {
             goals: safeNum(p.goals),
             assists: safeNum(p.assists),
             saves: safeNum(p.saves),
+            shots: safeNum(p.shots),
             isMvp: p.is_mvp ?? false,
             team: p.team ?? null,
           }));
@@ -572,7 +573,6 @@ const Profile = () => {
           {profileStats && profileStats.totalGames > 0 && (
             <StatsShowcase
               stats={profileStats}
-              bestGame={bestGame}
               leaderboardStanding={leaderboardStanding}
             />
           )}

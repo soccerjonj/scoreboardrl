@@ -19,6 +19,7 @@ export type ActivityGamePlayer = {
   goals: number;
   assists: number;
   saves: number;
+  shots: number;
   isMvp: boolean;
   team: string | null;
 };

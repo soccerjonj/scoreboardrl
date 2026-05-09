@@ -25,7 +25,7 @@ function PlayerRow({
 }) {
   return (
     <div className={cn(
-      "grid grid-cols-[1fr_auto_auto_auto_auto] gap-x-3 px-3 py-1.5 items-center text-xs",
+      "grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-x-2 px-3 py-1.5 items-center text-xs",
       isMe ? "bg-primary/8 border-l-2 border-l-primary/60" : ""
     )}>
       <div className="flex items-center gap-1.5 min-w-0">
@@ -39,9 +39,10 @@ function PlayerRow({
         )}
       </div>
       <span className={cn("font-mono font-bold text-right w-9", isMe ? "text-foreground" : "text-foreground/70")}>{player.score}</span>
-      <span className="font-mono text-rl-orange/80 text-right w-5">{player.goals}</span>
-      <span className="font-mono text-rl-blue/80 text-right w-5">{player.assists}</span>
-      <span className="font-mono text-cyan-400/80 text-right w-5">{player.saves}</span>
+      <span className="font-mono text-rl-orange/80 text-right w-4">{player.goals}</span>
+      <span className="font-mono text-rl-blue/80 text-right w-4">{player.assists}</span>
+      <span className="font-mono text-cyan-400/80 text-right w-4">{player.saves}</span>
+      <span className="font-mono text-muted-foreground/70 text-right w-4">{player.shots}</span>
     </div>
   );
 }
@@ -75,12 +76,13 @@ function Scoreboard({
   return (
     <div className="mt-2 rounded-lg overflow-hidden border border-border/30 bg-background/40">
       {/* Column headers */}
-      <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-x-3 px-3 py-1 bg-muted/30 text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+      <div className="grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-x-2 px-3 py-1 bg-muted/30 text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
         <span>Player</span>
         <span className="text-right w-9">Score</span>
-        <span className="text-right w-5">G</span>
-        <span className="text-right w-5">A</span>
-        <span className="text-right w-5">S</span>
+        <span className="text-right w-4">G</span>
+        <span className="text-right w-4">A</span>
+        <span className="text-right w-4">SV</span>
+        <span className="text-right w-4">SH</span>
       </div>
       {groups.map((group, gi) => (
         <div key={gi}>
@@ -170,7 +172,7 @@ function GameCard({
               <span className="font-bold text-foreground/80">{game.score}</span>
               <span className="text-rl-orange">{game.goals}G</span>
               <span className="text-rl-blue">{game.assists}A</span>
-              <span className="text-cyan-400">{game.saves}S</span>
+              <span className="text-cyan-400">{game.saves}SV</span>
             </div>
           </div>
         </div>

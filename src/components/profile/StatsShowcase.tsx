@@ -1,8 +1,7 @@
-import { Crown, Zap } from "lucide-react";
-import { format } from "date-fns";
+import { Crown } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { BestGame, LeaderboardStanding } from "@/types/profile";
+import type { LeaderboardStanding } from "@/types/profile";
 
 type ProfileStats = {
   totalGames: number;
@@ -25,7 +24,6 @@ type ProfileStats = {
 
 type Props = {
   stats: ProfileStats;
-  bestGame: BestGame | null;
   leaderboardStanding: LeaderboardStanding | null;
 };
 
@@ -46,7 +44,7 @@ function StatCell({ label, value, color }: StatCellProps) {
   );
 }
 
-export default function StatsShowcase({ stats, bestGame, leaderboardStanding }: Props) {
+export default function StatsShowcase({ stats, leaderboardStanding }: Props) {
   const winRate = stats.totalGames > 0 ? Math.round((stats.wins / stats.totalGames) * 100) : 0;
   const isTopTen = leaderboardStanding && leaderboardStanding.rank <= 10;
 
@@ -103,7 +101,7 @@ export default function StatsShowcase({ stats, bestGame, leaderboardStanding }: 
           )}
         </div>
 
-        {/* 6-stat grid — two rows of 3, no boxes */}
+        {/* 7-stat grid — no boxes */}
         <div className="grid grid-cols-3 gap-x-4 gap-y-4 py-1">
           <StatCell label="Goals / game"   value={stats.avgGoals.toFixed(1)}   color="text-rl-orange" />
           <StatCell label="Assists / game" value={stats.avgAssists.toFixed(1)} color="text-rl-blue" />
@@ -111,38 +109,10 @@ export default function StatsShowcase({ stats, bestGame, leaderboardStanding }: 
           <StatCell label="Score / game"   value={Math.round(stats.avgScore).toString()} />
           <StatCell label="Shots / game"   value={stats.avgShots.toFixed(1)}   color="text-muted-foreground" />
           <StatCell label="MVP Rate"        value={`${Math.round(stats.mvpRate)}%`} color="text-yellow-400" />
+          {stats.avgContribution != null && (
+            <StatCell label="Avg Contribution" value={Math.round(stats.avgContribution).toString()} color="text-rl-purple" />
+          )}
         </div>
-
-        {/* Divider */}
-        <div className="border-t border-border/30" />
-
-        {/* Best Performance */}
-        {bestGame && (
-          <div className="space-y-1.5">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-              <Zap className="w-3.5 h-3.5 text-rl-orange" />
-              Best Performance
-            </p>
-            <div className="flex items-center justify-between rounded-xl bg-background/50 border border-border/30 px-3 py-2.5">
-              <div className="space-y-0.5">
-                <p className="text-[10px] text-muted-foreground">
-                  {format(new Date(bestGame.date), "MMM d, yyyy")} · {bestGame.gameMode} {bestGame.gameType}
-                </p>
-                <div className="flex items-center gap-3 font-mono text-sm">
-                  <span className="font-bold">{bestGame.score}</span>
-                  <span className="text-rl-orange">{bestGame.goals}G</span>
-                  <span className="text-rl-blue">{bestGame.assists}A</span>
-                  <span className="text-cyan-400">{bestGame.saves}S</span>
-                </div>
-              </div>
-              {bestGame.isMvp && (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-yellow-400/15 text-yellow-400 border border-yellow-400/30">
-                  MVP
-                </span>
-              )}
-            </div>
-          </div>
-        )}
       </CardContent>
     </Card>
   );
