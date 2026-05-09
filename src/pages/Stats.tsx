@@ -796,20 +796,13 @@ const Stats = () => {
     return (played.filter((g) => g.result === "win").length / played.length) * 100;
   }, [games, userTarget]);
 
-  // Best shared game — highest user score in a game where both played
-  const bestSharedGame = useMemo(() => {
-    if (!teammateTarget) return null;
-    const candidates = rangeFilteredGames
-      .map((g) => ({
-        game: g,
-        userRow: findPlayer(g.game_players || [], userTarget),
-        teammateRow: findPlayer(g.game_players || [], teammateTarget),
-      }))
-      .filter(({ userRow, teammateRow }) => userRow && teammateRow);
-    if (!candidates.length) return null;
-    return candidates.reduce((best, curr) =>
-      safeNumber(curr.userRow?.score) > safeNumber(best.userRow?.score) ? curr : best
-    );
+  // Recent shared games — last 5 games where both played, newest first
+  const recentSharedGames = useMemo(() => {
+    if (!teammateTarget) return [];
+    return [...rangeFilteredGames]
+      .filter((g) => findPlayer(g.game_players || [], userTarget) && findPlayer(g.game_players || [], teammateTarget))
+      .slice(-5)
+      .reverse();
   }, [rangeFilteredGames, userTarget, teammateTarget]);
 
   // MMR history — multi-mode overlay from game_players.mmr (per-game values)
@@ -1108,33 +1101,58 @@ const Stats = () => {
                   overallWinRate={overallWinRate}
                 />
 
-                {/* Best shared game */}
-                {bestSharedGame && (
+                {/* Recent games together */}
+                {recentSharedGames.length > 0 && (
                   <Card className="border-border/50 bg-card/80 overflow-hidden animate-fade-in-up">
-                    <CardContent className="px-4 py-3 flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-yellow-400/10 border border-yellow-400/20 flex items-center justify-center shrink-0">
-                        <Trophy className="w-4 h-4 text-yellow-400" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Best game together</p>
-                        <p className="text-sm font-display font-bold mt-0.5">
-                          {safeNumber(bestSharedGame.userRow?.score).toLocaleString()} pts
-                          <span className={cn("ml-2 text-xs font-normal", bestSharedGame.game.result === "win" ? "text-rl-green" : "text-rl-red")}>
-                            {bestSharedGame.game.result === "win" ? "W" : "L"}
-                          </span>
-                        </p>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className="text-[10px] text-muted-foreground">
-                          {new Date(bestSharedGame.game.played_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-                        </p>
-                        {bestSharedGame.teammateRow && (
-                          <p className="text-[10px] text-muted-foreground">
-                            {selectedFriend.label} · {safeNumber(bestSharedGame.teammateRow.score).toLocaleString()} pts
-                          </p>
-                        )}
-                      </div>
-                    </CardContent>
+                    <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/30">
+                      <span className="text-xs font-semibold text-foreground">Recent Games Together</span>
+                      <span className="text-[10px] text-muted-foreground">{recentSharedGames.length} game{recentSharedGames.length !== 1 ? "s" : ""}</span>
+                    </div>
+                    <div className="divide-y divide-border/20">
+                      {recentSharedGames.map((g) => {
+                        const isWin = g.result === "win";
+                        const players = g.game_players || [];
+                        const userRow = findPlayer(players, userTarget)!;
+                        const teammateRow = findPlayer(players, teammateTarget!);
+                        const userTeam = userRow.team;
+                        const goalsFor     = players.filter((p) => p.team === userTeam).reduce((s, p) => s + safeNumber(p.goals), 0);
+                        const goalsAgainst = players.filter((p) => p.team !== userTeam).reduce((s, p) => s + safeNumber(p.goals), 0);
+                        return (
+                          <div key={g.id} className="flex items-center gap-3 px-4 py-2.5">
+                            {/* W/L bar */}
+                            <span className={cn(
+                              "w-1 h-8 rounded-full shrink-0",
+                              isWin ? "bg-rl-green shadow-[0_0_6px_hsl(var(--rl-green)/0.5)]" : "bg-rl-red shadow-[0_0_6px_hsl(var(--rl-red)/0.5)]"
+                            )} />
+                            {/* Mode + date */}
+                            <div className="shrink-0 w-10 text-center">
+                              <p className="text-[10px] font-bold text-muted-foreground uppercase">{g.game_mode}</p>
+                              <p className="text-[9px] text-muted-foreground/60 mt-0.5">
+                                {new Date(g.played_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                              </p>
+                            </div>
+                            {/* Score line */}
+                            <div className="shrink-0">
+                              <span className={cn("text-sm font-display font-bold tabular-nums", isWin ? "text-rl-green" : "text-rl-red")}>
+                                {goalsFor}–{goalsAgainst}
+                              </span>
+                            </div>
+                            {/* Player stats */}
+                            <div className="flex-1 min-w-0 flex items-center justify-end gap-3 text-[10px] font-mono text-muted-foreground">
+                              <span className="text-foreground font-semibold">{safeNumber(userRow.score)}<span className="text-muted-foreground font-normal">pts</span></span>
+                              <span className="text-border/60">·</span>
+                              <span>{safeNumber(userRow.goals)}G {safeNumber(userRow.assists)}A {safeNumber(userRow.saves)}S</span>
+                              {teammateRow && (
+                                <>
+                                  <span className="text-border/40 hidden sm:inline">|</span>
+                                  <span className="hidden sm:inline">{selectedFriend.label.split(" ")[0]}: {safeNumber(teammateRow.score)}pts</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </Card>
                 )}
               </>
