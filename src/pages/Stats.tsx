@@ -710,11 +710,6 @@ const Stats = () => {
     <AppLayout>
       <div className="space-y-5">
 
-        {/* ── Header ── */}
-        <div className="animate-fade-in-up">
-          <h1 className="text-2xl font-display font-bold">Stats</h1>
-        </div>
-
         {/* ── Page tab switcher ── */}
         <div className="grid grid-cols-2 gap-2 animate-fade-in-up">
           <button
