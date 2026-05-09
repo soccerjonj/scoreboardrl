@@ -81,6 +81,23 @@ function formatRank(tier: RankTier, division: RankDivision | null): string {
   return `${base} Div ${division}`;
 }
 
+/** Compare two ranks and return whether the player moved up, down, or stayed the same. */
+function compareRanks(
+  from: { rank_tier: RankTier; rank_division: RankDivision | null },
+  to: { rank_tier: RankTier; rank_division: RankDivision | null }
+): "up" | "down" | "none" {
+  const tierFrom = RANK_TIERS.indexOf(from.rank_tier);
+  const tierTo   = RANK_TIERS.indexOf(to.rank_tier);
+  if (tierTo > tierFrom) return "up";
+  if (tierTo < tierFrom) return "down";
+  // Same tier — compare divisions (I=0 … IV=3)
+  const divFrom = from.rank_division ? RANK_DIVISIONS.indexOf(from.rank_division) : -1;
+  const divTo   = to.rank_division   ? RANK_DIVISIONS.indexOf(to.rank_division)   : -1;
+  if (divTo > divFrom) return "up";
+  if (divTo < divFrom) return "down";
+  return "none";
+}
+
 function shiftRank(
   tier: RankTier,
   division: RankDivision | null,
@@ -195,7 +212,7 @@ const LogGame = () => {
       .then(({ data }) => setCurrentRank(data ?? null));
   }, [user, gameMode, gameType]);
 
-  // Seed parsedNewRank from shiftRank when user picks up/down and AI didn't provide one
+  // Seed parsedNewRank from shiftRank when user MANUALLY picks up/down and AI didn't provide one
   useEffect(() => {
     if ((divisionChange === "up" || divisionChange === "down") && !parsedNewRank && currentRank) {
       setParsedNewRank(shiftRank(currentRank.rank_tier, currentRank.rank_division, divisionChange));
@@ -204,6 +221,13 @@ const LogGame = () => {
       setParsedNewRank(null);
     }
   }, [divisionChange, currentRank]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-derive divisionChange by comparing the rank read from the scoreboard against
+  // the user's stored rank. This fires when either becomes available (handles async fetch).
+  useEffect(() => {
+    if (!parsedNewRank || !currentRank) return;
+    setDivisionChange(compareRanks(currentRank, parsedNewRank));
+  }, [parsedNewRank?.rank_tier, parsedNewRank?.rank_division, currentRank?.rank_tier, currentRank?.rank_division]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleParsed = (
     data: { game_mode: GameMode; game_type: GameType; players: PlayerStat[]; result?: "win" | "loss"; division_change?: "up" | "down" | "none"; new_rank_tier?: string; new_rank_division?: string },
@@ -234,19 +258,19 @@ const LogGame = () => {
       }
     }
 
-    // Use AI-detected division change — only accept explicit up/down
-    if (data.division_change === "up" || data.division_change === "down") {
-      setDivisionChange(data.division_change);
-    } else {
-      setDivisionChange("none");
-    }
+    // divisionChange is derived automatically by the compareRanks effect below —
+    // reset to "none" here so it updates cleanly once currentRank + parsedNewRank are both ready.
+    setDivisionChange("none");
 
-    // Store the exact resulting rank if Gemini read it from the scoreboard
+    // Store the rank Gemini read from the "CURRENT TIER" label on the scoreboard.
+    // The compareRanks effect will compare this against the stored rank to set divisionChange.
     if (data.new_rank_tier) {
       setParsedNewRank({
         rank_tier: data.new_rank_tier as RankTier,
         rank_division: (data.new_rank_division as RankDivision) ?? null,
       });
+    } else {
+      setParsedNewRank(null);
     }
 
     // Extract user's MMR from their player row
