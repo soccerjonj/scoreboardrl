@@ -156,7 +156,7 @@ function TournamentCard({ tournament }: { tournament: Tournament }) {
                 </span>
                 {isWinner && (
                   <Badge className="text-[10px] px-1.5 py-0 bg-yellow-400/20 text-yellow-400 border-yellow-400/30">
-                    🏆 Champion
+                    Champion
                   </Badge>
                 )}
                 {isEliminated && bracketRounds.length > 0 && (

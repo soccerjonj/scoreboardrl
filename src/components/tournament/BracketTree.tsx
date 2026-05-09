@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { Trophy } from "lucide-react";
 import {
   ROUND_ORDER,
   ROUND_SHORT,
@@ -142,7 +143,7 @@ export default function BracketTree({ rounds, outcome, className }: Props) {
       {/* Outcome badge */}
       {outcome === "winner" && (
         <div className="flex items-center gap-2 mt-1 px-3 py-2 rounded-lg bg-yellow-400/10 border border-yellow-400/30">
-          <span className="text-lg">🏆</span>
+          <Trophy className="w-4 h-4 text-yellow-400" />
           <span className="text-sm font-bold text-yellow-400">Tournament Champion!</span>
         </div>
       )}

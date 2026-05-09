@@ -10,12 +10,6 @@ import type { Database } from "@/integrations/supabase/types";
 
 type GameMode = Database["public"]["Enums"]["game_mode"];
 
-const TOURNAMENT_TYPE_ICONS: Record<TournamentType, string> = {
-  soccar: "⚽",
-  pentathlon: "🏅",
-  heatseeker: "🔥",
-  rumble: "⚡",
-};
 
 interface Props {
   open: boolean;
@@ -111,11 +105,7 @@ export default function StartTournamentSheet({ open, onOpenChange }: Props) {
                     "disabled:opacity-50 disabled:cursor-not-allowed"
                   )}
                 >
-                  {starting ? (
-                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
-                  ) : (
-                    <span className="text-2xl">{TOURNAMENT_TYPE_ICONS[type]}</span>
-                  )}
+                  {starting && <Loader2 className="w-5 h-5 animate-spin text-primary" />}
                   <span className="font-semibold text-sm">{TOURNAMENT_TYPE_LABELS[type]}</span>
                 </button>
               ))}

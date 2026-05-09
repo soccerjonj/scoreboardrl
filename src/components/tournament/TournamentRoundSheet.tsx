@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Trophy, ChevronRight } from "lucide-react";
+import { Trophy, ChevronRight, Check, X, Zap } from "lucide-react";
 import { ROUND_LABELS, ROUND_ORDER, RoundKey, LinkGameResult } from "@/hooks/useTournamentSession";
 import BracketTree, { RoundResult } from "./BracketTree";
 import { cn } from "@/lib/utils";
@@ -60,7 +60,7 @@ export default function TournamentRoundSheet({
         )}>
           {isChampion && (
             <>
-              <span className="text-2xl">🏆</span>
+              <Trophy className="w-5 h-5 text-yellow-400 shrink-0" />
               <div>
                 <p className="font-display font-bold text-yellow-400">Champion!</p>
                 <p className="text-xs text-muted-foreground">You won the tournament</p>
@@ -69,7 +69,7 @@ export default function TournamentRoundSheet({
           )}
           {isEliminated && (
             <>
-              <span className="text-xl">✗</span>
+              <X className="w-5 h-5 text-rl-red shrink-0" />
               <div>
                 <p className="font-display font-bold text-rl-red">Eliminated</p>
                 <p className="text-xs text-muted-foreground">
@@ -80,7 +80,7 @@ export default function TournamentRoundSheet({
           )}
           {isAdvanced && (
             <>
-              <span className="text-xl text-rl-green">✓</span>
+              <Check className="w-5 h-5 text-rl-green shrink-0" />
               <div>
                 <p className="font-display font-bold text-rl-green">WIN — Advancing!</p>
                 <p className="text-xs text-muted-foreground">
@@ -91,7 +91,7 @@ export default function TournamentRoundSheet({
           )}
           {isBo3Continue && (
             <>
-              <span className="text-xl">⚡</span>
+              <Zap className="w-5 h-5 text-primary shrink-0" />
               <div>
                 <p className="font-display font-bold text-primary">
                   Series {linkResult.wins} – {linkResult.losses}
