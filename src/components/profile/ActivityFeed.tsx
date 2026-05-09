@@ -3,6 +3,7 @@ import { ChevronDown, ChevronUp, Clock } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { CarryMeter } from "@/components/game/CarryMeter";
 import type { ActivityGame, ActivityGamePlayer } from "@/types/profile";
 
 function relativeDate(isoString: string): string {
@@ -19,23 +20,31 @@ function relativeDate(isoString: string): string {
 function PlayerRow({
   player,
   isMe,
+  teamSize,
 }: {
   player: ActivityGamePlayer;
   isMe: boolean;
+  teamSize: number;
 }) {
+  const showMeter = player.contributionScore > 0 && teamSize > 1;
   return (
     <div className={cn(
-      "grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-x-2 px-3 py-1.5 items-center text-xs",
+      "grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-x-2 px-3 py-1.5 items-start text-xs",
       isMe ? "bg-primary/8 border-l-2 border-l-primary/60" : ""
     )}>
-      <div className="flex items-center gap-1.5 min-w-0">
-        <span className={cn("truncate", isMe ? "font-semibold" : "font-medium text-muted-foreground/90")}>
-          {player.playerName || "—"}
-        </span>
-        {player.isMvp && (
-          <span className="shrink-0 text-[8px] font-bold px-1 py-0.5 rounded-sm bg-yellow-400/15 text-yellow-400 leading-none">
-            MVP
+      <div className="flex flex-col gap-0.5 min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className={cn("truncate", isMe ? "font-semibold" : "font-medium text-muted-foreground/90")}>
+            {player.playerName || "—"}
           </span>
+          {player.isMvp && (
+            <span className="shrink-0 text-[8px] font-bold px-1 py-0.5 rounded-sm bg-yellow-400/15 text-yellow-400 leading-none">
+              MVP
+            </span>
+          )}
+        </div>
+        {showMeter && (
+          <CarryMeter score={player.contributionScore} teamSize={teamSize} size="sm" />
         )}
       </div>
       <span className={cn("font-mono font-bold text-right w-9", isMe ? "text-foreground" : "text-foreground/70")}>{player.score}</span>
@@ -51,10 +60,12 @@ function Scoreboard({
   players,
   currentUserId,
   result,
+  teamSize,
 }: {
   players: ActivityGamePlayer[];
   currentUserId: string | null;
   result: "win" | "loss";
+  teamSize: number;
 }) {
   // Group by team if team data present, otherwise show flat sorted list
   const hasTeams = players.some((p) => p.team != null);
@@ -101,6 +112,7 @@ function Scoreboard({
               key={i}
               player={p}
               isMe={!!(currentUserId && p.userId === currentUserId)}
+              teamSize={teamSize}
             />
           ))}
         </div>
@@ -194,6 +206,11 @@ function GameCard({
           players={game.allPlayers}
           currentUserId={currentUserId}
           result={game.result}
+          teamSize={
+            game.gameMode === "1v1" ? 1 :
+            game.gameMode === "2v2" ? 2 :
+            game.gameMode === "3v3" ? 3 : 4
+          }
         />
       )}
     </div>
