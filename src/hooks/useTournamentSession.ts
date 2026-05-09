@@ -80,6 +80,12 @@ export function useTournamentSession() {
   const activeTournamentRef = useRef<Tournament | null>(null);
   activeTournamentRef.current = activeTournament;
 
+  // Unique channel name per hook instance — Supabase Realtime reuses channel
+  // instances by name, so without this two components calling the hook would
+  // collide and the second would fail with "cannot add 'postgres_changes'
+  // callbacks ... after 'subscribe()'".
+  const channelName = useRef(`tournament:${user?.id ?? "anon"}:${Math.random().toString(36).slice(2)}`);
+
   // ── Helper: load a specific tournament + its games + roster ──────────────
   const loadTournament = useCallback(async (tournamentId: string) => {
     const [{ data: t }, { data: tg }, { data: tp }] = await Promise.all([
@@ -180,7 +186,7 @@ export function useTournamentSession() {
   // ── Realtime: react to participant additions, tournament updates, new games
   useEffect(() => {
     if (!user) return;
-    const ch = supabase.channel(`tournament-${user.id}`)
+    const ch = supabase.channel(channelName.current)
       // 1. I was just added to a tournament:
       //    - If row inserted with status='joined' (e.g. owner row), activate it
       //    - If row inserted with status='invited', refresh pending invites
