@@ -3,6 +3,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import { Bell, ArrowDown, Loader2, Settings } from "lucide-react";
 import BottomNav from "./BottomNav";
 import TopNav from "./TopNav";
+import TournamentLiveBanner from "@/components/tournament/TournamentLiveBanner";
 import { useNotifications } from "@/hooks/useNotifications";
 import { cn } from "@/lib/utils";
 import Logo from "@/components/ui/Logo";
@@ -113,6 +114,7 @@ const AppLayout = ({ children }: { children: ReactNode }) => {
     <div className="min-h-screen bg-background">
       <TopNav />
       <MobileHeader />
+      <TournamentLiveBanner />
 
       {showIndicator && (
         <div

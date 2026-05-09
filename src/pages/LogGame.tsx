@@ -173,7 +173,6 @@ const LogGame = () => {
   const [mmrChange, setMmrChange] = useState<number | null>(null);
   const [conflictGame, setConflictGame] = useState<GameWithPlayers | null>(null);
   const [wasPhotoParsed, setWasPhotoParsed] = useState(false);
-  const [showEndSessionConfirm, setShowEndSessionConfirm] = useState(false);
   const [showStartTournament, setShowStartTournament] = useState(false);
   const [tournamentLinkResult, setTournamentLinkResult] = useState<LinkGameResult | null>(null);
   const [tournamentBracketRounds, setTournamentBracketRounds] = useState<RoundResult[]>([]);
@@ -186,7 +185,6 @@ const LogGame = () => {
     currentRound: tournamentRound,
     tournamentGames,
     linkGame: linkGameToTournament,
-    endSession: endTournamentSession,
   } = useTournamentSession();
 
   useEffect(() => {
@@ -623,41 +621,8 @@ const LogGame = () => {
   return (
     <AppLayout>
       <div className="space-y-6">
-        {/* Tournament banner — active or start prompt */}
-        {isTournamentActive && activeTournament && tournamentRound ? (
-          <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-yellow-400/30 bg-yellow-400/8">
-            <div className="flex items-center gap-2">
-              <Trophy className="w-4 h-4 text-yellow-400 shrink-0" />
-              <span className="text-sm font-semibold text-yellow-300">
-                Tournament Active
-              </span>
-              <span className="text-xs text-yellow-400/70">
-                · {activeTournament.game_mode} {TOURNAMENT_TYPE_LABELS[activeTournament.tournament_type as keyof typeof TOURNAMENT_TYPE_LABELS]}
-                · {ROUND_LABELS[tournamentRound]}
-              </span>
-            </div>
-            {showEndSessionConfirm ? (
-              <div className="flex items-center gap-2 shrink-0">
-                <span className="text-xs text-muted-foreground">End session?</span>
-                <button
-                  onClick={async () => { await endTournamentSession(); setShowEndSessionConfirm(false); }}
-                  className="text-xs font-medium text-rl-red hover:text-rl-red/80 transition-colors"
-                >Yes</button>
-                <button
-                  onClick={() => setShowEndSessionConfirm(false)}
-                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                >No</button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setShowEndSessionConfirm(true)}
-                className="p-1 rounded-md text-muted-foreground hover:text-foreground transition-colors shrink-0"
-              >
-                <XIcon className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-        ) : !isTournamentActive && (
+        {/* Tournament start prompt — active state is handled by global TournamentLiveBanner */}
+        {!isTournamentActive && (
           <button
             onClick={() => setShowStartTournament(true)}
             className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-border/40 bg-card/60 hover:bg-card/90 hover:border-primary/30 transition-colors text-left"
