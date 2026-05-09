@@ -533,15 +533,46 @@ export default function TournamentHistoryPanel({ userId }: { userId: string }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase
-      .from("tournaments")
-      .select("*")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .then(({ data }) => {
-        setTournaments((data ?? []) as Tournament[]);
-        setLoading(false);
-      });
+    (async () => {
+      // Try the participant-aware query first (covers tournaments I own AND
+      // tournaments I joined as a partner). Falls back to user_id match if
+      // tournament_participants migrations haven't been run yet.
+      let rows: Tournament[] = [];
+
+      const { data: participantRows, error: participantErr } = await supabase
+        .from("tournament_participants")
+        .select("tournaments!inner(*)")
+        .eq("user_id", userId)
+        .in("status", ["joined"]);
+
+      if (!participantErr && participantRows) {
+        const seen = new Set<string>();
+        rows = (participantRows as any[])
+          .map((r) => r.tournaments as Tournament)
+          .filter((t) => t && !seen.has(t.id) && (seen.add(t.id), true));
+      }
+
+      // Always also fetch tournaments where I'm the owner — covers any old
+      // rows that may not have a participant row yet (defensive belt-and-
+      // suspenders), and the case where the participant query failed.
+      const { data: ownerRows } = await supabase
+        .from("tournaments")
+        .select("*")
+        .eq("user_id", userId);
+
+      if (ownerRows) {
+        const ids = new Set(rows.map((r) => r.id));
+        for (const r of ownerRows as Tournament[]) {
+          if (!ids.has(r.id)) rows.push(r);
+        }
+      }
+
+      // Sort newest first
+      rows.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      setTournaments(rows);
+      setLoading(false);
+    })();
   }, [userId]);
 
   if (loading) {
