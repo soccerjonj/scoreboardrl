@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, ChevronDown, Loader2, User, Users } from "lucide-react";
+import { ArrowLeft, Loader2, User } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { getRankIcon } from "@/lib/rankIcons";
@@ -25,13 +24,6 @@ type RankInput = {
   rank_tier: RankTier;
   rank_division: RankDivision | null;
   mmr: number | null;
-};
-
-type TogetherStats = {
-  games: number;
-  wins: number;
-  me:   { goals: number; assists: number; saves: number; score: number };
-  them: { goals: number; assists: number; saves: number; score: number };
 };
 
 type FriendProfileData = {
@@ -118,8 +110,6 @@ const FriendProfile = () => {
   const [leaderboardStanding, setLeaderboardStanding] = useState<LeaderboardStanding | null>(null);
   const [chartData, setChartData] = useState<{ points: Record<string, string | number | null>[]; activeModes: string[] }>({ points: [], activeModes: [] });
   const [teammates, setTeammates] = useState<TeammateProfile[]>([]);
-  const [togetherStats, setTogetherStats] = useState<TogetherStats | null>(null);
-  const [showTogether, setShowTogether] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/auth");
@@ -231,33 +221,6 @@ const FriendProfile = () => {
             setProfileStats(null);
             return;
           }
-
-          // ── Stats when playing together ──────────────────────────────────
-          const sharedGames = gamesData.filter((g) =>
-            (g.game_players as any[]).some((p) => p.user_id === user.id)
-          );
-          if (sharedGames.length > 0) {
-            let sgWins = 0;
-            const me   = { goals: 0, assists: 0, saves: 0, score: 0 };
-            const them = { goals: 0, assists: 0, saves: 0, score: 0 };
-            sharedGames.forEach((g) => {
-              if (g.result === "win") sgWins++;
-              const players = g.game_players as any[];
-              const myRow   = players.find((p) => p.user_id === user.id);
-              const theirRow = players.find((p) => p.user_id === userId);
-              if (myRow)   { me.goals   += myRow.goals   ?? 0; me.assists   += myRow.assists   ?? 0; me.saves   += myRow.saves   ?? 0; me.score   += myRow.score   ?? 0; }
-              if (theirRow){ them.goals += theirRow.goals ?? 0; them.assists += theirRow.assists ?? 0; them.saves += theirRow.saves ?? 0; them.score += theirRow.score ?? 0; }
-            });
-            const n = sharedGames.length;
-            setTogetherStats({
-              games: n, wins: sgWins,
-              me:   { goals: me.goals / n,   assists: me.assists / n,   saves: me.saves / n,   score: me.score / n   },
-              them: { goals: them.goals / n, assists: them.assists / n, saves: them.saves / n, score: them.score / n },
-            });
-          } else {
-            setTogetherStats(null);
-          }
-          // ────────────────────────────────────────────────────────────────
 
           const totalGames = gamesData.length;
           const wins = gamesData.filter((g) => g.result === "win").length;
@@ -547,66 +510,6 @@ const FriendProfile = () => {
             teammates={teammates}
           />
         </Card>
-
-        {/* Together button + comparison */}
-        {togetherStats && togetherStats.games > 0 && (
-          <div className="space-y-2">
-            <button
-              onClick={() => setShowTogether((v) => !v)}
-              className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all w-fit",
-                showTogether
-                  ? "bg-primary/10 border-primary/30 text-primary"
-                  : "bg-card/60 border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/40"
-              )}
-            >
-              <Users className="w-3.5 h-3.5" />
-              Together · {togetherStats.games} game{togetherStats.games !== 1 ? "s" : ""}
-              <ChevronDown className={cn("w-3 h-3 transition-transform duration-200", showTogether && "rotate-180")} />
-            </button>
-
-            {showTogether && (() => {
-              const winPct = Math.round((togetherStats.wins / togetherStats.games) * 100);
-              const fmt = (v: number) => v >= 100 ? Math.round(v).toLocaleString() : v.toFixed(1);
-              const rows: { label: string; me: number; them: number }[] = [
-                { label: "Goals/g",   me: togetherStats.me.goals,   them: togetherStats.them.goals   },
-                { label: "Assists/g", me: togetherStats.me.assists, them: togetherStats.them.assists },
-                { label: "Saves/g",  me: togetherStats.me.saves,   them: togetherStats.them.saves   },
-                { label: "Score/g",  me: togetherStats.me.score,   them: togetherStats.them.score   },
-              ];
-              return (
-                <Card className="border-border/50 bg-card/80 overflow-hidden">
-                  <CardContent className="p-0">
-                    {/* Header */}
-                    <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/30">
-                      <span className="text-xs font-semibold truncate max-w-[35%]">You</span>
-                      <span className="text-[10px] text-muted-foreground text-center">
-                        {togetherStats.wins}W–{togetherStats.games - togetherStats.wins}L · {winPct}%
-                      </span>
-                      <span className="text-xs font-semibold truncate max-w-[35%] text-right">{displayName}</span>
-                    </div>
-                    {/* Stat rows */}
-                    {rows.map(({ label, me, them }) => {
-                      const meWins = me > them;
-                      const themWins = them > me;
-                      return (
-                        <div key={label} className="flex items-center px-4 py-2 border-b border-border/20 last:border-0">
-                          <span className={cn("flex-1 font-display font-bold text-sm text-right pr-3", meWins ? "text-rl-green" : "text-muted-foreground")}>
-                            {fmt(me)}
-                          </span>
-                          <span className="text-[10px] text-muted-foreground w-16 text-center shrink-0">{label}</span>
-                          <span className={cn("flex-1 font-display font-bold text-sm pl-3", themWins ? "text-rl-green" : "text-muted-foreground")}>
-                            {fmt(them)}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </CardContent>
-                </Card>
-              );
-            })()}
-          </div>
-        )}
 
         {/* Stats Showcase */}
         {profileStats && profileStats.totalGames > 0 && (

@@ -1,4 +1,5 @@
-import { Link, Pencil, User } from "lucide-react";
+import { Link, Pencil, User, Users } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { CARS, CarBadge } from "@/components/profile/CarSilhouette";
@@ -112,6 +113,7 @@ export default function ProfileHeader({
   onEdit,
 }: Props) {
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const favoriteCarObj = favoriteCar ? CARS.find((c) => c.name === favoriteCar) ?? null : null;
 
@@ -178,6 +180,15 @@ export default function ProfileHeader({
               <Link className="w-3.5 h-3.5" />
               Share
             </button>
+            {!onEdit && (
+              <button
+                onClick={() => navigate(`/stats?friend=${profileUserId}`)}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-border/50 bg-background/70 backdrop-blur-sm text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              >
+                <Users className="w-3.5 h-3.5" />
+                Together
+              </button>
+            )}
             {onEdit && (
               <button
                 onClick={onEdit}

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { format } from "date-fns";
 import {
   Loader2, BarChart2, LineChart as LineChartIcon, FilterX, Filter,
@@ -426,6 +426,7 @@ const BestContributionCard = ({
 const Stats = () => {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
 
   const [loading, setLoading] = useState(true);
@@ -507,6 +508,16 @@ const Stats = () => {
 
   const friendOptions = useMemo(() => friends.map((f) => ({ id: f.user_id, label: f.rl_account_name?.trim() || f.username, rlName: f.rl_account_name, username: f.username })), [friends]);
   const selectedFriend = friendOptions.find((f) => f.id === selectedFriendId) || null;
+
+  // Auto-select friend from ?friend= URL param (e.g. arriving from a friend profile "Together" button)
+  useEffect(() => {
+    const friendIdFromUrl = searchParams.get("friend");
+    if (!friendIdFromUrl || friendOptions.length === 0) return;
+    if (friendOptions.some((f) => f.id === friendIdFromUrl)) {
+      setSelectedFriendId(friendIdFromUrl);
+      setPageTab("stats");
+    }
+  }, [friendOptions, searchParams]);
   const userTarget = useMemo(() => buildTarget(user?.id, [userRlName]), [user?.id, userRlName]);
   const teammateTarget = useMemo(() => selectedFriend ? buildTarget(selectedFriend.id, [selectedFriend.rlName, selectedFriend.username]) : null, [selectedFriend]);
 
