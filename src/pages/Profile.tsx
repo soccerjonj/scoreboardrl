@@ -362,7 +362,8 @@ const Profile = () => {
           (mmrByMode.get(m)?.length ?? 0) > (mmrByMode.get(best)?.length ?? 0) ? m : best
         , "2v2");
         const mmrPoints = mmrByMode.get(preferredMode) ?? [];
-        setChartData(mmrPoints.slice(-30));
+        const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+        setChartData(mmrPoints.filter((p) => new Date(p.date).getTime() >= cutoff));
 
         // Best game (highest contribution_score)
         if (myPlayerRows.length > 0) {

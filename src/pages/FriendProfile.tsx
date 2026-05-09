@@ -337,7 +337,8 @@ const FriendProfile = () => {
           const preferredMode = (["2v2", "3v3", "1v1"] as GameMode[]).reduce((best, m) =>
             (mmrByMode.get(m)?.length ?? 0) > (mmrByMode.get(best)?.length ?? 0) ? m : best
           , "2v2");
-          setChartData((mmrByMode.get(preferredMode) ?? []).slice(-30));
+          const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+          setChartData((mmrByMode.get(preferredMode) ?? []).filter((p) => new Date(p.date).getTime() >= cutoff));
 
           // Best game
           if (playerRows.length > 0) {

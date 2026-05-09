@@ -49,7 +49,7 @@ export default function PerformanceChart({ data }: Props) {
             {trending ? "▲ Trending up" : "▼ Trending down"}
           </span>
         </div>
-        <p className="text-[10px] text-muted-foreground mb-2">MMR over time · last {data.length} updates</p>
+        <p className="text-[10px] text-muted-foreground mb-2">MMR over time · last 30 days</p>
         <div className="h-28">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={data} margin={{ top: 4, right: 4, left: -32, bottom: 0 }}>
