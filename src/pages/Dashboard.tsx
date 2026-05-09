@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { Plus, Loader2, Trophy, Target, TrendingUp, ChevronRight, Zap, ChevronDown, ChevronUp, Pencil, Check, X as XIcon, Trash2, Info } from "lucide-react";
-import LeaderboardPreviewCard from "@/components/dashboard/LeaderboardPreviewCard";
 import TournamentBannerCard from "@/components/tournament/TournamentBannerCard";
 
 import { useAuth } from "@/contexts/AuthContext";
@@ -565,7 +564,6 @@ const Dashboard = () => {
           </Card>
         </div>
 
-        <LeaderboardPreviewCard />
         <TournamentBannerCard />
 
         {/* Recent Form */}
