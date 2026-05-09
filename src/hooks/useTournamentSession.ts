@@ -108,7 +108,8 @@ export function useTournamentSession() {
       .eq("user_id", myUserId)
       .eq("status", "invited")
       .eq("tournaments.status", "active");
-    const rows = (data ?? []) as any[];
+    // Filter out rows where the join didn't return a tournament (e.g. RLS skip)
+    const rows = ((data ?? []) as any[]).filter((r) => r && r.tournaments);
 
     if (rows.length === 0) {
       setPendingInvites([]);
@@ -116,7 +117,11 @@ export function useTournamentSession() {
     }
 
     // Fetch inviter profiles in one round-trip
-    const inviterIds = Array.from(new Set(rows.map((r) => r.tournaments.user_id)));
+    const inviterIds = Array.from(new Set(rows.map((r) => r.tournaments.user_id).filter(Boolean)));
+    if (inviterIds.length === 0) {
+      setPendingInvites([]);
+      return;
+    }
     const { data: profiles } = await supabase
       .from("profiles")
       .select("user_id, username, rl_account_name, avatar_url")
