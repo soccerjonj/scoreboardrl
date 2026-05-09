@@ -22,6 +22,7 @@ import TournamentRoundSheet from "@/components/tournament/TournamentRoundSheet";
 import StartTournamentSheet from "@/components/tournament/StartTournamentSheet";
 import type { LinkGameResult, RoundResult, RoundKey } from "@/hooks/useTournamentSession";
 import type { Database } from "@/integrations/supabase/types";
+import { STANDARD_MODES } from "@/lib/gameModes";
 
 type GamePlayerRow = Database["public"]["Tables"]["game_players"]["Row"];
 type GameRow       = Database["public"]["Tables"]["games"]["Row"];
@@ -211,7 +212,7 @@ const LogGame = () => {
   }, [isTournamentActive]);
 
   useEffect(() => {
-    if (!user || (gameType !== "competitive" && gameType !== "tournament")) { setCurrentRank(null); return; }
+    if (!user || gameType !== "competitive" || !STANDARD_MODES.includes(gameMode as any)) { setCurrentRank(null); return; }
     supabase
       .from("ranks")
       .select("rank_tier, rank_division")
@@ -389,7 +390,7 @@ const LogGame = () => {
           game_mode: gameMode,
           game_type: gameType,
           result,
-          division_change: (gameType === "competitive" || gameType === "tournament") ? divisionChange : null,
+          division_change: (gameType === "competitive" && STANDARD_MODES.includes(gameMode as any)) ? divisionChange : null,
           screenshot_url: screenshotUrl,
           logged_via_photo: wasPhotoParsed,
           tournament_type: isTournamentActive && activeTournament ? activeTournament.tournament_type : null,
@@ -505,8 +506,10 @@ const LogGame = () => {
         )
       );
 
-      // Auto-update profile rank and MMR if this is a competitive or tournament game
-      if (gameType === "competitive" || gameType === "tournament") {
+      // Auto-update profile rank and MMR ONLY for ranked competitive Soccar (1v1/2v2/3v3).
+      // Tournaments and extra modes (Rumble/Hoops/etc.) are unranked and must never write
+      // to the user's competitive rank row.
+      if (gameType === "competitive" && STANDARD_MODES.includes(gameMode as any)) {
         const rankUpdate: { rank_tier?: RankTier; rank_division?: RankDivision | null; mmr?: number | null } = {};
 
         if (divisionChange === "up" || divisionChange === "down") {
@@ -849,7 +852,7 @@ const LogGame = () => {
                     </Select>
                   </div>
 
-                  {(gameType === "competitive" || gameType === "tournament") && (
+                  {gameType === "competitive" && STANDARD_MODES.includes(gameMode as any) && (
                     <div className="space-y-2">
                       <Label>Division Change</Label>
                       <Select value={divisionChange} onValueChange={setDivisionChange}>
@@ -924,7 +927,7 @@ const LogGame = () => {
                   )}
                 </div>
 
-                {gameType === "competitive" && (
+                {gameType === "competitive" && STANDARD_MODES.includes(gameMode as any) && (
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>MMR (after game)</Label>
