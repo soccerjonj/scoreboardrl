@@ -60,11 +60,21 @@ export type LinkGameResult =
   | { action: "bo3_continue"; wins: number; losses: number; round: RoundKey }
   | { action: "champion" };
 
+export type PendingInvite = {
+  tournament_id: string;
+  participant_id: string;
+  game_mode: GameMode;
+  tournament_type: string;
+  inviter_name: string | null;
+  inviter_avatar_url: string | null;
+};
+
 export function useTournamentSession() {
   const { user } = useAuth();
   const [activeTournament, setActiveTournament] = useState<Tournament | null>(null);
   const [tournamentGames, setTournamentGames] = useState<TournamentGame[]>([]);
   const [participants, setParticipants] = useState<TournamentParticipant[]>([]);
+  const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
   const [loading, setLoading] = useState(true);
 
   const activeTournamentRef = useRef<Tournament | null>(null);
@@ -90,15 +100,57 @@ export function useTournamentSession() {
     setParticipants(tp ?? []);
   }, []);
 
-  // ── Bootstrap: find any active tournament where I'm a participant ────────
+  // ── Helper: refresh pending invites (status='invited' for me) ────────────
+  const refreshPendingInvites = useCallback(async (myUserId: string) => {
+    const { data } = await supabase
+      .from("tournament_participants")
+      .select("id, tournament_id, tournaments!inner(id, user_id, game_mode, tournament_type, status)")
+      .eq("user_id", myUserId)
+      .eq("status", "invited")
+      .eq("tournaments.status", "active");
+    const rows = (data ?? []) as any[];
+
+    if (rows.length === 0) {
+      setPendingInvites([]);
+      return;
+    }
+
+    // Fetch inviter profiles in one round-trip
+    const inviterIds = Array.from(new Set(rows.map((r) => r.tournaments.user_id)));
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("user_id, username, rl_account_name, avatar_url")
+      .in("user_id", inviterIds);
+    const profMap = new Map<string, { name: string; avatar: string | null }>();
+    (profiles ?? []).forEach((p: any) =>
+      profMap.set(p.user_id, {
+        name: p.rl_account_name ?? p.username ?? "A friend",
+        avatar: p.avatar_url ?? null,
+      })
+    );
+
+    setPendingInvites(
+      rows.map((r) => ({
+        tournament_id: r.tournament_id,
+        participant_id: r.id,
+        game_mode: r.tournaments.game_mode,
+        tournament_type: r.tournaments.tournament_type,
+        inviter_name: profMap.get(r.tournaments.user_id)?.name ?? null,
+        inviter_avatar_url: profMap.get(r.tournaments.user_id)?.avatar ?? null,
+      }))
+    );
+  }, []);
+
+  // ── Bootstrap: find any active tournament where I've JOINED ──────────────
   useEffect(() => {
     if (!user) { setLoading(false); return; }
     const load = async () => {
-      // Find tournaments where I'm a participant; pick the most recent active
+      // Find joined tournaments
       const { data: tps } = await supabase
         .from("tournament_participants")
         .select("tournament_id, tournaments!inner(id, status, created_at)")
         .eq("user_id", user.id)
+        .eq("status", "joined")
         .eq("tournaments.status", "active")
         .order("created_at", { foreignTable: "tournaments", ascending: false })
         .limit(1);
@@ -109,20 +161,24 @@ export function useTournamentSession() {
         setActiveTournament(null);
         setTournamentGames([]);
         setParticipants([]);
-        setLoading(false);
-        return;
+      } else {
+        await loadTournament(tournamentId);
       }
-      await loadTournament(tournamentId);
+
+      // Always also refresh pending invites
+      await refreshPendingInvites(user.id);
       setLoading(false);
     };
     load();
-  }, [user, loadTournament]);
+  }, [user, loadTournament, refreshPendingInvites]);
 
   // ── Realtime: react to participant additions, tournament updates, new games
   useEffect(() => {
     if (!user) return;
     const ch = supabase.channel(`tournament-${user.id}`)
-      // 1. I was just added to a new tournament → activate it
+      // 1. I was just added to a tournament:
+      //    - If row inserted with status='joined' (e.g. owner row), activate it
+      //    - If row inserted with status='invited', refresh pending invites
       .on(
         "postgres_changes",
         {
@@ -132,8 +188,33 @@ export function useTournamentSession() {
           filter: `user_id=eq.${user.id}`,
         },
         (payload: any) => {
+          const status = payload?.new?.status;
           const tournamentId = payload?.new?.tournament_id;
-          if (tournamentId) loadTournament(tournamentId);
+          if (!tournamentId) return;
+          if (status === "joined") {
+            loadTournament(tournamentId);
+          } else {
+            // Show invite banner
+            refreshPendingInvites(user.id);
+          }
+        }
+      )
+      // 1b. My own status changed (someone — me — flipped invited → joined)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "tournament_participants",
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload: any) => {
+          const status = payload?.new?.status;
+          const tournamentId = payload?.new?.tournament_id;
+          if (status === "joined" && tournamentId) {
+            loadTournament(tournamentId);
+            refreshPendingInvites(user.id);
+          }
         }
       )
       // 2. Active tournament's status / current_round / outcome changed
@@ -209,10 +290,16 @@ export function useTournamentSession() {
         .single();
       if (tErr || !t) throw tErr;
 
-      // 2. Insert participant rows: owner + partners
+      // 2. Insert participant rows. Owner is auto-joined; partners start as
+      //    'invited' until they accept.
       const participantRows = [
-        { tournament_id: t.id, user_id: user.id, is_owner: true },
-        ...partnerUserIds.map((pid) => ({ tournament_id: t.id, user_id: pid, is_owner: false })),
+        { tournament_id: t.id, user_id: user.id, is_owner: true, status: "joined" },
+        ...partnerUserIds.map((pid) => ({
+          tournament_id: t.id,
+          user_id: pid,
+          is_owner: false,
+          status: "invited",
+        })),
       ];
       const { data: tps } = await supabase
         .from("tournament_participants")
@@ -343,6 +430,28 @@ export function useTournamentSession() {
     [activeTournament, tournamentGames]
   );
 
+  // ── Accept / decline pending invite ──────────────────────────────────────
+  const acceptInvite = useCallback(async (tournamentId: string) => {
+    if (!user) return;
+    await supabase
+      .from("tournament_participants")
+      .update({ status: "joined" })
+      .eq("tournament_id", tournamentId)
+      .eq("user_id", user.id);
+    setPendingInvites((prev) => prev.filter((p) => p.tournament_id !== tournamentId));
+    await loadTournament(tournamentId);
+  }, [user, loadTournament]);
+
+  const declineInvite = useCallback(async (tournamentId: string) => {
+    if (!user) return;
+    await supabase
+      .from("tournament_participants")
+      .delete()
+      .eq("tournament_id", tournamentId)
+      .eq("user_id", user.id);
+    setPendingInvites((prev) => prev.filter((p) => p.tournament_id !== tournamentId));
+  }, [user]);
+
   // ── End session (owner only) ──────────────────────────────────────────────
   // For partners, this becomes a "leave" — we delete their own participant row.
   const endSession = useCallback(async () => {
@@ -380,6 +489,7 @@ export function useTournamentSession() {
     activeTournament,
     tournamentGames,
     participants,
+    pendingInvites,
     isOwner,
     currentRound: currentRound ?? null,
     currentRoundGameCount: currentRoundGames.length,
@@ -389,5 +499,7 @@ export function useTournamentSession() {
     startTournament,
     linkGame,
     endSession,
+    acceptInvite,
+    declineInvite,
   };
 }

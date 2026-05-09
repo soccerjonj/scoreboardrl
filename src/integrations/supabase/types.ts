@@ -390,6 +390,7 @@ export type Database = {
           tournament_id: string
           user_id: string
           is_owner: boolean
+          status: string
           created_at: string
         }
         Insert: {
@@ -397,6 +398,7 @@ export type Database = {
           tournament_id: string
           user_id: string
           is_owner?: boolean
+          status?: string
           created_at?: string
         }
         Update: {
@@ -404,6 +406,7 @@ export type Database = {
           tournament_id?: string
           user_id?: string
           is_owner?: boolean
+          status?: string
           created_at?: string
         }
         Relationships: [

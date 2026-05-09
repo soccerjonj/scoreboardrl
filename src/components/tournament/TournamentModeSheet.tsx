@@ -258,12 +258,15 @@ export default function TournamentModeSheet({ open, onOpenChange }: Props) {
                       const prof = participantProfiles[p.user_id];
                       const name = prof?.rl_name ?? "…";
                       const isMe = p.user_id === user?.id;
+                      const isInvited = p.status === "invited";
                       return (
                         <div
                           key={p.id}
                           className={cn(
                             "flex items-center gap-2 px-2.5 py-1.5 rounded-full border",
-                            isMe ? "bg-primary/10 border-primary/40" : "bg-card/50 border-border/40"
+                            isMe ? "bg-primary/10 border-primary/40"
+                              : isInvited ? "bg-card/30 border-border/30 opacity-60 border-dashed"
+                              : "bg-card/50 border-border/40"
                           )}
                         >
                           <div className="w-5 h-5 rounded-full overflow-hidden bg-muted/50 flex items-center justify-center shrink-0">
@@ -276,9 +279,11 @@ export default function TournamentModeSheet({ open, onOpenChange }: Props) {
                           <span className={cn("text-xs font-medium truncate max-w-[140px]", isMe && "text-primary")}>
                             {name}
                           </span>
-                          {p.is_owner && (
+                          {p.is_owner ? (
                             <span className="text-[9px] uppercase tracking-wider font-bold text-yellow-400">Host</span>
-                          )}
+                          ) : isInvited ? (
+                            <span className="text-[9px] uppercase tracking-wider font-bold text-muted-foreground">Pending</span>
+                          ) : null}
                         </div>
                       );
                     })}
