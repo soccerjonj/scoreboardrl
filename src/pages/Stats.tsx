@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CarryMeter } from "@/components/game/CarryMeter";
-import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   ChartContainer,
   ChartLegend,
@@ -27,7 +27,8 @@ import {
 import { CartesianGrid, Area, AreaChart, XAxis, YAxis } from "recharts";
 import AppLayout from "@/components/layout/AppLayout";
 import LeaderboardView from "@/components/leaderboard/LeaderboardView";
-import { EXTRA_MODES, isStandardGame } from "@/lib/gameModes";
+import { isStandardGame } from "@/lib/gameModes";
+import TournamentHistoryPanel from "@/components/tournament/TournamentHistoryPanel";
 
 type GameMode = Database["public"]["Enums"]["game_mode"];
 type GameType = Database["public"]["Enums"]["game_type"];
@@ -75,26 +76,6 @@ type TogetherRange = "session" | "7d" | "28d" | "season" | "all";
 type ViewMode = "summary" | "charts";
 
 const SESSION_GAP_MS = 3 * 60 * 60 * 1000; // 3 hours — max gap within a session
-
-const gameModes: Array<{ value: GameMode | "all"; label: string; separator?: boolean }> = [
-  { value: "all", label: "All modes" },
-  { value: "1v1", label: "1v1" },
-  { value: "2v2", label: "2v2" },
-  { value: "3v3", label: "3v3" },
-  { value: "4v4", label: "4v4", separator: true },
-  { value: "rumble_3v3",     label: "3v3 Rumble"    },
-  { value: "hoops_2v2",      label: "2v2 Hoops"     },
-  { value: "snowday_3v3",    label: "3v3 Snow Day"   },
-  { value: "dropshot_3v3",   label: "3v3 Dropshot"  },
-  { value: "heatseeker_2v2", label: "2v2 Heatseeker" },
-];
-
-const gameTypes: Array<{ value: GameType | "all"; label: string }> = [
-  { value: "all", label: "All types" },
-  { value: "competitive", label: "Competitive" },
-  { value: "tournament", label: "Tournament" },
-  { value: "casual", label: "Casual" },
-];
 
 const normalizeName = (v?: string | null) => v?.trim().toLowerCase() ?? "";
 const safeNumber = (v: number | null | undefined) => (typeof v === "number" && !Number.isNaN(v) ? v : 0);
@@ -566,7 +547,8 @@ const Stats = () => {
   const [timeRange, setTimeRange] = useState<TimeRange>("season");
   const [viewMode, setViewMode] = useState<ViewMode>("summary");
   const [expandedContribGameId, setExpandedContribGameId] = useState<string | null>(null);
-  const [pageTab, setPageTab] = useState<"stats" | "leaderboard">("stats");
+  const [pageTab, setPageTab] = useState<"stats" | "leaderboard" | "tournaments">("stats");
+  const [showOthersPanel, setShowOthersPanel] = useState(false);
   const [togetherRange, setTogetherRange] = useState<TogetherRange>("all");
   const [togetherVisibleCount, setTogetherVisibleCount] = useState(5);
   const [togetherExpandedGameId, setTogetherExpandedGameId] = useState<string | null>(null);
@@ -663,12 +645,16 @@ const Stats = () => {
   const userTarget = useMemo(() => buildTarget(user?.id, [userRlName]), [user?.id, userRlName]);
   const teammateTarget = useMemo(() => selectedFriend ? buildTarget(selectedFriend.id, [selectedFriend.rlName, selectedFriend.username]) : null, [selectedFriend]);
 
+  const isOthersActive = selectedType === "casual" || !["all", "1v1", "2v2", "3v3"].includes(selectedMode);
+
   const filteredGames = useMemo(() => games
-    // "all" mode = standard games only (comp 1v1/2v2/3v3 + tournament Soccar 2v2/3v3)
-    .filter((g) => selectedMode === "all"
-      ? isStandardGame(g as any)
-      : g.game_mode === selectedMode)
-    // "all" type = show all standard; explicit type filters by game_type
+    .filter((g) => {
+      if (selectedMode === "all") return isStandardGame(g as any);
+      // Standard mode pill selected (no Others): exclude casual unless explicitly chosen
+      if (["1v1", "2v2", "3v3"].includes(selectedMode) && selectedType === "all")
+        return g.game_mode === selectedMode && g.game_type !== "casual";
+      return g.game_mode === selectedMode;
+    })
     .filter((g) => selectedType === "all" || g.game_type === selectedType)
     .filter((g) => !teammateTarget || Boolean(findPlayer(g.game_players, teammateTarget))),
   [games, selectedMode, selectedType, teammateTarget]);
@@ -718,11 +704,11 @@ const Stats = () => {
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
-    if (selectedMode !== "all") count++;
-    if (selectedType !== "all") count++;
+    if (isOthersActive) count++;
+    else if (selectedMode !== "all") count++;
     if (selectedFriendId !== "all") count++;
     return count;
-  }, [selectedMode, selectedType, selectedFriendId]);
+  }, [selectedMode, selectedType, selectedFriendId, isOthersActive]);
 
   const { chartData, userSummary, teammateSummary } = useMemo(() => {
     const ut = { games: 0, wins: 0, points: 0, goals: 0, assists: 0, saves: 0, shots: 0, mvp: 0, teamGoalsFor: 0, teamGoalsAgainst: 0, carryTotal: 0, carryGames: 0 };
@@ -957,6 +943,17 @@ const Stats = () => {
             <BarChart2 className="w-3.5 h-3.5" /> My Stats
           </button>
           <button
+            onClick={() => setPageTab("tournaments")}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold transition-all",
+              pageTab === "tournaments"
+                ? "bg-yellow-400/15 text-yellow-300 shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Trophy className="w-3.5 h-3.5" /> Tournaments
+          </button>
+          <button
             onClick={() => setPageTab("leaderboard")}
             className={cn(
               "flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold transition-all",
@@ -974,6 +971,8 @@ const Stats = () => {
             currentUserId={user?.id}
             friendUserIds={friends.map((f) => f.user_id)}
           />
+        ) : pageTab === "tournaments" ? (
+          user ? <TournamentHistoryPanel userId={user.id} /> : null
         ) : (<>
 
         {/* ── Filters — always visible, no accordion; hidden in together view ── */}
@@ -1019,27 +1018,40 @@ const Stats = () => {
               </div>
             </div>
 
-            {/* Row 2: compact inline selects */}
+            {/* Mode pill row */}
             <div className="flex items-center gap-1.5 flex-wrap">
-              <Select value={selectedMode} onValueChange={(v) => setSelectedMode(v as GameMode | "all")}>
-                <SelectTrigger className="h-8 text-xs rounded-lg border-border/50 w-auto px-2.5 gap-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {gameModes.map((m) => (
-                    <>
-                      {m.separator && <SelectSeparator key={`sep-${m.value}`} />}
-                      <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
-                    </>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={selectedType} onValueChange={(v) => setSelectedType(v as GameType | "all")}>
-                <SelectTrigger className="h-8 text-xs rounded-lg border-border/50 w-auto px-2.5 gap-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>{gameTypes.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
-              </Select>
+              {/* Standard mode pills */}
+              {([
+                { value: "all", label: "All" },
+                { value: "1v1", label: "1v1" },
+                { value: "2v2", label: "2v2" },
+                { value: "3v3", label: "3v3" },
+              ] as const).map(({ value, label }) => (
+                <button
+                  key={value}
+                  onClick={() => { setSelectedMode(value); setSelectedType("all"); setShowOthersPanel(false); }}
+                  className={cn(
+                    "px-3 py-1.5 rounded-full text-xs font-medium border transition-colors shrink-0",
+                    selectedMode === value && !isOthersActive
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-card text-muted-foreground border-border/50 hover:text-foreground hover:border-border"
+                  )}
+                >{label}</button>
+              ))}
+              <button
+                onClick={() => setShowOthersPanel((p) => !p)}
+                className={cn(
+                  "flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors shrink-0",
+                  isOthersActive
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-card text-muted-foreground border-border/50 hover:text-foreground hover:border-border"
+                )}
+              >
+                Others {showOthersPanel ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              </button>
+
+              {/* Spacer + friend filter */}
+              <div className="flex-1" />
               <Select value={selectedFriendId} onValueChange={setSelectedFriendId} disabled={friendOptions.length === 0}>
                 <SelectTrigger className="h-8 text-xs rounded-lg border-border/50 w-auto px-2.5 gap-1">
                   <SelectValue placeholder="All teammates" />
@@ -1049,23 +1061,72 @@ const Stats = () => {
                   {friendOptions.map((f) => <SelectItem key={f.id} value={f.id}>{f.label}</SelectItem>)}
                 </SelectContent>
               </Select>
-              {activeFilterCount > 0 && (
+              {(isOthersActive || selectedFriendId !== "all") && (
                 <button
-                  onClick={() => { setSelectedMode("all"); setSelectedType("all"); setSelectedFriendId("all"); }}
+                  onClick={() => { setSelectedMode("all"); setSelectedType("all"); setSelectedFriendId("all"); setShowOthersPanel(false); }}
                   className="h-8 flex items-center gap-1 px-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <FilterX className="w-3 h-3" /> Clear
                 </button>
               )}
             </div>
-          </div>
-        )}
 
-        {/* Extra mode note */}
-        {EXTRA_MODES.includes(selectedMode as any) && (
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/40 border border-border/40 text-xs text-muted-foreground">
-            <span>ℹ</span>
-            <span>Extra mode — stats shown separately and not counted in your overall averages.</span>
+            {/* Others sub-panel */}
+            {showOthersPanel && (
+              <div className="rounded-lg border border-border/50 bg-muted/20 p-3 space-y-3">
+                <div className="space-y-1.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Casual Soccer</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {([
+                      { mode: "1v1", label: "1v1", type: "casual" },
+                      { mode: "2v2", label: "2v2", type: "casual" },
+                      { mode: "3v3", label: "3v3", type: "casual" },
+                      { mode: "4v4", label: "4v4", type: "casual" },
+                    ] as const).map(({ mode, label, type }) => {
+                      const isActive = selectedMode === mode && selectedType === type;
+                      return (
+                        <button
+                          key={mode}
+                          onClick={() => { setSelectedMode(mode as GameMode); setSelectedType(type as GameType); }}
+                          className={cn(
+                            "px-2.5 py-1 rounded-full text-xs font-medium border transition-colors",
+                            isActive
+                              ? "bg-primary text-primary-foreground border-primary"
+                              : "bg-card text-muted-foreground border-border/50 hover:text-foreground hover:border-border"
+                          )}
+                        >{label}</button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Extra Competitive</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {([
+                      { mode: "rumble_3v3",     label: "3v3 Rumble"    },
+                      { mode: "hoops_2v2",      label: "2v2 Hoops"     },
+                      { mode: "snowday_3v3",    label: "3v3 Snow Day"  },
+                      { mode: "dropshot_3v3",   label: "3v3 Dropshot"  },
+                      { mode: "heatseeker_2v2", label: "2v2 Heatseeker"},
+                    ] as const).map(({ mode, label }) => {
+                      const isActive = selectedMode === mode;
+                      return (
+                        <button
+                          key={mode}
+                          onClick={() => { setSelectedMode(mode as GameMode); setSelectedType("all"); }}
+                          className={cn(
+                            "px-2.5 py-1 rounded-full text-xs font-medium border transition-colors",
+                            isActive
+                              ? "bg-primary text-primary-foreground border-primary"
+                              : "bg-card text-muted-foreground border-border/50 hover:text-foreground hover:border-border"
+                          )}
+                        >{label}</button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
