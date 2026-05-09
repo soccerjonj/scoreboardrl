@@ -716,24 +716,28 @@ const Stats = () => {
         </div>
 
         {/* ── Page tab switcher ── */}
-        <div className="flex gap-1 p-1 rounded-lg bg-muted/40 border border-border/50 w-fit animate-fade-in-up">
+        <div className="grid grid-cols-2 gap-2 animate-fade-in-up">
           <button
             onClick={() => setPageTab("stats")}
             className={cn(
-              "px-4 py-1.5 rounded-md text-sm font-medium transition-colors",
-              pageTab === "stats" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              "flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm transition-all",
+              pageTab === "stats"
+                ? "bg-primary text-primary-foreground shadow-sm shadow-primary/30"
+                : "bg-muted/50 text-muted-foreground hover:text-foreground border border-border/40"
             )}
           >
-            My Stats
+            <BarChart2 className="w-4 h-4" /> My Stats
           </button>
           <button
             onClick={() => setPageTab("leaderboard")}
             className={cn(
-              "px-4 py-1.5 rounded-md text-sm font-medium transition-colors",
-              pageTab === "leaderboard" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              "flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm transition-all",
+              pageTab === "leaderboard"
+                ? "bg-yellow-400/20 text-yellow-300 border border-yellow-400/40 shadow-sm shadow-yellow-400/20"
+                : "bg-yellow-400/8 text-yellow-400 border border-yellow-400/20 hover:bg-yellow-400/15"
             )}
           >
-            Leaderboard
+            <Trophy className="w-4 h-4" /> Leaderboard
           </button>
         </div>
 
