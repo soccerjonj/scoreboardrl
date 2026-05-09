@@ -130,7 +130,8 @@ function TournamentCard({ tournament, userId }: { tournament: Tournament; userId
   const totalGames = games.length;
   const wins = games.filter((g) => g.result === "win").length;
 
-  // Aggregate all players across games, grouped by name
+  // Aggregate ONLY players on the user's team (same team as user in each game),
+  // grouped by user_id when available, falling back to normalized name.
   const playerMap = new Map<string, {
     displayName: string;
     isUser: boolean;
@@ -142,33 +143,56 @@ function TournamentCard({ tournament, userId }: { tournament: Tournament; userId
     gamesCount: number;
   }>();
 
+  // Team totals (everyone on user's team combined)
+  const teamTotals = { score: 0, goals: 0, assists: 0, saves: 0, shots: 0 };
+
   games.forEach((g) => {
-    g.game_players.forEach((p) => {
-      const key = p.user_id ?? p.player_name.trim().toLowerCase();
-      const existing = playerMap.get(key);
-      if (existing) {
-        existing.score += p.score ?? 0;
-        existing.goals += p.goals ?? 0;
-        existing.assists += p.assists ?? 0;
-        existing.saves += p.saves ?? 0;
-        existing.shots += p.shots ?? 0;
-        existing.gamesCount += 1;
-      } else {
-        playerMap.set(key, {
-          displayName: p.player_name,
-          isUser: p.user_id === userId,
-          score: p.score ?? 0,
-          goals: p.goals ?? 0,
-          assists: p.assists ?? 0,
-          saves: p.saves ?? 0,
-          shots: p.shots ?? 0,
-          gamesCount: 1,
-        });
-      }
-    });
+    // Find the user's row in this game to determine which team is "the user's team"
+    const userRow = g.game_players.find((p) => p.user_id === userId);
+    if (!userRow) return; // user not in this game's roster — skip
+    const userTeam = userRow.team;
+    if (!userTeam) return;
+
+    // Only count players on the same team as the user for this game
+    g.game_players
+      .filter((p) => p.team === userTeam)
+      .forEach((p) => {
+        const key = p.user_id ?? p.player_name.trim().toLowerCase();
+        const existing = playerMap.get(key);
+        if (existing) {
+          existing.score   += p.score   ?? 0;
+          existing.goals   += p.goals   ?? 0;
+          existing.assists += p.assists ?? 0;
+          existing.saves   += p.saves   ?? 0;
+          existing.shots   += p.shots   ?? 0;
+          existing.gamesCount += 1;
+        } else {
+          playerMap.set(key, {
+            displayName: p.player_name,
+            isUser: p.user_id === userId,
+            score:   p.score   ?? 0,
+            goals:   p.goals   ?? 0,
+            assists: p.assists ?? 0,
+            saves:   p.saves   ?? 0,
+            shots:   p.shots   ?? 0,
+            gamesCount: 1,
+          });
+        }
+
+        // Add to team totals
+        teamTotals.score   += p.score   ?? 0;
+        teamTotals.goals   += p.goals   ?? 0;
+        teamTotals.assists += p.assists ?? 0;
+        teamTotals.saves   += p.saves   ?? 0;
+        teamTotals.shots   += p.shots   ?? 0;
+      });
   });
 
-  const aggregatedPlayers = Array.from(playerMap.values()).sort((a, b) => b.score - a.score);
+  // Sort: user first, then by score desc
+  const aggregatedPlayers = Array.from(playerMap.values()).sort((a, b) => {
+    if (a.isUser !== b.isUser) return a.isUser ? -1 : 1;
+    return b.score - a.score;
+  });
 
   return (
     <Card className={cn(
@@ -252,9 +276,30 @@ function TournamentCard({ tournament, userId }: { tournament: Tournament; userId
             </div>
 
             {/* Section 2 — Team Stats */}
-            {games.length > 0 && (
+            {games.length > 0 && aggregatedPlayers.length > 0 && (
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Your Stats This Tournament</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Your Team's Stats This Tournament</p>
+
+                {/* Team total card */}
+                <div className="rounded-lg border border-primary/30 bg-primary/8 px-3 py-2.5 mb-2">
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <span className="text-xs font-display font-bold uppercase tracking-wider text-primary">
+                      Team Total
+                    </span>
+                    <span className="text-[10px] text-muted-foreground font-mono shrink-0">
+                      {totalGames} game{totalGames === 1 ? "" : "s"} · {wins}W {totalGames - wins}L
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 font-mono text-xs">
+                    <span className="font-bold text-foreground/90">{teamTotals.score}</span>
+                    <span className="text-rl-orange">{teamTotals.goals}G</span>
+                    <span className="text-rl-blue">{teamTotals.assists}A</span>
+                    <span className="text-cyan-400">{teamTotals.saves}SV</span>
+                    <span className="text-muted-foreground">{teamTotals.shots}SH</span>
+                  </div>
+                </div>
+
+                {/* Per-player stats (user's team only) */}
                 <div className="space-y-1.5">
                   {aggregatedPlayers.map((p, i) => (
                     <div
