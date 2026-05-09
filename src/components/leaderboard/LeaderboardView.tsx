@@ -89,13 +89,14 @@ const LeaderboardView = ({ currentUserId, friendUserIds = [] }: Props) => {
   // Dynamic season label — falls back to "This Season" while loading
   const seasonLabel = currentSeason?.name ?? "This Season";
 
-  // Friends scope: filter to current user + friends, re-rank within that group
+  // Friends scope: filter to current user + friends, re-rank within that group,
+  // but preserve the original global rank for display
   const displayedEntries = useMemo(() => {
-    if (scope === "global") return entries;
+    if (scope === "global") return entries.map((e) => ({ ...e, globalRank: null as number | null }));
     const allowed = new Set([...(currentUserId ? [currentUserId] : []), ...friendUserIds]);
     return entries
       .filter((e) => allowed.has(e.user_id))
-      .map((e, i) => ({ ...e, rank: i + 1 }));
+      .map((e, i) => ({ ...e, globalRank: e.rank, rank: i + 1 }));
   }, [scope, entries, currentUserId, friendUserIds]);
 
   const myEntry = displayedEntries.find((e) => e.user_id === user?.id);
@@ -276,6 +277,11 @@ const LeaderboardView = ({ currentUserId, friendUserIds = [] }: Props) => {
                         {entry.rl_name || "Unknown"}
                         {isMe && <span className="ml-2 text-[10px] text-primary font-normal">· you</span>}
                       </p>
+                      {entry.globalRank != null && (
+                        <p className="text-[10px] text-muted-foreground font-mono">
+                          #{entry.globalRank} globally
+                        </p>
+                      )}
                     </div>
 
                     {/* Value */}
