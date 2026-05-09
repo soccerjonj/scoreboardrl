@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import {
   Camera, Check, Loader2,
-  LogOut, Save, Star, User, X as XIcon, Pencil,
+  LogOut, Save, User, X as XIcon, Pencil,
 } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 import AppLayout from "@/components/layout/AppLayout";
@@ -594,6 +594,7 @@ const Profile = () => {
               profileUserId={user.id}
               totalGames={profileStats?.totalGames}
               wins={profileStats?.wins}
+              teammates={teammates}
               onEdit={enterEditMode}
             />
           </Card>
@@ -615,40 +616,6 @@ const Profile = () => {
           {/* Tournament Trophy Shelf */}
           <TrophyShelf tournaments={tournamentData} isOwnProfile={true} />
 
-          {/* Most Played With */}
-          {teammates.length > 0 && (
-            <Card className="border-border/50 bg-card/80">
-              <CardContent className="pt-4 pb-3">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
-                  <Star className="w-3.5 h-3.5 text-rose-400" /> Most Played With
-                </p>
-                <div className="space-y-2">
-                  {teammates.map((tm, i) => {
-                    const tmWinRate = tm.games > 0 ? Math.round((tm.wins / tm.games) * 100) : 0;
-                    const initials = tm.name.slice(0, 2).toUpperCase();
-                    return (
-                      <a key={tm.userId} href={`/profile/${tm.userId}`} className="flex items-center gap-3 py-1.5 px-3 rounded-lg bg-background/60 hover:bg-muted/40 transition-colors">
-                        <span className="text-xs font-bold text-muted-foreground w-4">#{i + 1}</span>
-                        <div className="w-8 h-8 rounded-full bg-muted/60 border border-border/40 overflow-hidden shrink-0 flex items-center justify-center">
-                          {tm.avatarUrl
-                            ? <img src={tm.avatarUrl} alt={tm.name} className="w-full h-full object-cover" />
-                            : <span className="text-[10px] font-bold text-muted-foreground">{initials}</span>
-                          }
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-sm truncate">{tm.name}</p>
-                          <p className="text-[10px] text-muted-foreground">{tm.games} games together</p>
-                        </div>
-                        <div className={`text-xs font-mono font-bold px-2 py-0.5 rounded-full ${tmWinRate >= 50 ? "text-rl-green bg-rl-green/10" : "text-rl-red bg-rl-red/10"}`}>
-                          {tmWinRate}%
-                        </div>
-                      </a>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          )}
 
           {/* Sign Out */}
           <div className="md:hidden">

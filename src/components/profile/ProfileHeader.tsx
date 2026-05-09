@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { CARS, CarBadge } from "@/components/profile/CarSilhouette";
 import { getRankIcon } from "@/lib/rankIcons";
 import type { Database } from "@/integrations/supabase/types";
+import type { TeammateProfile } from "@/types/profile";
 
 type RankTier = Database["public"]["Enums"]["rank_tier"];
 type GameMode = Database["public"]["Enums"]["game_mode"];
@@ -93,6 +94,7 @@ type Props = {
   profileUserId: string;
   totalGames?: number;
   wins?: number;
+  teammates?: TeammateProfile[];
   // Own profile only — omit to hide controls
   onEdit?: () => void;
 };
@@ -106,6 +108,7 @@ export default function ProfileHeader({
   profileUserId,
   totalGames,
   wins,
+  teammates,
   onEdit,
 }: Props) {
   const { toast } = useToast();
@@ -249,6 +252,36 @@ export default function ProfileHeader({
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* Squad strip — most played with */}
+        {teammates && teammates.length > 0 && (
+          <div className="border-t border-border/30 pt-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2.5">Squad</p>
+            <div className="flex items-start gap-4">
+              {teammates.slice(0, 3).map((tm) => {
+                const winRate = tm.games > 0 ? Math.round((tm.wins / tm.games) * 100) : 0;
+                return (
+                  <a
+                    key={tm.userId}
+                    href={`/profile/${tm.userId}`}
+                    className="flex flex-col items-center gap-1 group min-w-0"
+                  >
+                    <div className="w-11 h-11 rounded-full bg-muted/60 border-2 border-border/50 overflow-hidden shrink-0 flex items-center justify-center group-hover:border-primary/50 transition-colors">
+                      {tm.avatarUrl
+                        ? <img src={tm.avatarUrl} alt={tm.name} className="w-full h-full object-cover" />
+                        : <span className="text-xs font-bold text-muted-foreground">{tm.name.slice(0, 2).toUpperCase()}</span>
+                      }
+                    </div>
+                    <p className="text-[10px] font-medium text-muted-foreground truncate max-w-[52px] text-center leading-tight">{tm.name}</p>
+                    <span className={cn("text-[9px] font-bold font-mono", winRate >= 50 ? "text-rl-green" : "text-rl-red")}>
+                      {winRate}%
+                    </span>
+                  </a>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>
