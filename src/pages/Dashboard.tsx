@@ -643,10 +643,14 @@ const Dashboard = () => {
                   (p) => p.team === userTeam && p.user_id && p.user_id !== user?.id && friendIds.has(p.user_id)
                 );
 
-                // Sort players: blue team first, then orange; highest contribution first within team
+                // Sort players: user's team first, then opponents; highest contribution first within team
+                const userTeamFirst = userTeam ?? "blue";
+                const teamOrder     = [userTeamFirst, userTeamFirst === "blue" ? "orange" : "blue"] as const;
                 const sortedPlayers = [...players].sort((a, b) => {
-                  if ((a.team ?? "blue") < (b.team ?? "orange")) return -1;
-                  if ((a.team ?? "blue") > (b.team ?? "orange")) return  1;
+                  const aTeam = a.team ?? "blue", bTeam = b.team ?? "blue";
+                  const aIdx  = teamOrder.indexOf(aTeam as typeof teamOrder[number]);
+                  const bIdx  = teamOrder.indexOf(bTeam as typeof teamOrder[number]);
+                  if (aIdx !== bIdx) return aIdx - bIdx;
                   return (b.contribution_score ?? 0) - (a.contribution_score ?? 0);
                 });
 
@@ -752,7 +756,7 @@ const Dashboard = () => {
                             <span className="text-[9px] text-muted-foreground font-semibold text-right">Saves</span>
                             <span className="text-[9px] text-muted-foreground font-semibold text-right">Shots</span>
                           </div>
-                          {["blue", "orange"].map((teamColor) => {
+                          {teamOrder.map((teamColor) => {
                             const teamRows = sortedPlayers.filter((p) => (p.team ?? "blue") === teamColor);
                             if (teamRows.length === 0) return null;
                             return (

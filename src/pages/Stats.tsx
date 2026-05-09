@@ -405,9 +405,12 @@ const BestContributionCard = ({
         const isWin   = game.result === "win";
         const isOpen  = expandedGameId === game.id;
         const teamSize = game.game_mode === "1v1" ? 1 : game.game_mode === "2v2" ? 2 : game.game_mode === "3v3" ? 3 : 4;
-        const sortedPlayers = [...(game.game_players || [])].sort((a, b) => {
-          if ((a.team ?? "blue") < (b.team ?? "orange")) return -1;
-          if ((a.team ?? "blue") > (b.team ?? "orange")) return 1;
+        const userTeamFirst  = userRow?.team ?? "blue";
+        const teamOrder      = [userTeamFirst, userTeamFirst === "blue" ? "orange" : "blue"] as const;
+        const sortedPlayers  = [...(game.game_players || [])].sort((a, b) => {
+          const aIdx = teamOrder.indexOf((a.team ?? "blue") as typeof teamOrder[number]);
+          const bIdx = teamOrder.indexOf((b.team ?? "blue") as typeof teamOrder[number]);
+          if (aIdx !== bIdx) return aIdx - bIdx;
           return (b.contribution_score ?? 0) - (a.contribution_score ?? 0);
         });
 
@@ -452,7 +455,7 @@ const BestContributionCard = ({
                   <span className="text-[9px] text-muted-foreground font-semibold text-right">Sv</span>
                   <span className="text-[9px] text-muted-foreground font-semibold text-right">Sh</span>
                 </div>
-                {["blue", "orange"].map((teamColor) => {
+                {teamOrder.map((teamColor) => {
                   const teamRows = sortedPlayers.filter((p) => (p.team ?? "blue") === teamColor);
                   if (!teamRows.length) return null;
                   return (
@@ -1139,10 +1142,13 @@ const Stats = () => {
                       const oppGoals    = userTeam !== null ? players.filter((p) => p.team !== userTeam && p.team != null).reduce((s, p) => s + safeNumber(p.goals), 0) : null;
                       const hasScore    = teamGoals !== null && oppGoals !== null;
                       const teamSize    = g.game_mode === "1v1" ? 1 : g.game_mode === "2v2" ? 2 : g.game_mode === "3v3" ? 3 : 4;
-                      const userCarry   = userRow?.contribution_score ?? 0;
-                      const sortedPlayers = [...players].sort((a, b) => {
-                        if ((a.team ?? "blue") < (b.team ?? "orange")) return -1;
-                        if ((a.team ?? "blue") > (b.team ?? "orange")) return 1;
+                      const userCarry      = userRow?.contribution_score ?? 0;
+                      const userTeamFirst  = userRow?.team ?? "blue";
+                      const teamOrder      = [userTeamFirst, userTeamFirst === "blue" ? "orange" : "blue"] as const;
+                      const sortedPlayers  = [...players].sort((a, b) => {
+                        const aIdx = teamOrder.indexOf((a.team ?? "blue") as typeof teamOrder[number]);
+                        const bIdx = teamOrder.indexOf((b.team ?? "blue") as typeof teamOrder[number]);
+                        if (aIdx !== bIdx) return aIdx - bIdx;
                         return safeNumber(b.contribution_score) - safeNumber(a.contribution_score);
                       });
                       return (
@@ -1198,7 +1204,7 @@ const Stats = () => {
                                   <span className="text-[9px] text-muted-foreground font-semibold text-right">SV</span>
                                   <span className="text-[9px] text-muted-foreground font-semibold text-right">SH</span>
                                 </div>
-                                {["blue", "orange"].map((teamColor) => {
+                                {teamOrder.map((teamColor) => {
                                   const teamRows = sortedPlayers.filter((p) => (p.team ?? "blue") === teamColor);
                                   if (!teamRows.length) return null;
                                   return (
