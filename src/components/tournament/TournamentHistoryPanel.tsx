@@ -255,35 +255,38 @@ function TournamentCard({ tournament, userId }: { tournament: Tournament; userId
             {games.length > 0 && (
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Your Stats This Tournament</p>
-                <div className="rounded-lg border border-border/30 overflow-hidden">
-                  {/* Header */}
-                  <div className="grid grid-cols-[1fr_3rem_2.5rem_3rem_2.5rem_3rem_3rem] gap-x-1 px-3 py-2 bg-muted/30 border-b border-border/20">
-                    <span className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">Name</span>
-                    <span className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground text-right">Score</span>
-                    <span className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground text-right">G</span>
-                    <span className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground text-right">Assists</span>
-                    <span className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground text-right">Sv</span>
-                    <span className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground text-right">Shots</span>
-                    <span className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground text-right">Games</span>
-                  </div>
-                  {/* Rows */}
+                <div className="space-y-1.5">
                   {aggregatedPlayers.map((p, i) => (
                     <div
                       key={i}
                       className={cn(
-                        "grid grid-cols-[1fr_3rem_2.5rem_3rem_2.5rem_3rem_3rem] gap-x-1 px-3 py-2 border-b border-border/10 last:border-0",
-                        p.isUser && "bg-primary/5 border-l-2 border-l-primary/50"
+                        "rounded-lg border px-3 py-2",
+                        p.isUser
+                          ? "bg-primary/5 border-primary/40"
+                          : "bg-card/40 border-border/30"
                       )}
                     >
-                      <span className={cn("text-xs font-medium truncate", p.isUser ? "text-primary" : "text-foreground")}>
-                        {p.displayName}
-                      </span>
-                      <span className="text-xs font-mono font-bold text-right">{p.score}</span>
-                      <span className="text-xs font-mono text-muted-foreground text-right">{p.goals}</span>
-                      <span className="text-xs font-mono text-muted-foreground text-right">{p.assists}</span>
-                      <span className="text-xs font-mono text-muted-foreground text-right">{p.saves}</span>
-                      <span className="text-xs font-mono text-muted-foreground text-right">{p.shots}</span>
-                      <span className="text-xs font-mono text-muted-foreground text-right">{p.gamesCount}</span>
+                      {/* Top row: name + games count */}
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <span className={cn(
+                          "text-sm font-display font-bold truncate min-w-0",
+                          p.isUser ? "text-primary" : "text-foreground"
+                        )}>
+                          {p.displayName || <span className="italic text-muted-foreground">Unknown</span>}
+                          {p.isUser && <span className="ml-1.5 text-[9px] font-sans uppercase tracking-wider text-primary/70">You</span>}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground font-mono shrink-0">
+                          {p.gamesCount} game{p.gamesCount === 1 ? "" : "s"}
+                        </span>
+                      </div>
+                      {/* Stats row */}
+                      <div className="flex items-center gap-3 font-mono text-xs">
+                        <span className="font-bold text-foreground/90">{p.score}</span>
+                        <span className="text-rl-orange">{p.goals}G</span>
+                        <span className="text-rl-blue">{p.assists}A</span>
+                        <span className="text-cyan-400">{p.saves}SV</span>
+                        <span className="text-muted-foreground">{p.shots}SH</span>
+                      </div>
                     </div>
                   ))}
                 </div>

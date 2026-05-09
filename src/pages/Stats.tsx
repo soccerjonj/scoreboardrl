@@ -547,7 +547,8 @@ const Stats = () => {
   const [timeRange, setTimeRange] = useState<TimeRange>("season");
   const [viewMode, setViewMode] = useState<ViewMode>("summary");
   const [expandedContribGameId, setExpandedContribGameId] = useState<string | null>(null);
-  const [pageTab, setPageTab] = useState<"stats" | "leaderboard" | "tournaments">("stats");
+  const [pageTab, setPageTab] = useState<"stats" | "leaderboard">("stats");
+  const [statsView, setStatsView] = useState<"stats" | "tournaments">("stats");
   const [showOthersPanel, setShowOthersPanel] = useState(false);
   const [togetherRange, setTogetherRange] = useState<TogetherRange>("all");
   const [togetherVisibleCount, setTogetherVisibleCount] = useState(5);
@@ -943,17 +944,6 @@ const Stats = () => {
             <BarChart2 className="w-3.5 h-3.5" /> My Stats
           </button>
           <button
-            onClick={() => setPageTab("tournaments")}
-            className={cn(
-              "flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold transition-all",
-              pageTab === "tournaments"
-                ? "bg-yellow-400/15 text-yellow-300 shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <Trophy className="w-3.5 h-3.5" /> Tournaments
-          </button>
-          <button
             onClick={() => setPageTab("leaderboard")}
             className={cn(
               "flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold transition-all",
@@ -971,7 +961,35 @@ const Stats = () => {
             currentUserId={user?.id}
             friendUserIds={friends.map((f) => f.user_id)}
           />
-        ) : pageTab === "tournaments" ? (
+        ) : (<>
+
+        {/* ── My Stats sub-view toggle: Stats / Tournaments ── */}
+        <div className="flex gap-1 p-0.5 rounded-lg bg-muted/30 border border-border/30 w-fit animate-fade-in-up">
+          <button
+            onClick={() => setStatsView("stats")}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all",
+              statsView === "stats"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <BarChart2 className="w-3 h-3" /> Stats
+          </button>
+          <button
+            onClick={() => setStatsView("tournaments")}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all",
+              statsView === "tournaments"
+                ? "bg-yellow-400/15 text-yellow-300 shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Trophy className="w-3 h-3" /> Tournaments
+          </button>
+        </div>
+
+        {statsView === "tournaments" ? (
           user ? <TournamentHistoryPanel userId={user.id} /> : null
         ) : (<>
 
@@ -1425,6 +1443,7 @@ const Stats = () => {
             )}
           </div>
         )}
+        </>)}
         </>)}
       </div>
     </AppLayout>
