@@ -355,19 +355,19 @@ const Profile = () => {
         });
         const activeModes = CHART_MODES.filter((m) => (mmrByMode.get(m)?.length ?? 0) >= 2);
         if (activeModes.length > 0) {
+          // Build one point per actual game date, per mode — no carry-forward.
+          // ModeChart filters p[mode] != null, so each mode's chart spans only
+          // its own first→last game date within the 30-day window.
           const allDates = Array.from(new Set(activeModes.flatMap((m) => mmrByMode.get(m)!.map((p) => p.date)))).sort();
-          const lastKnown: Record<string, number | null> = {};
-          activeModes.forEach((m) => { lastKnown[m] = null; });
           const points = allDates.map((date) => {
-            activeModes.forEach((m) => {
-              const pt = mmrByMode.get(m)!.find((p) => p.date === date);
-              if (pt) lastKnown[m] = pt.mmr;
-            });
             const entry: Record<string, string | number | null> = {
-              label: date,
+              label: new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
               fullLabel: new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
             };
-            activeModes.forEach((m) => { entry[m] = lastKnown[m]; });
+            activeModes.forEach((m) => {
+              const pt = mmrByMode.get(m)!.find((p) => p.date === date);
+              entry[m] = pt ? pt.mmr : null;
+            });
             return entry;
           });
           setChartData({ points, activeModes });

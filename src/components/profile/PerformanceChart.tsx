@@ -1,7 +1,6 @@
-import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis, Legend } from "recharts";
+import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Card, CardContent } from "@/components/ui/card";
-import { TrendingUp } from "lucide-react";
-import { format } from "date-fns";
+import { TrendingUp, TrendingDown } from "lucide-react";
 
 const MODE_COLORS: Record<string, string> = {
   "1v1": "hsl(271, 81%, 65%)",
@@ -16,33 +15,96 @@ type Props = {
   activeModes: string[];
 };
 
-function CustomTooltip({ active, payload }: any) {
+function CustomTooltip({ active, payload, color }: any) {
   if (!active || !payload?.length) return null;
-  const date = payload[0]?.payload?.fullLabel ?? payload[0]?.payload?.label ?? "";
+  const p = payload[0];
+  if (p.value == null) return null;
   return (
-    <div className="rounded-lg border border-border/60 bg-card/95 backdrop-blur-sm px-3 py-2 text-xs shadow-xl space-y-1">
-      <p className="text-muted-foreground">{date}</p>
-      {payload.map((p: any) => (
-        <div key={p.dataKey} className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full shrink-0" style={{ background: p.stroke }} />
-          <span className="font-bold" style={{ color: p.stroke }}>{p.value} MMR</span>
-          <span className="text-muted-foreground">{p.dataKey}</span>
-        </div>
-      ))}
+    <div className="rounded-lg border border-border/60 bg-card/95 backdrop-blur-sm px-2.5 py-1.5 text-xs shadow-xl">
+      <p className="font-bold" style={{ color }}>{p.value} MMR</p>
+      <p className="text-muted-foreground">{p.payload?.fullLabel ?? p.payload?.label}</p>
     </div>
   );
 }
 
-function CustomLegend({ activeModes }: { activeModes: string[] }) {
-  if (activeModes.length <= 1) return null;
+function ModeChart({ mode, points }: { mode: string; points: Point[] }) {
+  // Only the dates where this mode actually had a game — no carry-forward filler.
+  // This means the chart spans exactly first→last game for this mode.
+  const modePoints = points
+    .filter((p) => p[mode] != null)
+    .map((p) => ({
+      label:     p.label     as string,
+      fullLabel: p.fullLabel as string,
+      mmr:       p[mode]     as number,
+    }));
+
+  if (modePoints.length < 2) return null;
+
+  const color = MODE_COLORS[mode] ?? "hsl(var(--primary))";
+  const vals  = modePoints.map((p) => p.mmr);
+  const minY  = Math.max(0, Math.min(...vals) - 30);
+  const maxY  = Math.max(...vals) + 30;
+
+  const recent   = vals.slice(-3).reduce((s, v) => s + v, 0) / Math.min(3, vals.length);
+  const prior    = vals.slice(-6, -3);
+  const priorAvg = prior.length > 0 ? prior.reduce((s, v) => s + v, 0) / prior.length : recent;
+  const trending = recent >= priorAvg;
+  const delta    = Math.round(vals[vals.length - 1] - vals[0]);
+
   return (
-    <div className="flex items-center gap-3 justify-center mt-1">
-      {activeModes.map((m) => (
-        <div key={m} className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-          <span className="w-2 h-2 rounded-full" style={{ background: MODE_COLORS[m] }} />
-          {m}
+    <div className="space-y-1">
+      {/* Mode header row */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
+          <span className="text-xs font-semibold text-foreground">{mode}</span>
+          <span className="text-[10px] text-muted-foreground">{modePoints.length} games</span>
         </div>
-      ))}
+        <div className="flex items-center gap-1">
+          {trending
+            ? <TrendingUp  className="w-3 h-3 text-rl-green" />
+            : <TrendingDown className="w-3 h-3 text-rl-red" />}
+          <span className={`text-[10px] font-bold ${delta >= 0 ? "text-rl-green" : "text-rl-red"}`}>
+            {delta >= 0 ? "+" : ""}{delta}
+          </span>
+        </div>
+      </div>
+
+      {/* Chart — spans exactly the dates this mode was played */}
+      <div className="h-20">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={modePoints} margin={{ top: 2, right: 2, left: -40, bottom: 0 }}>
+            <defs>
+              <linearGradient id={`grad-${mode}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%"  stopColor={color} stopOpacity={0.3} />
+                <stop offset="95%" stopColor={color} stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <XAxis dataKey="label" hide />
+            <YAxis domain={[minY, maxY]} hide />
+            <Tooltip
+              content={<CustomTooltip color={color} />}
+              cursor={{ stroke: "hsl(var(--border))", strokeWidth: 1 }}
+            />
+            <Area
+              type="monotone"
+              dataKey="mmr"
+              stroke={color}
+              strokeWidth={2}
+              fill={`url(#grad-${mode})`}
+              dot={false}
+              activeDot={{ r: 3, fill: color, stroke: "hsl(var(--card))", strokeWidth: 2 }}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Min / current / max footnote */}
+      <div className="flex justify-between text-[10px] text-muted-foreground px-0.5">
+        <span>{Math.min(...vals)}</span>
+        <span className="font-semibold" style={{ color }}>{vals[vals.length - 1]} MMR</span>
+        <span>{Math.max(...vals)}</span>
+      </div>
     </div>
   );
 }
@@ -50,65 +112,27 @@ function CustomLegend({ activeModes }: { activeModes: string[] }) {
 export default function PerformanceChart({ points, activeModes }: Props) {
   if (activeModes.length === 0 || points.length < 2) return null;
 
-  // Trend: compare avg MMR of last 5 points vs prior 5 for the primary mode
-  const primaryMode = activeModes[0];
-  const vals = points.map((p) => p[primaryMode]).filter((v): v is number => typeof v === "number");
-  const recent = vals.slice(-5).reduce((s, v) => s + v, 0) / Math.min(5, vals.length);
-  const prior  = vals.slice(-10, -5);
-  const priorAvg = prior.length > 0 ? prior.reduce((s, v) => s + v, 0) / prior.length : recent;
-  const trending = recent >= priorAvg;
+  // Only render modes that actually have ≥2 data points
+  const renderableModes = activeModes.filter((mode) => {
+    const count = points.filter((p) => p[mode] != null).length;
+    return count >= 2;
+  });
 
-  // Y-axis domain across all modes
-  const allVals = points.flatMap((p) => activeModes.map((m) => p[m]).filter((v): v is number => typeof v === "number"));
-  const minY = Math.max(0, Math.min(...allVals) - 50);
-  const maxY = Math.max(...allVals) + 50;
+  if (renderableModes.length === 0) return null;
 
   return (
     <Card className="border-border/50 bg-card/80">
-      <CardContent className="pt-4 pb-3">
-        <div className="flex items-center justify-between mb-1">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <TrendingUp className="w-3.5 h-3.5" />
-            MMR History
-          </p>
-          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-            trending ? "bg-rl-green/15 text-rl-green" : "bg-rl-red/15 text-rl-red"
-          }`}>
-            {trending ? "▲ Trending up" : "▼ Trending down"}
-          </span>
-        </div>
-        <p className="text-[10px] text-muted-foreground mb-2">Last 30 days</p>
-        <div className="h-32">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={points} margin={{ top: 4, right: 4, left: -32, bottom: 0 }}>
-              <defs>
-                {activeModes.map((m) => (
-                  <linearGradient key={m} id={`grad-${m}`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor={MODE_COLORS[m]} stopOpacity={0.3} />
-                    <stop offset="95%" stopColor={MODE_COLORS[m]} stopOpacity={0} />
-                  </linearGradient>
-                ))}
-              </defs>
-              <XAxis dataKey="label" hide />
-              <YAxis domain={[minY, maxY]} hide />
-              <Tooltip content={<CustomTooltip />} cursor={{ stroke: "hsl(var(--border))", strokeWidth: 1 }} />
-              {activeModes.map((m) => (
-                <Area
-                  key={m}
-                  type="monotone"
-                  dataKey={m}
-                  stroke={MODE_COLORS[m]}
-                  strokeWidth={2}
-                  fill={`url(#grad-${m})`}
-                  dot={false}
-                  connectNulls
-                  activeDot={{ r: 4, fill: MODE_COLORS[m], stroke: "hsl(var(--card))", strokeWidth: 2 }}
-                />
-              ))}
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-        <CustomLegend activeModes={activeModes} />
+      <CardContent className="pt-4 pb-3 space-y-4">
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+          <TrendingUp className="w-3.5 h-3.5" />
+          MMR History
+        </p>
+        {renderableModes.map((mode, i) => (
+          <div key={mode}>
+            {i > 0 && <div className="border-t border-border/20 pt-4" />}
+            <ModeChart mode={mode} points={points} />
+          </div>
+        ))}
       </CardContent>
     </Card>
   );
