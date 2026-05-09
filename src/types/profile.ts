@@ -20,6 +20,7 @@ export type ActivityGamePlayer = {
   assists: number;
   saves: number;
   shots: number;
+  contributionScore: number;
   isMvp: boolean;
   team: string | null;
 };
