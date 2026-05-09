@@ -917,8 +917,8 @@ const Stats = () => {
           />
         ) : (<>
 
-        {/* ── Filter + view toggle bar ── */}
-        <div className="space-y-3 animate-fade-in-up">
+        {/* ── Filter + view toggle bar — hidden in together view ── */}
+        {!selectedFriend && <div className="space-y-3 animate-fade-in-up">
           <div className="flex items-center justify-between gap-3">
             <button
               onClick={() => setFiltersExpanded((v) => !v)}
@@ -1022,13 +1022,12 @@ const Stats = () => {
               )}
             </div>
           )}
-        </div>
+        </div>}
 
-        {/* ── Active filter chips ── */}
-        {(activeFilterCount > 0 || selectedFriend) && (
+        {/* ── Active filter chips — solo view only ── */}
+        {!selectedFriend && activeFilterCount > 0 && (
           <div className="flex flex-wrap gap-2 animate-fade-in-up">
             <Badge variant="outline" className="rounded-full">{userSummary.games} game{userSummary.games !== 1 ? "s" : ""}</Badge>
-            {selectedFriend && <Badge variant="outline" className="rounded-full">with {selectedFriend.label}</Badge>}
             {selectedMode !== "all" && <Badge variant="outline" className="rounded-full">{selectedMode}</Badge>}
             {selectedType !== "all" && <Badge variant="outline" className="rounded-full">{selectedType}</Badge>}
             {timeRange !== "all" && (
@@ -1072,31 +1071,32 @@ const Stats = () => {
           <div className="space-y-4">
             {selectedFriend && teammateSummary ? (
               <>
-                {/* Back to profile link */}
-                <Link
-                  to={`/profile/${selectedFriend.id}`}
-                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors w-fit"
-                >
-                  <span className="text-base leading-none">←</span>
-                  {selectedFriend.label}'s profile
-                </Link>
-
-                {/* Together time range pills */}
-                <div className="flex gap-1.5 overflow-x-auto pb-0.5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                  {togetherRangePills.map((pill) => (
-                    <button
-                      key={pill.value}
-                      onClick={() => setTogetherRange(pill.value)}
-                      className={cn(
-                        "flex items-center px-3 py-1.5 rounded-full text-xs font-medium border transition-colors shrink-0",
-                        togetherRange === pill.value
-                          ? "bg-primary text-primary-foreground border-primary"
-                          : "bg-card text-muted-foreground border-border/50 hover:text-foreground hover:border-border"
-                      )}
-                    >
-                      {pill.label}
-                    </button>
-                  ))}
+                {/* Back link + together time range pills — single compact row */}
+                <div className="flex items-center gap-2 min-w-0">
+                  <Link
+                    to={`/profile/${selectedFriend.id}`}
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                  >
+                    <span className="text-sm leading-none">←</span>
+                    {selectedFriend.label}
+                  </Link>
+                  <div className="w-px h-3.5 bg-border/50 shrink-0" />
+                  <div className="flex gap-1.5 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                    {togetherRangePills.map((pill) => (
+                      <button
+                        key={pill.value}
+                        onClick={() => setTogetherRange(pill.value)}
+                        className={cn(
+                          "flex items-center px-2.5 py-1 rounded-full text-xs font-medium border transition-colors shrink-0",
+                          togetherRange === pill.value
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-card text-muted-foreground border-border/50 hover:text-foreground hover:border-border"
+                        )}
+                      >
+                        {pill.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <ComparisonTable
