@@ -519,6 +519,8 @@ const Profile = () => {
               favoriteCar={favoriteCar}
               ranks={ranks}
               profileUserId={user.id}
+              totalGames={profileStats?.totalGames}
+              wins={profileStats?.wins}
               onEdit={enterEditMode}
               onBannerFileSelected={handleBannerFileSelected}
               uploadingBanner={uploadingBanner}

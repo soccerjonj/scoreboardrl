@@ -409,6 +409,8 @@ const FriendProfile = () => {
             favoriteCar={profile.favorite_car}
             ranks={ranks}
             profileUserId={userId!}
+            totalGames={profileStats?.totalGames}
+            wins={profileStats?.wins}
           />
         </Card>
 
