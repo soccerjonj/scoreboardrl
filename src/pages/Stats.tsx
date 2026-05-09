@@ -4,7 +4,7 @@ import { format } from "date-fns";
 import {
   Loader2, BarChart2, LineChart as LineChartIcon, FilterX, Filter,
   ChevronDown, ChevronUp, Trophy, Target, Shield, Zap, Star,
-  TrendingUp, TrendingDown, Activity, Crosshair,
+  TrendingUp, TrendingDown, Activity, Crosshair, ExternalLink,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -468,9 +468,10 @@ const BestContributionCard = ({
                                   <Link
                                     to={`/profile/${p.user_id}`}
                                     onClick={(e) => e.stopPropagation()}
-                                    className="text-xs font-medium leading-snug break-words min-w-0 hover:text-primary hover:underline transition-colors"
+                                    className="inline-flex items-center gap-0.5 text-xs font-medium leading-snug break-words min-w-0 text-primary/75 underline decoration-primary/25 underline-offset-2 hover:text-primary hover:decoration-primary/60 transition-colors"
                                   >
                                     {p.player_name}
+                                    <ExternalLink className="w-2.5 h-2.5 shrink-0 opacity-60" />
                                   </Link>
                                 ) : (
                                   <span className={cn("text-xs font-medium leading-snug break-words min-w-0", isUser ? "text-primary" : "text-foreground")}>{p.player_name}</span>
@@ -1213,9 +1214,10 @@ const Stats = () => {
                                                 {p.user_id && !isMe ? (
                                                   <Link
                                                     to={`/profile/${p.user_id}`}
-                                                    className="text-xs font-medium leading-snug break-words min-w-0 hover:text-primary hover:underline transition-colors"
+                                                    className="inline-flex items-center gap-0.5 text-xs font-medium leading-snug break-words min-w-0 text-primary/75 underline decoration-primary/25 underline-offset-2 hover:text-primary hover:decoration-primary/60 transition-colors"
                                                   >
                                                     {p.player_name}
+                                                    <ExternalLink className="w-2.5 h-2.5 shrink-0 opacity-60" />
                                                   </Link>
                                                 ) : (
                                                   <span className={cn("text-xs font-medium leading-snug break-words min-w-0", isMe ? "text-primary" : isFriend ? "text-secondary" : "text-foreground")}>{p.player_name}</span>

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { Plus, Loader2, Trophy, Target, TrendingUp, ChevronRight, Zap, ChevronDown, ChevronUp, Pencil, Check, X as XIcon, Trash2, Info, Users } from "lucide-react";
+import { Plus, Loader2, Trophy, Target, TrendingUp, ChevronRight, Zap, ChevronDown, ChevronUp, Pencil, Check, X as XIcon, Trash2, Info, Users, ExternalLink } from "lucide-react";
 import TournamentBannerCard from "@/components/tournament/TournamentBannerCard";
 
 import { useAuth } from "@/contexts/AuthContext";
@@ -783,9 +783,10 @@ const Dashboard = () => {
                                                 <Link
                                                   to={`/profile/${p.user_id}`}
                                                   onClick={(e) => e.stopPropagation()}
-                                                  className="text-xs font-medium leading-snug break-words min-w-0 hover:text-primary hover:underline transition-colors"
+                                                  className="inline-flex items-center gap-0.5 text-xs font-medium leading-snug break-words min-w-0 text-primary/75 underline decoration-primary/25 underline-offset-2 hover:text-primary hover:decoration-primary/60 transition-colors"
                                                 >
                                                   {p.player_name}
+                                                  <ExternalLink className="w-2.5 h-2.5 shrink-0 opacity-60" />
                                                 </Link>
                                               ) : (
                                                 <span className={`text-xs font-medium leading-snug break-words min-w-0 ${isUser ? "text-primary" : "text-foreground"}`}>
