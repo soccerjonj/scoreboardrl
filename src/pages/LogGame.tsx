@@ -154,7 +154,8 @@ const LogGame = () => {
   const { toast } = useToast();
 
   const [gameMode, setGameMode] = useState<GameMode>("2v2");
-  const [isExtraMode, setIsExtraMode] = useState(false);
+  // true = competitive standard (1v1/2v2/3v3 auto-detected from photo)
+  const [isAutoDetect, setIsAutoDetect] = useState(true);
   const [gameType, setGameType] = useState<GameType>("competitive");
   const [result, setResult] = useState<"win" | "loss">("win");
   const [divisionChange, setDivisionChange] = useState<string>("none");
@@ -236,9 +237,9 @@ const LogGame = () => {
     data: { game_mode: GameMode; game_type: GameType; players: PlayerStat[]; result?: "win" | "loss"; division_change?: "up" | "down" | "none"; new_rank_tier?: string; new_rank_division?: string },
     file: File
   ) => {
-    // If the user flagged this as an extra mode game upfront, keep the
-    // currently selected extra mode — Gemini only detects 1v1/2v2/3v3.
-    if (!isExtraMode) setGameMode(data.game_mode);
+    // Only let Gemini set the game mode when the user chose "Auto" (standard comp).
+    // For any pre-selected mode, preserve the user's choice.
+    if (isAutoDetect) setGameMode(data.game_mode);
     setGameType(data.game_type);
     setPlayers(data.players.map((p) => ({ ...p, damage: (p as any).damage ?? 0 })));
     setImageFile(file);
@@ -664,31 +665,119 @@ const LogGame = () => {
               <CardTitle className="font-display text-xl">Upload Scoreboard</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Standard vs Extra Mode toggle */}
+
+              {/* ── Game Type ── */}
               <div className="flex p-0.5 rounded-lg bg-muted/50 border border-border/40">
                 <button
-                  onClick={() => { setIsExtraMode(false); setGameMode("2v2"); }}
+                  onClick={() => {
+                    setGameType("competitive");
+                    setIsAutoDetect(true);
+                    setGameMode("2v2");
+                  }}
                   className={cn(
                     "flex-1 py-1.5 rounded-md text-xs font-medium transition-colors",
-                    !isExtraMode ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                    gameType === "competitive" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
                   )}
                 >
-                  Standard Game
+                  Competitive
                 </button>
                 <button
-                  onClick={() => { setIsExtraMode(true); setGameMode("rumble_3v3"); }}
+                  onClick={() => {
+                    setGameType("casual");
+                    setIsAutoDetect(false);
+                    setGameMode("2v2");
+                  }}
                   className={cn(
                     "flex-1 py-1.5 rounded-md text-xs font-medium transition-colors",
-                    isExtraMode ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                    gameType === "casual" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
                   )}
                 >
-                  Extra Mode
+                  Casual
                 </button>
               </div>
-              {isExtraMode && (
-                <p className="text-xs text-muted-foreground -mt-1">
-                  Gemini will parse player stats normally. Pick the exact mode (Rumble, Hoops, etc.) on the next screen.
-                </p>
+
+              {/* ── Mode pills ── */}
+              {gameType === "competitive" ? (
+                <div className="space-y-1.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Mode</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {/* Auto-detect standard 1v1/2v2/3v3 */}
+                    <button
+                      onClick={() => { setIsAutoDetect(true); setGameMode("2v2"); }}
+                      className={cn(
+                        "px-2.5 py-1 rounded-full text-xs font-medium border transition-colors",
+                        isAutoDetect
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-card text-muted-foreground border-border/50 hover:text-foreground hover:border-border"
+                      )}
+                    >
+                      Auto (1v1 / 2v2 / 3v3)
+                    </button>
+                    {/* Extra comp modes */}
+                    {(["rumble_3v3", "hoops_2v2", "snowday_3v3", "dropshot_3v3", "heatseeker_2v2"] as GameMode[]).map((m) => {
+                      const labels: Record<string, string> = {
+                        rumble_3v3: "3v3 Rumble", hoops_2v2: "2v2 Hoops",
+                        snowday_3v3: "3v3 Snow Day", dropshot_3v3: "3v3 Dropshot", heatseeker_2v2: "2v2 Heatseeker",
+                      };
+                      return (
+                        <button
+                          key={m}
+                          onClick={() => { setIsAutoDetect(false); setGameMode(m); }}
+                          className={cn(
+                            "px-2.5 py-1 rounded-full text-xs font-medium border transition-colors",
+                            !isAutoDetect && gameMode === m
+                              ? "bg-primary text-primary-foreground border-primary"
+                              : "bg-card text-muted-foreground border-border/50 hover:text-foreground hover:border-border"
+                          )}
+                        >
+                          {labels[m]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Mode</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {/* Standard soccer sizes */}
+                    {(["1v1", "2v2", "3v3", "4v4"] as GameMode[]).map((m) => (
+                      <button
+                        key={m}
+                        onClick={() => { setIsAutoDetect(false); setGameMode(m); }}
+                        className={cn(
+                          "px-2.5 py-1 rounded-full text-xs font-medium border transition-colors",
+                          gameMode === m
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-card text-muted-foreground border-border/50 hover:text-foreground hover:border-border"
+                        )}
+                      >
+                        {m}
+                      </button>
+                    ))}
+                    {/* Extra modes */}
+                    {(["rumble_3v3", "hoops_2v2", "snowday_3v3", "dropshot_3v3", "heatseeker_2v2"] as GameMode[]).map((m) => {
+                      const labels: Record<string, string> = {
+                        rumble_3v3: "Rumble", hoops_2v2: "Hoops",
+                        snowday_3v3: "Snow Day", dropshot_3v3: "Dropshot", heatseeker_2v2: "Heatseeker",
+                      };
+                      return (
+                        <button
+                          key={m}
+                          onClick={() => { setIsAutoDetect(false); setGameMode(m); }}
+                          className={cn(
+                            "px-2.5 py-1 rounded-full text-xs font-medium border transition-colors",
+                            gameMode === m
+                              ? "bg-primary text-primary-foreground border-primary"
+                              : "bg-card text-muted-foreground border-border/50 hover:text-foreground hover:border-border"
+                          )}
+                        >
+                          {labels[m]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               )}
 
               <PhotoGuide />
@@ -698,8 +787,9 @@ const LogGame = () => {
                 <Button
                   variant="outline"
                   onClick={() => {
-                    // Create empty players based on game mode
-                    const count = gameMode === "1v1" ? 1 : gameMode === "2v2" || gameMode === "hoops_2v2" || gameMode === "heatseeker_2v2" ? 2 : 3;
+                    // Create empty players based on selected mode (auto-detect defaults to 2v2)
+                    const modeForCount = isAutoDetect ? "2v2" : gameMode;
+                    const count = modeForCount === "1v1" ? 1 : (modeForCount === "2v2" || modeForCount === "hoops_2v2" || modeForCount === "heatseeker_2v2") ? 2 : (modeForCount === "4v4") ? 4 : 3;
                     const emptyPlayers: PlayerStat[] = [];
                     for (let i = 0; i < count; i++) {
                       emptyPlayers.push({ name: "", team: "blue", score: 0, goals: 0, assists: 0, saves: 0, shots: 0, damage: 0, is_mvp: false });
