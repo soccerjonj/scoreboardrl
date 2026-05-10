@@ -675,16 +675,16 @@ const Dashboard = () => {
                     )} />
                     {/* Main row */}
                     <CardContent className="py-3 px-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3 min-w-0 flex-1">
                           <span className={cn(
-                            "w-1.5 h-8 rounded-full flex-shrink-0",
+                            "w-1.5 h-8 rounded-full flex-shrink-0 mt-0.5",
                             isWin
                               ? "bg-rl-green shadow-[0_0_8px_hsl(var(--rl-green)/0.6)]"
                               : "bg-rl-red shadow-[0_0_8px_hsl(var(--rl-red)/0.6)]"
                           )} />
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5 flex-nowrap">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
                               <span className={cn(
                                 "font-display font-bold text-sm flex-shrink-0",
                                 isWin ? "text-rl-green" : "text-rl-red"
@@ -734,7 +734,7 @@ const Dashboard = () => {
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-start gap-3 shrink-0">
                           {userRow && (
                             <div className="text-right">
                               <p className="font-mono text-sm font-bold">{userRow.score} pts</p>
