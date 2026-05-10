@@ -19,6 +19,7 @@ import { calculateContributionScores } from "@/lib/carryScore";
 import { getRankIcon } from "@/lib/rankIcons";
 import AppLayout from "@/components/layout/AppLayout";
 import { isStandardGame, getGameCategory, GAME_CATEGORY_LABELS, GAME_CATEGORY_SHORT_LABELS, EXTRA_MODE_LABELS, isSeriousCategory } from "@/lib/gameModes";
+import { linkPlayersByName } from "@/lib/playerLinking";
 import { TOURNAMENT_TYPE_LABELS } from "@/hooks/useTournamentSession";
 
 // ─── CountUp component ────────────────────────────────────────────────────────
@@ -84,6 +85,7 @@ const Dashboard = () => {
   const [editingGameId, setEditingGameId] = useState<string | null>(null);
   const [editValuesMap, setEditValuesMap] = useState<Record<string, PlayerEditValues>>({});
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
   const [showContribInfo, setShowContribInfo] = useState(false);
   const [visibleCount, setVisibleCount]       = useState(5);
   const [friendIds, setFriendIds]             = useState<Set<string>>(new Set());
@@ -280,28 +282,78 @@ const Dashboard = () => {
         })
       );
 
-      // Re-link user_id for any rows whose name changed — compare against original players
+      // ── Re-link user_id for any rows whose player_name changed ──────────
+      // Use the same approval logic as log-time: friend with auto-approve →
+      // silent link, anyone else → pending + game_shared notification.
+      // When a user gets unlinked by an edit, fire a stat_edit notification.
       const renamedRows = players.filter((p) => {
         const newName = editValuesMap[p.id]?.player_name;
         return newName && newName.trim().toLowerCase() !== p.player_name.toLowerCase();
       });
       const userIdUpdates = new Map<string, string | null>(); // game_player id → user_id
+      const newlyLinked: Array<{ userId: string; status: "approved" | "pending" }> = [];
+      const newlyUnlinked: string[] = [];
+
       if (renamedRows.length > 0) {
         const newNames = renamedRows.map((p) => editValuesMap[p.id]!.player_name.trim());
-        const { data: matchedProfiles } = await supabase
-          .from("profiles")
-          .select("user_id, rl_account_name")
-          .in("rl_account_name", newNames);
-        const nameToUserId = new Map((matchedProfiles ?? []).map((pr) => [pr.rl_account_name!.toLowerCase(), pr.user_id]));
+        const linkMap = await linkPlayersByName(newNames, user.id, rlName);
+
         await Promise.all(
           renamedRows.map((p) => {
             const newName = editValuesMap[p.id]!.player_name.trim();
-            const linkedUserId = nameToUserId.get(newName.toLowerCase()) ?? null;
-            userIdUpdates.set(p.id, linkedUserId);
-            return supabase.from("game_players").update({ user_id: linkedUserId }).eq("id", p.id);
+            const link = linkMap.get(newName) ?? { userId: null, status: "approved" as const };
+            const previousUserId = p.user_id;
+            const newUserId = link.userId;
+
+            userIdUpdates.set(p.id, newUserId);
+
+            // Track diffs for post-write notifications
+            if (newUserId && newUserId !== previousUserId && newUserId !== user.id) {
+              newlyLinked.push({ userId: newUserId, status: link.status });
+            }
+            if (previousUserId && previousUserId !== newUserId && previousUserId !== user.id) {
+              newlyUnlinked.push(previousUserId);
+            }
+
+            return supabase
+              .from("game_players")
+              .update({ user_id: newUserId, submission_status: link.status })
+              .eq("id", p.id);
           })
         );
       }
+
+      // ── Notifications for link changes ──────────────────────────────────
+      const editorName = rlName ?? "A teammate";
+      const modeLabel = game.game_mode;
+
+      // Newly linked users — game_shared notification ("X tagged you in a game").
+      // Approved auto-links don't need a notification (the user already trusts this editor).
+      const pendingLinks = newlyLinked.filter((l) => l.status === "pending");
+      await Promise.all(
+        pendingLinks.map((l) =>
+          supabase.from("notifications").insert({
+            user_id: l.userId,
+            type: "game_shared",
+            title: `${editorName} tagged you in a game`,
+            body: `A ${modeLabel} game was edited and your gamertag now matches your account.`,
+            payload: { game_id: game.id, requires_approval: true },
+          })
+        )
+      );
+
+      // Newly unlinked users — stat_edit notification ("your link was removed")
+      await Promise.all(
+        newlyUnlinked.map((uid) =>
+          supabase.from("notifications").insert({
+            user_id: uid,
+            type: "stat_edit",
+            title: `${editorName} removed your link from a game`,
+            body: `A ${modeLabel} game you were tagged in was edited and your account is no longer linked to it.`,
+            payload: { game_id: game.id },
+          })
+        )
+      );
 
       // Update local state
       setGames((prev) =>
@@ -311,8 +363,12 @@ const Dashboard = () => {
             game_players: updatedPlayers.map((p) => {
               const newName = editValuesMap[p.id]?.player_name ?? p.player_name;
               const cs = contributionMap.get(newName.toLowerCase());
-              const newUserId = userIdUpdates.has(p.id) ? userIdUpdates.get(p.id) : p.user_id;
-              return { ...p, player_name: newName, user_id: newUserId ?? p.user_id, ...(cs !== undefined ? { contribution_score: cs } : {}) };
+              // userIdUpdates explicitly sets null for "unlinked" — only fall back
+              // to the existing user_id when there was no change for this row.
+              const newUserId = userIdUpdates.has(p.id)
+                ? (userIdUpdates.get(p.id) ?? null)
+                : p.user_id;
+              return { ...p, player_name: newName, user_id: newUserId, ...(cs !== undefined ? { contribution_score: cs } : {}) };
             }),
           }
         )
@@ -336,6 +392,39 @@ const Dashboard = () => {
       toast({ title: "Game deleted" });
     } catch (err: any) {
       toast({ title: "Failed to delete", description: err.message, variant: "destructive" });
+    }
+  };
+
+  // Detach the current user from a game without deleting it. Sets the user's
+  // game_players.user_id to null — preserves the historical scoreboard data
+  // for everyone else, and silently removes the game from this user's profile.
+  const handleRemoveFromProfile = async (gameId: string) => {
+    if (!user) return;
+    try {
+      await supabase
+        .from("game_players")
+        .update({ user_id: null })
+        .eq("game_id", gameId)
+        .eq("user_id", user.id);
+
+      setGames((prev) => prev.map((g) => {
+        if (g.id !== gameId) return g;
+        return {
+          ...g,
+          game_players: (g.game_players ?? []).map((p) =>
+            p.user_id === user.id ? { ...p, user_id: null } : p
+          ),
+        };
+      }));
+
+      // If the user wasn't the creator, the game won't be in their dashboard
+      // feed anymore — drop it from local state for immediate feedback.
+      setGames((prev) => prev.filter((g) => g.id !== gameId || g.created_by === user.id));
+      setConfirmDeleteId(null);
+      setExpandedGameId(null);
+      toast({ title: "Removed from your profile", description: "The game stays for other players." });
+    } catch (err: any) {
+      toast({ title: "Failed to remove", description: err.message, variant: "destructive" });
     }
   };
 
@@ -957,34 +1046,69 @@ const Dashboard = () => {
                             </button>
                           )}
 
-                          {/* Right: delete (only creator, not while editing) */}
-                          {!isEditing && game.created_by === user?.id && (
-                            confirmDeleteId === game.id ? (
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs text-muted-foreground">Delete this game?</span>
+                          {/* Right: delete (creator) OR remove-from-profile (any linked non-creator) */}
+                          {!isEditing && (() => {
+                            const isCreator = game.created_by === user?.id;
+                            const isLinkedHere = !!user && (game.game_players ?? []).some(
+                              (p) => p.user_id === user.id
+                            );
+                            if (isCreator) {
+                              return confirmDeleteId === game.id ? (
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-muted-foreground">Delete this game?</span>
+                                  <button
+                                    onClick={() => handleDeleteGame(game.id)}
+                                    className="text-xs font-medium text-rl-red hover:text-rl-red/80 transition-colors"
+                                  >
+                                    Yes, delete
+                                  </button>
+                                  <button
+                                    onClick={() => setConfirmDeleteId(null)}
+                                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              ) : (
                                 <button
-                                  onClick={() => handleDeleteGame(game.id)}
-                                  className="text-xs font-medium text-rl-red hover:text-rl-red/80 transition-colors"
+                                  onClick={() => setConfirmDeleteId(game.id)}
+                                  className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-rl-red transition-colors"
                                 >
-                                  Yes, delete
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                  Delete game
                                 </button>
+                              );
+                            }
+                            if (isLinkedHere) {
+                              return confirmRemoveId === game.id ? (
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-muted-foreground">Remove from your profile?</span>
+                                  <button
+                                    onClick={() => handleRemoveFromProfile(game.id)}
+                                    className="text-xs font-medium text-rl-red hover:text-rl-red/80 transition-colors"
+                                  >
+                                    Yes, remove
+                                  </button>
+                                  <button
+                                    onClick={() => setConfirmRemoveId(null)}
+                                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              ) : (
                                 <button
-                                  onClick={() => setConfirmDeleteId(null)}
-                                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                                  onClick={() => setConfirmRemoveId(game.id)}
+                                  className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-rl-red transition-colors"
+                                  title="Removes the game from your profile only — other players keep it."
                                 >
-                                  Cancel
+                                  <XIcon className="w-3.5 h-3.5" />
+                                  Remove from my profile
                                 </button>
-                              </div>
-                            ) : (
-                              <button
-                                onClick={() => setConfirmDeleteId(game.id)}
-                                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-rl-red transition-colors"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                                Delete game
-                              </button>
-                            )
-                          )}
+                              );
+                            }
+                            return null;
+                          })()}
                         </div>
                       )}
                     </CardContent>

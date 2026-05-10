@@ -494,21 +494,28 @@ const LogGame = () => {
       if (playersErr) throw playersErr;
 
       // ── Notify linked teammates that a game was shared with them ──────────
-      const notifyUserIds = gamePlayers
+      // Pending users (not auto-approved) need the in-app Accept/Reject UI;
+      // approved users get an FYI without the buttons.
+      const notifyEntries: Array<{ userId: string; pending: boolean }> = gamePlayers
         .filter((gp) => gp.user_id && gp.user_id !== user.id)
-        .map((gp) => gp.user_id as string);
+        .map((gp) => ({
+          userId: gp.user_id as string,
+          pending: gp.submission_status === "pending",
+        }));
 
       const uploaderProfile = linkedProfiles?.find((p) => p.user_id === user.id);
       const uploaderName    = uploaderProfile?.rl_account_name ?? rlName ?? "A teammate";
 
       await Promise.all(
-        notifyUserIds.map((uid) =>
+        notifyEntries.map(({ userId, pending }) =>
           sendNotification(
-            uid,
+            userId,
             "game_shared",
-            "New game logged",
-            `${uploaderName} logged a ${gameMode} ${gameType} game that includes you.`,
-            { game_id: game.id }
+            pending ? `${uploaderName} tagged you in a game` : "New game logged",
+            pending
+              ? `Confirm whether you played in this ${gameMode} ${gameType} game.`
+              : `${uploaderName} logged a ${gameMode} ${gameType} game that includes you.`,
+            { game_id: game.id, requires_approval: pending }
           )
         )
       );
