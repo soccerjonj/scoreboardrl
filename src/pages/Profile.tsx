@@ -690,7 +690,7 @@ const Profile = () => {
           <ActivityFeed games={activityGames} currentUserId={user.id} viewerFriendIds={viewerFriendIds} />
 
           {/* Tournament Trophy Shelf */}
-          <RecentTournaments tournaments={recentTournaments} isOwnProfile={true} />
+          <RecentTournaments tournaments={recentTournaments} profileUserId={user.id} isOwnProfile={true} />
 
 
           {/* Sign Out */}

@@ -607,7 +607,7 @@ const FriendProfile = () => {
         <ActivityFeed games={activityGames} currentUserId={userId} viewerFriendIds={viewerFriendIds} />
 
         {/* Tournament Trophy Shelf */}
-        <RecentTournaments tournaments={recentTournaments} isOwnProfile={false} />
+        <RecentTournaments tournaments={recentTournaments} profileUserId={userId} isOwnProfile={false} />
 
       </div>
     </AppLayout>
