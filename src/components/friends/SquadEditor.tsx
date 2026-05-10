@@ -116,7 +116,14 @@ export default function SquadEditor({ open, onOpenChange, friends, mode, onSaved
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="rounded-t-2xl pb-10 max-h-[90dvh] overflow-y-auto">
+      <SheetContent
+        side="bottom"
+        className="rounded-t-2xl pb-10 max-h-[90dvh] overflow-y-auto"
+        // Don't auto-focus the name input on open — on mobile that triggers
+        // the keyboard immediately and covers the form. The user can tap the
+        // input themselves when they're ready to type.
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
         <SheetHeader className="mb-4">
           <SheetTitle>{mode.kind === "create" ? "New Squad" : "Edit Squad"}</SheetTitle>
         </SheetHeader>
