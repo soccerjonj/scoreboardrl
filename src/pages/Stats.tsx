@@ -631,6 +631,19 @@ const Stats = () => {
     }
   }, [friendOptions, searchParams]);
 
+  // Auto-switch to the Tournaments sub-tab when arriving with ?view=tournaments
+  // (e.g. from a "View full tournament stats" link on a recent game card).
+  // The matching ?focus=<tournament_id> is passed straight through to the
+  // TournamentHistoryPanel where it auto-expands and scrolls.
+  useEffect(() => {
+    if (searchParams.get("view") === "tournaments") {
+      setPageTab("stats");
+      setStatsView("tournaments");
+    }
+  }, [searchParams]);
+
+  const focusTournamentId = searchParams.get("focus");
+
   // Reset together range + visible count whenever the selected friend changes
   useEffect(() => {
     setTogetherRange("all");
@@ -993,7 +1006,7 @@ const Stats = () => {
         </div>
 
         {statsView === "tournaments" ? (
-          user ? <TournamentHistoryPanel userId={user.id} /> : null
+          user ? <TournamentHistoryPanel userId={user.id} focusTournamentId={focusTournamentId} /> : null
         ) : (<>
 
         {/* ── Filters — always visible, no accordion; hidden in together view ── */}

@@ -287,7 +287,7 @@ function GameCard({
                 tournament games where we have the tournament id linked. */}
             {(category === "tournament" || category === "special_tournament") && game.tournamentId && (
               <Link
-                to={`/tournaments?focus=${game.tournamentId}`}
+                to={`/stats?view=tournaments&focus=${game.tournamentId}`}
                 onClick={(e) => e.stopPropagation()}
                 className={cn(
                   "mt-2 w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg border transition-colors",

@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { format } from "date-fns";
-import { Trophy, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import { Trophy, ChevronDown, ChevronUp, Loader2, User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -58,14 +58,48 @@ function highestRound(rounds: RoundResult[]): string {
   return "Round 1";
 }
 
-function TournamentCard({ tournament, userId }: { tournament: Tournament; userId: string }) {
-  const [expanded, setExpanded] = useState(false);
+function TournamentCard({ tournament, userId, autoExpand = false }: { tournament: Tournament; userId: string; autoExpand?: boolean }) {
+  const [expanded, setExpanded] = useState(autoExpand);
   const [bracketRounds, setBracketRounds] = useState<RoundResult[]>([]);
   const [games, setGames] = useState<GameResult[]>([]);
   const [tgRows, setTgRows] = useState<TournamentGame[]>([]);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [detailLoaded, setDetailLoaded] = useState(false);
   const [expandedGameId, setExpandedGameId] = useState<string | null>(null);
+  const [ownerProfile, setOwnerProfile] = useState<{ name: string; avatarUrl: string | null } | null>(null);
+  const cardRef = useRef<HTMLDivElement | null>(null);
+
+  // Auto-expand + scroll into view when this card is the deep-link target
+  useEffect(() => {
+    if (autoExpand) {
+      setExpanded(true);
+      loadDetail();
+      requestAnimationFrame(() => {
+        cardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoExpand]);
+
+  // Load the tournament owner's display name + avatar so the card is
+  // self-explanatory when viewing someone else's tournament socially.
+  useEffect(() => {
+    let cancelled = false;
+    supabase
+      .from("profiles")
+      .select("user_id, username, rl_account_name, avatar_url")
+      .eq("user_id", tournament.user_id)
+      .single()
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        const d = data as any;
+        setOwnerProfile({
+          name: d.rl_account_name ?? d.username ?? "Unknown",
+          avatarUrl: d.avatar_url ?? null,
+        });
+      });
+    return () => { cancelled = true; };
+  }, [tournament.user_id]);
 
   const loadDetail = async () => {
     if (detailLoaded) return;
@@ -153,16 +187,23 @@ function TournamentCard({ tournament, userId }: { tournament: Tournament; userId
     contribTotal: 0, contribCount: 0,
   };
 
-  games.forEach((g) => {
-    // Find the user's row in this game to determine which team is "the user's team"
-    const userRow = g.game_players.find((p) => p.user_id === userId);
-    if (!userRow) return; // user not in this game's roster — skip
-    const userTeam = userRow.team;
-    if (!userTeam) return;
+  // Subject of the team stats: the viewer if they played in this tournament,
+  // otherwise the tournament owner. So when you click into a friend's
+  // tournament you didn't play in, you see THEIR team's stats — not empty.
+  const viewerInGames = games.some((g) => g.game_players.some((p) => p.user_id === userId));
+  const subjectId = viewerInGames ? userId : tournament.user_id;
+  const isViewerSubject = subjectId === userId;
 
-    // Only count players on the same team as the user for this game
+  games.forEach((g) => {
+    // Find the subject's row in this game to determine which team is "their team"
+    const subjectRow = g.game_players.find((p) => p.user_id === subjectId);
+    if (!subjectRow) return; // subject not in this game's roster — skip
+    const subjectTeam = subjectRow.team;
+    if (!subjectTeam) return;
+
+    // Only count players on the same team as the subject for this game
     g.game_players
-      .filter((p) => p.team === userTeam)
+      .filter((p) => p.team === subjectTeam)
       .forEach((p) => {
         const key = p.user_id ?? p.player_name.trim().toLowerCase();
         const cs = p.contribution_score;
@@ -183,7 +224,7 @@ function TournamentCard({ tournament, userId }: { tournament: Tournament; userId
         } else {
           playerMap.set(key, {
             displayName: p.player_name,
-            isUser: p.user_id === userId,
+            isUser: p.user_id === subjectId,
             score:   p.score   ?? 0,
             goals:   p.goals   ?? 0,
             assists: p.assists ?? 0,
@@ -227,11 +268,12 @@ function TournamentCard({ tournament, userId }: { tournament: Tournament; userId
 
 
   return (
-    <Card className={cn(
-      "overflow-hidden transition-all",
+    <Card ref={cardRef as any} className={cn(
+      "overflow-hidden transition-all scroll-mt-20",
       isWinner && "border-yellow-400/30",
       isEliminated && "border-border/40",
       isActive && "border-primary/30",
+      autoExpand && "ring-2 ring-primary/30",
     )}>
       {/* Top stripe */}
       <div className={cn(
@@ -274,8 +316,21 @@ function TournamentCard({ tournament, userId }: { tournament: Tournament; userId
                   </Badge>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {format(new Date(tournament.created_at), "MMM d, yyyy")}
+              <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5 flex-wrap">
+                {!isViewerSubject && ownerProfile && (
+                  <>
+                    <span className="inline-flex items-center gap-1 text-foreground/80">
+                      {ownerProfile.avatarUrl ? (
+                        <img src={ownerProfile.avatarUrl} alt="" className="w-3.5 h-3.5 rounded-full object-cover" />
+                      ) : (
+                        <User className="w-3 h-3" />
+                      )}
+                      <span className="font-medium">{ownerProfile.name}</span>
+                    </span>
+                    <span className="text-muted-foreground/50">·</span>
+                  </>
+                )}
+                <span>{format(new Date(tournament.created_at), "MMM d, yyyy")}</span>
               </p>
             </div>
           </div>
@@ -310,7 +365,9 @@ function TournamentCard({ tournament, userId }: { tournament: Tournament; userId
             {/* Section 2 — Team Stats */}
             {games.length > 0 && aggregatedPlayers.length > 0 && (
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Your Team's Stats This Tournament</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                  {isViewerSubject ? "Your Team's Stats This Tournament" : `${ownerProfile?.name ?? "Owner"}'s Team Stats This Tournament`}
+                </p>
 
                 {/* Team total — hero card with big stat tiles */}
                 <div className="rounded-xl border border-primary/30 bg-gradient-to-br from-primary/10 to-primary/5 p-4 mb-3">
@@ -411,14 +468,15 @@ function TournamentCard({ tournament, userId }: { tournament: Tournament; userId
                     const isWin = g.result === "win";
                     const isExpanded = expandedGameId === g.id;
 
-                    // Determine user's team in this game so we can group as Your Team / Opponents
-                    const userRow = g.game_players.find((p) => p.user_id === userId);
-                    const userTeam = userRow?.team ?? null;
-                    const myTeamPlayers = userTeam ? g.game_players.filter((p) => p.team === userTeam).sort((a, b) => b.score - a.score) : [];
-                    const opponentPlayers = userTeam ? g.game_players.filter((p) => p.team !== userTeam).sort((a, b) => b.score - a.score) : [];
-                    const groups = userTeam
+                    // Determine the SUBJECT's team in this game so we can group as Their Team / Opponents
+                    const subjectRow = g.game_players.find((p) => p.user_id === subjectId);
+                    const subjectTeam = subjectRow?.team ?? null;
+                    const myTeamLabel = isViewerSubject ? "Your Team" : `${ownerProfile?.name ?? "Owner"}'s Team`;
+                    const myTeamPlayers = subjectTeam ? g.game_players.filter((p) => p.team === subjectTeam).sort((a, b) => b.score - a.score) : [];
+                    const opponentPlayers = subjectTeam ? g.game_players.filter((p) => p.team !== subjectTeam).sort((a, b) => b.score - a.score) : [];
+                    const groups = subjectTeam
                       ? [
-                          { label: isWin ? "Your Team  ·  WIN" : "Your Team  ·  LOSS", isMyTeam: true,  players: myTeamPlayers },
+                          { label: isWin ? `${myTeamLabel}  ·  WIN` : `${myTeamLabel}  ·  LOSS`, isMyTeam: true,  players: myTeamPlayers },
                           { label: isWin ? "Opponents  ·  LOSS" : "Opponents  ·  WIN", isMyTeam: false, players: opponentPlayers },
                         ]
                       : [{ label: "", isMyTeam: false, players: [...g.game_players].sort((a, b) => b.score - a.score) }];
@@ -476,7 +534,7 @@ function TournamentCard({ tournament, userId }: { tournament: Tournament; userId
                                   </p>
                                 )}
                                 {group.players.map((p) => {
-                                  const isMe = p.user_id === userId;
+                                  const isMe = p.user_id === subjectId;
                                   const cs = p.contribution_score;
                                   const showMeter = typeof cs === "number" && cs > 0 && teamSize > 1;
                                   return (
@@ -528,15 +586,19 @@ function TournamentCard({ tournament, userId }: { tournament: Tournament; userId
   );
 }
 
-export default function TournamentHistoryPanel({ userId }: { userId: string }) {
+export default function TournamentHistoryPanel({
+  userId,
+  focusTournamentId,
+}: {
+  userId: string;
+  focusTournamentId?: string | null;
+}) {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
-      // Try the participant-aware query first (covers tournaments I own AND
-      // tournaments I joined as a partner). Falls back to user_id match if
-      // tournament_participants migrations haven't been run yet.
+      // Tournaments where I'm a participant (owner or partner)
       let rows: Tournament[] = [];
 
       const { data: participantRows, error: participantErr } = await supabase
@@ -545,35 +607,47 @@ export default function TournamentHistoryPanel({ userId }: { userId: string }) {
         .eq("user_id", userId)
         .in("status", ["joined"]);
 
+      const seen = new Set<string>();
       if (!participantErr && participantRows) {
-        const seen = new Set<string>();
         rows = (participantRows as any[])
           .map((r) => r.tournaments as Tournament)
           .filter((t) => t && !seen.has(t.id) && (seen.add(t.id), true));
       }
 
-      // Always also fetch tournaments where I'm the owner — covers any old
-      // rows that may not have a participant row yet (defensive belt-and-
-      // suspenders), and the case where the participant query failed.
+      // Defensive: tournaments where I'm the owner (covers rows missing a
+      // participant entry from the backfill)
       const { data: ownerRows } = await supabase
         .from("tournaments")
         .select("*")
         .eq("user_id", userId);
-
       if (ownerRows) {
-        const ids = new Set(rows.map((r) => r.id));
         for (const r of ownerRows as Tournament[]) {
-          if (!ids.has(r.id)) rows.push(r);
+          if (!seen.has(r.id)) { seen.add(r.id); rows.push(r); }
         }
       }
 
-      // Sort newest first
+      // If a deep-link points at a tournament I'm not in, fetch it directly.
+      // RLS allows any authenticated user to SELECT tournaments, so this
+      // succeeds for friends' tournaments too — enabling the social view.
+      if (focusTournamentId && !seen.has(focusTournamentId)) {
+        const { data: t } = await supabase
+          .from("tournaments")
+          .select("*")
+          .eq("id", focusTournamentId)
+          .single();
+        if (t) rows.push(t as Tournament);
+      }
+
+      // Sort newest first, but pin the focused tournament to the top
       rows.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      if (focusTournamentId) {
+        rows.sort((a, b) => (a.id === focusTournamentId ? -1 : b.id === focusTournamentId ? 1 : 0));
+      }
 
       setTournaments(rows);
       setLoading(false);
     })();
-  }, [userId]);
+  }, [userId, focusTournamentId]);
 
   if (loading) {
     return (
@@ -595,7 +669,12 @@ export default function TournamentHistoryPanel({ userId }: { userId: string }) {
   return (
     <div className="space-y-3">
       {tournaments.map((t) => (
-        <TournamentCard key={t.id} tournament={t} userId={userId} />
+        <TournamentCard
+          key={t.id}
+          tournament={t}
+          userId={userId}
+          autoExpand={focusTournamentId === t.id}
+        />
       ))}
     </div>
   );

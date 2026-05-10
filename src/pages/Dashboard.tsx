@@ -898,7 +898,7 @@ const Dashboard = () => {
                                 </div>
                                 {(cat === "tournament" || cat === "special_tournament") && tournamentId && (
                                   <Link
-                                    to={`/tournaments?focus=${tournamentId}`}
+                                    to={`/stats?view=tournaments&focus=${tournamentId}`}
                                     onClick={(e) => e.stopPropagation()}
                                     className={cn(
                                       "w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg border transition-colors",
