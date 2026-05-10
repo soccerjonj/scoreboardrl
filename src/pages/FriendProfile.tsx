@@ -333,9 +333,12 @@ const FriendProfile = () => {
             .filter(Boolean) as Array<{ mode: GameMode; games: number; wins: number }>;
           setExtraModeSummaries(extras);
 
+          // Per-mode stats — same isStandardGame guard as Profile.tsx so that
+          // tournament games using a standard mode (e.g. 3v3 Rumble) aren't
+          // counted as standard 3v3 play.
           const modeStatsMap: Record<string, ProfileStats> = { all: allStats };
           for (const m of ["1v1", "2v2", "3v3"] as GameMode[]) {
-            const mGames = gamesData.filter(g => g.game_mode === m);
+            const mGames = gamesData.filter(g => g.game_mode === m && isStandardGame(g as any));
             const mGameIds = new Set(mGames.map(g => g.id));
             const mRows = playerRows.filter(r => mGameIds.has(r.game_id));
             const ms = buildStats(mRows, mGames);

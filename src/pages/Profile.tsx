@@ -353,10 +353,13 @@ const Profile = () => {
           .filter(Boolean) as Array<{ mode: GameMode; games: number; wins: number }>;
         setExtraModeSummaries(extras);
 
-        // Per-mode stats for the mode filter in StatsShowcase
+        // Per-mode stats for the mode filter in StatsShowcase.
+        // IMPORTANT: filter by isStandardGame so non-standard games (e.g. a
+        // 3v3 Rumble tournament has game_mode='3v3') don't pollute the
+        // standard mode breakdowns.
         const modeStatsMap: Record<string, ProfileStats> = { all: allStats };
         for (const m of ["1v1", "2v2", "3v3"] as GameMode[]) {
-          const mGames = gamesData.filter(g => g.game_mode === m);
+          const mGames = gamesData.filter(g => g.game_mode === m && isStandardGame(g as any));
           const mGameIds = new Set(mGames.map(g => g.id));
           const mRows = myPlayerRows.filter(r => mGameIds.has(r.game_id));
           const ms = buildStats(mRows, mGames);

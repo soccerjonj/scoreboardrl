@@ -651,9 +651,12 @@ const Stats = () => {
   const filteredGames = useMemo(() => games
     .filter((g) => {
       if (selectedMode === "all") return isStandardGame(g as any);
-      // Standard mode pill selected (no Others): exclude casual unless explicitly chosen
+      // Standard mode pill (1v1/2v2/3v3) with no explicit type filter: only
+      // count games that qualify as STANDARD for that mode (competitive
+      // 1v1/2v2/3v3 + tournament Soccar 2v2/3v3). Tournament Rumble 3v3
+      // and similar should NOT be counted here.
       if (["1v1", "2v2", "3v3"].includes(selectedMode) && selectedType === "all")
-        return g.game_mode === selectedMode && g.game_type !== "casual";
+        return g.game_mode === selectedMode && isStandardGame(g as any);
       return g.game_mode === selectedMode;
     })
     .filter((g) => selectedType === "all" || g.game_type === selectedType)
