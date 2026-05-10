@@ -19,14 +19,71 @@ interface Props {
   className?: string;
 }
 
-function GameDot({ result }: { result: "win" | "loss" }) {
+/**
+ * Bo3 rounds (Semi-Final / Final) render as a segmented ring with three
+ * colored arcs — one per game in the series. Each arc is green for a
+ * win, red for a loss, and faded grey when the game hasn't been played
+ * yet. Reads the entire series from the circle alone.
+ */
+function Bo3SegmentedRing({
+  games,
+  hasResult,
+  isActive,
+  centerContent,
+}: {
+  games: Array<{ result: "win" | "loss"; game_number: number }>;
+  hasResult: boolean;
+  isActive: boolean;
+  centerContent: React.ReactNode;
+}) {
+  // SVG geometry — we render in a 40x40 viewBox and then size via Tailwind
+  const r = 17;
+  const cx = 20;
+  const cy = 20;
+  const strokeWidth = 3.5;
+  const circumference = 2 * Math.PI * r;
+  const segmentArc = circumference / 3;
+  const gap = 5; // visual spacing between segments
+
+  const segments = [1, 2, 3].map((n) => games.find((g) => g.game_number === n));
+
   return (
-    <span
+    <div
       className={cn(
-        "inline-block w-2 h-2 rounded-full",
-        result === "win" ? "bg-rl-green" : "bg-rl-red"
+        "relative w-9 h-9 sm:w-10 sm:h-10 z-10",
+        isActive && !hasResult && "animate-pulse"
       )}
-    />
+    >
+      <svg viewBox="0 0 40 40" className="w-full h-full">
+        {[0, 1, 2].map((i) => {
+          const game = segments[i];
+          const color = game
+            ? (game.result === "win" ? "hsl(var(--rl-green))" : "hsl(var(--rl-red))")
+            : "hsl(var(--border))";
+          const opacity = game ? 1 : 0.45;
+
+          return (
+            <circle
+              key={i}
+              cx={cx}
+              cy={cy}
+              r={r}
+              fill="none"
+              stroke={color}
+              strokeWidth={strokeWidth}
+              strokeDasharray={`${segmentArc - gap} ${circumference - segmentArc + gap}`}
+              strokeDashoffset={-(i * segmentArc + gap / 2)}
+              strokeLinecap="round"
+              transform={`rotate(-90 ${cx} ${cy})`}
+              opacity={opacity}
+            />
+          );
+        })}
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center">
+        {centerContent}
+      </div>
+    </div>
   );
 }
 
@@ -38,12 +95,25 @@ function RoundNode({
   roundResult?: RoundResult;
 }) {
   const isBo3 = roundKey === "semi_final" || roundKey === "final";
-  const isActive = roundResult?.isCurrentRound;
+  const isActive = !!roundResult?.isCurrentRound;
   const wins = roundResult?.games.filter((g) => g.result === "win").length ?? 0;
   const losses = roundResult?.games.filter((g) => g.result === "loss").length ?? 0;
   const isEliminated = losses >= 2 || (losses >= 1 && !isBo3);
   const isWon = isBo3 ? wins >= 2 : wins >= 1;
   const hasResult = !!roundResult && roundResult.games.length > 0;
+
+  // Center label content — same in both Bo3 and single-game variants
+  const centerContent = !hasResult && !isActive ? (
+    <span className="text-[10px] text-muted-foreground font-bold">?</span>
+  ) : isActive && !hasResult ? (
+    <span className="text-[10px] text-yellow-400 font-bold">–</span>
+  ) : hasResult && isWon ? (
+    <span className="text-xs font-bold text-rl-green">W</span>
+  ) : hasResult && isEliminated ? (
+    <span className="text-xs font-bold text-rl-red">L</span>
+  ) : hasResult ? (
+    <span className="text-[10px] font-bold text-yellow-400">{wins}-{losses}</span>
+  ) : null;
 
   return (
     <div className="flex flex-col items-center gap-1">
@@ -52,41 +122,24 @@ function RoundNode({
         {ROUND_SHORT[roundKey]}
       </span>
 
-      {/* Result circle */}
-      <div
-        className={cn(
-          "w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center border-2 transition-all bg-background relative z-10",
-          isActive && "border-yellow-400/60 bg-yellow-400/10 animate-pulse",
-          !hasResult && !isActive && "border-border/40 bg-muted/20",
-          hasResult && isWon && "border-rl-green/60 bg-rl-green/10",
-          hasResult && isEliminated && "border-rl-red/60 bg-rl-red/10"
-        )}
-      >
-        {!hasResult && !isActive && (
-          <span className="text-[10px] text-muted-foreground font-bold">?</span>
-        )}
-        {isActive && !hasResult && (
-          <span className="text-[10px] text-yellow-400 font-bold">–</span>
-        )}
-        {hasResult && isWon && (
-          <span className="text-xs font-bold text-rl-green">W</span>
-        )}
-        {hasResult && isEliminated && (
-          <span className="text-xs font-bold text-rl-red">L</span>
-        )}
-        {hasResult && !isWon && !isEliminated && (
-          <span className="text-[10px] font-bold text-yellow-400">{wins}-{losses}</span>
-        )}
-      </div>
-
-      {/* Bo3 game dots */}
-      {isBo3 && hasResult && (
-        <div className="flex gap-0.5 items-center">
-          {[1, 2, 3].map((n) => {
-            const game = roundResult?.games.find((g) => g.game_number === n);
-            if (!game) return <span key={n} className="inline-block w-2 h-2 rounded-full bg-border/30" />;
-            return <GameDot key={n} result={game.result} />;
-          })}
+      {isBo3 ? (
+        <Bo3SegmentedRing
+          games={roundResult?.games ?? []}
+          hasResult={hasResult}
+          isActive={isActive}
+          centerContent={centerContent}
+        />
+      ) : (
+        <div
+          className={cn(
+            "w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center border-2 transition-all bg-background relative z-10",
+            isActive && "border-yellow-400/60 bg-yellow-400/10 animate-pulse",
+            !hasResult && !isActive && "border-border/40 bg-muted/20",
+            hasResult && isWon && "border-rl-green/60 bg-rl-green/10",
+            hasResult && isEliminated && "border-rl-red/60 bg-rl-red/10"
+          )}
+        >
+          {centerContent}
         </div>
       )}
     </div>
