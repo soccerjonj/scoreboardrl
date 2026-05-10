@@ -192,21 +192,21 @@ function GameCard({
       <CardContent className="py-3 px-4">
         {/* Main clickable row */}
         <button
-          className="w-full flex items-center justify-between text-left"
+          className="w-full flex items-start justify-between text-left gap-3"
           onClick={() => setExpanded((v) => !v)}
         >
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-start gap-3 min-w-0 flex-1">
             {/* Glowing vertical bar */}
             <span className={cn(
-              "w-1.5 h-8 rounded-full flex-shrink-0",
+              "w-1.5 h-8 rounded-full flex-shrink-0 mt-0.5",
               isWin
                 ? "bg-rl-green shadow-[0_0_8px_hsl(var(--rl-green)/0.6)]"
                 : "bg-rl-red shadow-[0_0_8px_hsl(var(--rl-red)/0.6)]"
             )} />
 
-            <div className="min-w-0">
-              {/* Top row: WIN/LOSS + mode badge + MVP + time */}
-              <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+            <div className="min-w-0 flex-1">
+              {/* Top row: WIN/LOSS + mode badge + category + MVP + friends — single line, no wrap */}
+              <div className="flex items-center gap-1.5 flex-nowrap min-w-0 overflow-hidden mb-1">
                 <span className={cn(
                   "font-display font-bold text-sm flex-shrink-0",
                   isWin ? "text-rl-green" : "text-rl-red"
@@ -218,7 +218,7 @@ function GameCard({
                 </Badge>
                 <span
                   className={cn(
-                    "text-[10px] flex-shrink-0",
+                    "text-[10px] truncate",
                     isSerious ? "text-foreground/70 font-semibold" : "text-muted-foreground"
                   )}
                 >
@@ -234,8 +234,8 @@ function GameCard({
                 )}
               </div>
 
-              {/* Stats row: goal score + player stats */}
-              <div className="flex items-center gap-2">
+              {/* Stats row: goal score + player stats + relative time */}
+              <div className="flex items-center gap-2 flex-wrap">
                 {hasScore && (
                   <>
                     <span className="font-display font-bold text-base leading-none shrink-0">
@@ -253,17 +253,18 @@ function GameCard({
                   <span className="text-cyan-400">{game.saves}SV</span>
                   {game.shots != null && <span className="text-muted-foreground">{game.shots}SH</span>}
                 </div>
+                <span className="text-border/60 shrink-0">·</span>
+                <span className="text-xs text-muted-foreground shrink-0">{relativeDate(game.playedAt)}</span>
               </div>
             </div>
           </div>
 
-          {/* Right side: time + expand chevron */}
-          <div className="flex items-center gap-2 shrink-0 ml-3 text-muted-foreground">
-            <span className="text-xs">{relativeDate(game.playedAt)}</span>
-            {game.allPlayers.length > 0 && (
-              expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
-            )}
-          </div>
+          {/* Right side: expand chevron only — top-aligned with the badges row */}
+          {game.allPlayers.length > 0 && (
+            <div className="shrink-0 text-muted-foreground mt-1">
+              {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </div>
+          )}
         </button>
 
         {/* Expanded scoreboard */}
