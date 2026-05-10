@@ -749,15 +749,6 @@ const Dashboard = () => {
                               <p className="text-xs text-muted-foreground">
                                 {userRow.goals}G {userRow.assists}A {userRow.saves}SV {userRow.shots != null ? `${userRow.shots}SH` : ""}
                               </p>
-                              {userCarry > 0 && (
-                                <div className="flex items-center gap-1.5 mt-1 justify-end">
-                                  <span className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Contribution</span>
-                                  <button onClick={(e) => { e.stopPropagation(); setShowContribInfo(true); }} className="text-muted-foreground hover:text-foreground transition-colors">
-                                    <Info className="w-2.5 h-2.5" />
-                                  </button>
-                                  <CarryMeter score={userCarry} teamSize={teamSize} size="sm" />
-                                </div>
-                              )}
                             </div>
                           )}
                           <button
@@ -770,6 +761,18 @@ const Dashboard = () => {
                           </button>
                         </div>
                       </div>
+
+                      {/* Contribution row — full-width below the main row so its width
+                          doesn't constrain the right-side score column above. */}
+                      {userRow && userCarry > 0 && (
+                        <div className="mt-2 flex items-center gap-1.5 justify-end">
+                          <span className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Contribution</span>
+                          <button onClick={(e) => { e.stopPropagation(); setShowContribInfo(true); }} className="text-muted-foreground hover:text-foreground transition-colors">
+                            <Info className="w-2.5 h-2.5" />
+                          </button>
+                          <CarryMeter score={userCarry} teamSize={teamSize} size="sm" />
+                        </div>
+                      )}
 
                       {/* Expanded player breakdown */}
                       {isExpanded && (
