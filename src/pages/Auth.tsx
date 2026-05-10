@@ -64,104 +64,145 @@ const Auth = () => {
   };
 
   return (
-    <div
-      className="min-h-screen bg-background flex items-start justify-center px-4 overflow-y-auto"
-      style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 2rem)', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 2rem)' }}
-    >
-      <div className="w-full max-w-md">
-        <Link to="/" className="block text-center mb-8">
-          <Logo size="lg" className="justify-center" />
-          <p className="text-sm text-muted-foreground mt-2">Rocket League stat tracker</p>
-        </Link>
+    <div className="relative min-h-[100dvh] bg-background overflow-y-auto">
+      {/* Soft ambient glow — gives the auth screen a touch of depth */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(circle at 50% 0%, hsl(var(--primary) / 0.18) 0%, transparent 55%)",
+        }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(circle at 50% 100%, hsl(250, 80%, 70%, 0.10) 0%, transparent 50%)",
+        }}
+      />
 
-        <Card className="border-border/50 bg-card/80 backdrop-blur-sm">
-          <CardHeader className="text-center">
-            <CardTitle className="text-2xl font-display">
-              {mode === "signin" && "Welcome Back"}
-              {mode === "signup" && "Create Account"}
-              {mode === "forgot" && "Reset Password"}
-            </CardTitle>
-            <CardDescription>
-              {mode === "signin" && "Sign in to track your Rocket League stats"}
-              {mode === "signup" && "Start tracking your RL journey"}
-              {mode === "forgot" && "We'll send you a reset link"}
-            </CardDescription>
-          </CardHeader>
+      <div
+        className="relative min-h-[100dvh] flex flex-col items-center justify-center px-4 py-10"
+        style={{
+          paddingTop: "max(calc(env(safe-area-inset-top, 0px) + 2rem), 2rem)",
+          paddingBottom: "max(calc(env(safe-area-inset-bottom, 0px) + 2rem), 2rem)",
+        }}
+      >
+        <div className="w-full max-w-sm space-y-6 animate-fade-in-up">
+          {/* Logo + tagline */}
+          <Link to="/" className="block text-center group">
+            <Logo size="lg" className="justify-center" />
+            <p className="text-sm text-muted-foreground mt-2.5 tracking-wide">
+              Rocket League stat tracker
+            </p>
+          </Link>
 
-          <form onSubmit={handleSubmit}>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="you@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
+          <Card className="border-border/50 bg-card/70 backdrop-blur-md shadow-2xl shadow-primary/5">
+            <CardHeader className="text-center pb-4">
+              <CardTitle className="text-2xl font-display">
+                {mode === "signin" && "Welcome back"}
+                {mode === "signup" && "Create account"}
+                {mode === "forgot" && "Reset password"}
+              </CardTitle>
+              <CardDescription className="text-xs">
+                {mode === "signin" && "Sign in to track your Rocket League stats"}
+                {mode === "signup" && "Start tracking your RL journey"}
+                {mode === "forgot" && "We'll send you a reset link"}
+              </CardDescription>
+            </CardHeader>
 
-              {mode !== "forgot" && (
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
+            <form onSubmit={handleSubmit}>
+              <CardContent className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="email" className="text-xs uppercase tracking-wider text-muted-foreground">
+                    Email
+                  </Label>
                   <Input
-                    id="password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    id="email"
+                    type="email"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    autoComplete="email"
                     required
-                    minLength={6}
                   />
                 </div>
-              )}
-            </CardContent>
 
-            <CardFooter className="flex flex-col gap-3">
-              <Button type="submit" variant="hero" className="w-full" disabled={loading}>
-                {loading ? "Loading..." : mode === "signin" ? "Sign In" : mode === "signup" ? "Create Account" : "Send Reset Link"}
-              </Button>
+                {mode !== "forgot" && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="password" className="text-xs uppercase tracking-wider text-muted-foreground">
+                      Password
+                    </Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                      required
+                      minLength={6}
+                    />
+                  </div>
+                )}
+              </CardContent>
 
-              {mode === "signin" && (
-                <>
+              <CardFooter className="flex flex-col gap-3 pt-2">
+                <Button type="submit" variant="hero" className="w-full" disabled={loading}>
+                  {loading ? "Loading..." : mode === "signin" ? "Sign in" : mode === "signup" ? "Create account" : "Send reset link"}
+                </Button>
+
+                {mode === "signin" && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setMode("forgot")}
+                      className="text-xs text-muted-foreground hover:text-primary transition-colors"
+                    >
+                      Forgot your password?
+                    </button>
+                    <div className="w-full pt-3 mt-1 border-t border-border/40 text-center">
+                      <p className="text-xs text-muted-foreground">
+                        Don't have an account?{" "}
+                        <button type="button" onClick={() => setMode("signup")} className="text-primary font-semibold hover:underline">
+                          Sign up
+                        </button>
+                      </p>
+                    </div>
+                  </>
+                )}
+
+                {mode === "signup" && (
+                  <div className="w-full pt-3 mt-1 border-t border-border/40 text-center">
+                    <p className="text-xs text-muted-foreground">
+                      Already have an account?{" "}
+                      <button type="button" onClick={() => setMode("signin")} className="text-primary font-semibold hover:underline">
+                        Sign in
+                      </button>
+                    </p>
+                  </div>
+                )}
+
+                {mode === "forgot" && (
                   <button
                     type="button"
-                    onClick={() => setMode("forgot")}
-                    className="text-sm text-muted-foreground hover:text-primary transition-colors"
+                    onClick={() => setMode("signin")}
+                    className="text-xs text-primary hover:underline"
                   >
-                    Forgot your password?
+                    ← Back to sign in
                   </button>
-                  <p className="text-sm text-muted-foreground">
-                    Don't have an account?{" "}
-                    <button type="button" onClick={() => setMode("signup")} className="text-primary hover:underline">
-                      Sign up
-                    </button>
-                  </p>
-                </>
-              )}
+                )}
+              </CardFooter>
+            </form>
+          </Card>
 
-              {mode === "signup" && (
-                <p className="text-sm text-muted-foreground">
-                  Already have an account?{" "}
-                  <button type="button" onClick={() => setMode("signin")} className="text-primary hover:underline">
-                    Sign in
-                  </button>
-                </p>
-              )}
-
-              {mode === "forgot" && (
-                <button
-                  type="button"
-                  onClick={() => setMode("signin")}
-                  className="text-sm text-primary hover:underline"
-                >
-                  Back to sign in
-                </button>
-              )}
-            </CardFooter>
-          </form>
-        </Card>
+          {/* Footer attribution */}
+          <p className="text-center text-[10px] text-muted-foreground/60 tracking-wider uppercase">
+            Track · Compare · Carry
+          </p>
+        </div>
       </div>
     </div>
   );
