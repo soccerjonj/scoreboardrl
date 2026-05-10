@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
+import { relativeDate } from "@/lib/relativeDate";
 import { Plus, Loader2, Trophy, Target, TrendingUp, ChevronRight, Zap, ChevronDown, ChevronUp, Pencil, Check, X as XIcon, Trash2, Info, Users, ExternalLink } from "lucide-react";
 import TournamentBannerCard from "@/components/tournament/TournamentBannerCard";
 
@@ -684,7 +684,8 @@ const Dashboard = () => {
                               : "bg-rl-red shadow-[0_0_8px_hsl(var(--rl-red)/0.6)]"
                           )} />
                           <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5 flex-wrap">
+                            {/* Row 1: essentials only — kept on a single line so it can't overflow into the points column */}
+                            <div className="flex items-center gap-1.5 flex-nowrap min-w-0 overflow-hidden">
                               <span className={cn(
                                 "font-display font-bold text-sm flex-shrink-0",
                                 isWin ? "text-rl-green" : "text-rl-red"
@@ -702,7 +703,7 @@ const Dashboard = () => {
                                 const serious = isSeriousCategory(cat);
                                 return (
                                   <span className={cn(
-                                    "text-[10px] flex-shrink-0",
+                                    "text-[10px] truncate",
                                     serious ? "text-foreground/70 font-semibold" : "text-muted-foreground"
                                   )}>
                                     {GAME_CATEGORY_LABELS[cat]}
@@ -721,16 +722,23 @@ const Dashboard = () => {
                                   Div {game.division_change === "up" ? "↑" : "↓"}
                                 </Badge>
                               )}
+                            </div>
+                            {/* Row 2: meta — relative time + smaller icons (MVP, friend on team) */}
+                            <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                              <span>{relativeDate(game.played_at)}</span>
                               {userRow?.is_mvp && (
-                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-yellow-400/15 text-yellow-400 flex-shrink-0">MVP</span>
+                                <>
+                                  <span className="text-border/60">·</span>
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-yellow-400/15 text-yellow-400">MVP</span>
+                                </>
                               )}
                               {hasFriendOnTeam && (
-                                <Users className="w-3 h-3 text-primary/60 flex-shrink-0" />
+                                <>
+                                  <span className="text-border/60">·</span>
+                                  <Users className="w-3 h-3 text-primary/60" />
+                                </>
                               )}
                             </div>
-                            <p className="text-xs text-muted-foreground">
-                              {format(new Date(game.played_at), "MMM d, h:mm a")}
-                            </p>
                           </div>
                         </div>
 
