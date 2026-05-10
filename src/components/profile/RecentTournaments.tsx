@@ -214,16 +214,18 @@ function TournamentRow({ tournament, profileUserId }: { tournament: RecentTourna
     const playerMap = new Map<string, {
       displayName: string;
       isSubject: boolean;
-      score: number;
       goals: number;
       assists: number;
       saves: number;
       shots: number;
+      mvps: number;
       contribTotal: number;
       contribCount: number;
       gamesCount: number;
+      // Used internally for sort stability — total score is no longer surfaced in the UI
+      _scoreSort: number;
     }>();
-    const teamTotals = { score: 0, goals: 0, assists: 0, saves: 0, shots: 0 };
+    const teamTotals = { goals: 0, assists: 0, saves: 0, shots: 0, mvps: 0 };
 
     games.forEach((g) => {
       const subjectRow = g.game_players.find((p) => p.user_id === profileUserId);
@@ -234,40 +236,43 @@ function TournamentRow({ tournament, profileUserId }: { tournament: RecentTourna
           const key = p.user_id ?? p.player_name.trim().toLowerCase();
           const cs = p.contribution_score;
           const hasCs = typeof cs === "number" && !Number.isNaN(cs);
+          const isMvp = !!p.is_mvp;
           const existing = playerMap.get(key);
           if (existing) {
-            existing.score   += p.score   ?? 0;
             existing.goals   += p.goals   ?? 0;
             existing.assists += p.assists ?? 0;
             existing.saves   += p.saves   ?? 0;
             existing.shots   += p.shots   ?? 0;
+            existing.mvps    += isMvp ? 1 : 0;
+            existing._scoreSort += p.score ?? 0;
             existing.gamesCount += 1;
             if (hasCs) { existing.contribTotal += cs as number; existing.contribCount += 1; }
           } else {
             playerMap.set(key, {
               displayName: p.player_name,
               isSubject: p.user_id === profileUserId,
-              score:   p.score   ?? 0,
               goals:   p.goals   ?? 0,
               assists: p.assists ?? 0,
               saves:   p.saves   ?? 0,
               shots:   p.shots   ?? 0,
+              mvps:    isMvp ? 1 : 0,
+              _scoreSort: p.score ?? 0,
               contribTotal: hasCs ? (cs as number) : 0,
               contribCount: hasCs ? 1 : 0,
               gamesCount: 1,
             });
           }
-          teamTotals.score   += p.score   ?? 0;
           teamTotals.goals   += p.goals   ?? 0;
           teamTotals.assists += p.assists ?? 0;
           teamTotals.saves   += p.saves   ?? 0;
           teamTotals.shots   += p.shots   ?? 0;
+          if (isMvp) teamTotals.mvps += 1;
         });
     });
 
     const teammates = Array.from(playerMap.values()).sort((a, b) => {
       if (a.isSubject !== b.isSubject) return a.isSubject ? -1 : 1;
-      return b.score - a.score;
+      return b._scoreSort - a._scoreSort;
     });
     const totalGames = games.length;
     const wins = games.filter((g) => g.result === "win").length;
@@ -397,11 +402,11 @@ function TournamentRow({ tournament, profileUserId }: { tournament: RecentTourna
                   {/* Big stats line — horizontal split, no individual tile boxes */}
                   <div className="relative grid grid-cols-5 divide-x divide-foreground/[0.06]">
                     {[
-                      { label: "Score",   value: teamTotals.score,   color: "text-foreground" },
                       { label: "Goals",   value: teamTotals.goals,   color: "text-rl-orange" },
                       { label: "Assists", value: teamTotals.assists, color: "text-rl-blue" },
                       { label: "Saves",   value: teamTotals.saves,   color: "text-cyan-400" },
                       { label: "Shots",   value: teamTotals.shots,   color: "text-muted-foreground/80" },
+                      { label: "MVPs",    value: teamTotals.mvps,    color: "text-yellow-400" },
                     ].map(({ label, value, color }) => (
                       <div key={label} className="flex flex-col items-center justify-center px-1">
                         <span className={cn("font-display font-bold text-2xl leading-none tabular-nums", color)}>{value}</span>
@@ -445,11 +450,13 @@ function TournamentRow({ tournament, profileUserId }: { tournament: RecentTourna
 
                         {/* Inline horizontal stats row + avg carry */}
                         <div className="flex items-center gap-3 font-mono text-xs flex-wrap pl-3">
-                          <span className="font-bold text-foreground/90 tabular-nums">{p.score}</span>
                           <span className="text-rl-orange tabular-nums">{p.goals}G</span>
                           <span className="text-rl-blue tabular-nums">{p.assists}A</span>
                           <span className="text-cyan-400 tabular-nums">{p.saves}SV</span>
                           <span className="text-muted-foreground tabular-nums">{p.shots}SH</span>
+                          {p.mvps > 0 && (
+                            <span className="text-yellow-400 font-bold tabular-nums">{p.mvps} MVP</span>
+                          )}
                           {avgContrib !== null && teamSize > 1 && (
                             <div className="ml-auto flex items-center gap-1.5 min-w-0">
                               <span className="text-[9px] uppercase tracking-wider text-muted-foreground/70 shrink-0">Carry</span>
