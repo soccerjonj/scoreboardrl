@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { ChevronDown, ChevronUp, Clock, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronUp, Clock, ChevronRight, Users } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -27,12 +27,28 @@ function PlayerRow({
     )}>
       <div className="flex flex-col gap-0.5 min-w-0">
         <div className="flex items-center gap-1.5 min-w-0">
-          <span className={cn(
-            "truncate text-xs font-medium leading-snug",
-            isMe ? "text-primary font-semibold" : "text-foreground"
-          )}>
-            {player.playerName || "—"}
-          </span>
+          {(() => {
+            const nameClasses = cn(
+              "truncate text-xs font-medium leading-snug",
+              isMe ? "text-primary font-semibold" : "text-foreground"
+            );
+            const display = player.playerName || "—";
+            // Link the gamertag to that user's profile when they have a
+            // ScoreboardRL account AND it isn't the row's own user.
+            if (player.userId && !isMe) {
+              return (
+                <Link
+                  to={`/profile/${player.userId}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className={cn(nameClasses, "hover:text-primary hover:underline transition-colors")}
+                  title={`View ${display}'s profile`}
+                >
+                  {display}
+                </Link>
+              );
+            }
+            return <span className={nameClasses}>{display}</span>;
+          })()}
           {player.isMvp && (
             <span className="shrink-0 text-[9px] text-yellow-400 font-bold leading-snug flex-shrink-0">
               MVP
@@ -117,14 +133,25 @@ function Scoreboard({
 function GameCard({
   game,
   currentUserId,
+  viewerFriendIds,
 }: {
   game: ActivityGame;
   currentUserId: string | null;
+  viewerFriendIds?: Set<string>;
 }) {
   const [expanded, setExpanded] = useState(false);
   const isWin     = game.result === "win";
   const hasScore  = game.teamGoals !== null && game.opponentGoals !== null;
   const teamSize  = game.gameMode === "1v1" ? 1 : game.gameMode === "2v2" ? 2 : game.gameMode === "3v3" ? 3 : 4;
+
+  // Determine the profile owner's team in this game (the row that matches currentUserId).
+  // Then check if any other player on that team is a viewer's friend.
+  const ownerTeam = currentUserId
+    ? game.allPlayers.find((p) => p.userId === currentUserId)?.team ?? null
+    : null;
+  const hasFriendOnTeam = !!(viewerFriendIds && ownerTeam && game.allPlayers.some(
+    (p) => p.team === ownerTeam && p.userId && p.userId !== currentUserId && viewerFriendIds.has(p.userId)
+  ));
 
   // Derive game category for clear labeling
   const category = getGameCategory({
@@ -201,6 +228,9 @@ function GameCard({
                   <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-yellow-400/15 text-yellow-400 flex-shrink-0">
                     MVP
                   </span>
+                )}
+                {hasFriendOnTeam && (
+                  <Users className="w-3 h-3 text-primary/60 flex-shrink-0" aria-label="Played with a friend" />
                 )}
               </div>
 
@@ -286,9 +316,11 @@ function GameCard({
 type Props = {
   games: ActivityGame[];
   currentUserId?: string | null;
+  /** IDs of the viewer's accepted friends — used to flag games where one of them appeared on the profile owner's team. */
+  viewerFriendIds?: Set<string>;
 };
 
-export default function ActivityFeed({ games, currentUserId = null }: Props) {
+export default function ActivityFeed({ games, currentUserId = null, viewerFriendIds }: Props) {
   const [showAll, setShowAll] = useState(false);
   if (games.length === 0) return null;
 
@@ -302,7 +334,7 @@ export default function ActivityFeed({ games, currentUserId = null }: Props) {
       </p>
       <div className="space-y-2">
         {visible.map((game) => (
-          <GameCard key={game.id} game={game} currentUserId={currentUserId} />
+          <GameCard key={game.id} game={game} currentUserId={currentUserId} viewerFriendIds={viewerFriendIds} />
         ))}
       </div>
       {games.length > 10 && (

@@ -116,10 +116,31 @@ const FriendProfile = () => {
   const [chartData, setChartData] = useState<{ points: Record<string, string | number | null>[]; activeModes: string[] }>({ points: [], activeModes: [] });
   const [teammates, setTeammates] = useState<TeammateProfile[]>([]);
   const [extraModeSummaries, setExtraModeSummaries] = useState<Array<{ mode: GameMode; games: number; wins: number }>>([]);
+  const [viewerFriendIds, setViewerFriendIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/auth");
   }, [user, authLoading, navigate]);
+
+  // Load the VIEWER's friend list (not the profile owner's) so the activity
+  // feed can flag games where one of the viewer's friends played alongside
+  // the profile owner.
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const { data: fr } = await supabase
+        .from("friend_requests")
+        .select("sender_id, receiver_id")
+        .eq("status", "accepted")
+        .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`);
+      const ids = new Set<string>();
+      (fr ?? []).forEach((r: any) => {
+        const otherId = r.sender_id === user.id ? r.receiver_id : r.sender_id;
+        if (otherId) ids.add(otherId);
+      });
+      setViewerFriendIds(ids);
+    })();
+  }, [user]);
 
   useEffect(() => {
     if (!userId || !user) return;
@@ -552,7 +573,7 @@ const FriendProfile = () => {
         <PerformanceChart points={chartData.points} activeModes={chartData.activeModes} />
 
         {/* Activity Feed */}
-        <ActivityFeed games={activityGames} currentUserId={userId} />
+        <ActivityFeed games={activityGames} currentUserId={userId} viewerFriendIds={viewerFriendIds} />
 
         {/* Tournament Trophy Shelf */}
         <TrophyShelf tournaments={tournamentData} isOwnProfile={false} />

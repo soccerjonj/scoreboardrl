@@ -123,6 +123,7 @@ const Profile = () => {
   // New social data
   const [tournamentData, setTournamentData]           = useState<TournamentSummary | null>(null);
   const [activityGames, setActivityGames]             = useState<ActivityGame[]>([]);
+  const [viewerFriendIds, setViewerFriendIds]         = useState<Set<string>>(new Set());
   const [bestGame, setBestGame]                       = useState<BestGame | null>(null);
   const [leaderboardStanding, setLeaderboardStanding] = useState<LeaderboardStanding | null>(null);
   const [chartData, setChartData] = useState<{ points: Record<string, string | number | null>[]; activeModes: string[] }>({ points: [], activeModes: [] });
@@ -201,6 +202,21 @@ const Profile = () => {
       } catch { /* non-critical */ }
     };
     loadTournaments();
+
+    // Load my accepted friend IDs (for the played-with-friend indicator)
+    (async () => {
+      const { data: fr } = await supabase
+        .from("friend_requests")
+        .select("sender_id, receiver_id")
+        .eq("status", "accepted")
+        .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`);
+      const ids = new Set<string>();
+      (fr ?? []).forEach((r: any) => {
+        const otherId = r.sender_id === user.id ? r.receiver_id : r.sender_id;
+        if (otherId) ids.add(otherId);
+      });
+      setViewerFriendIds(ids);
+    })();
 
     // Load game stats
     const loadStats = async () => {
@@ -640,7 +656,7 @@ const Profile = () => {
           <PerformanceChart points={chartData.points} activeModes={chartData.activeModes} />
 
           {/* Activity Feed */}
-          <ActivityFeed games={activityGames} currentUserId={user.id} />
+          <ActivityFeed games={activityGames} currentUserId={user.id} viewerFriendIds={viewerFriendIds} />
 
           {/* Tournament Trophy Shelf */}
           <TrophyShelf tournaments={tournamentData} isOwnProfile={true} />
