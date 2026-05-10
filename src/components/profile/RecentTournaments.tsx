@@ -349,84 +349,123 @@ function TournamentRow({ tournament, profileUserId }: { tournament: RecentTourna
           </div>
 
           {/* Team Stats */}
-          {games.length > 0 && teammates.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Team Stats</p>
+          {games.length > 0 && teammates.length > 0 && (() => {
+            // Outcome-themed accent for the hero banner
+            const heroBg = isWinner
+              ? "bg-gradient-to-br from-yellow-400/20 via-yellow-400/10 to-transparent border-yellow-400/40"
+              : isEliminated
+                ? "bg-gradient-to-br from-rl-red/15 via-rl-red/8 to-transparent border-rl-red/30"
+                : "bg-gradient-to-br from-primary/15 via-primary/8 to-transparent border-primary/40";
+            const heroAccent = isWinner ? "text-yellow-400" : isEliminated ? "text-rl-red" : "text-primary";
 
-              <div className="rounded-xl border border-primary/30 bg-gradient-to-br from-primary/10 to-primary/5 p-4 mb-3">
-                <div className="flex items-center justify-between gap-2 mb-3">
-                  <span className="text-xs font-display font-bold uppercase tracking-wider text-primary">Team Total</span>
-                  <span className="text-[11px] text-muted-foreground font-mono shrink-0">
-                    {totalGames} game{totalGames === 1 ? "" : "s"} · <span className="text-rl-green">{wins}W</span> <span className="text-rl-red">{totalGames - wins}L</span>
-                  </span>
-                </div>
-                <div className="grid grid-cols-5 gap-2">
-                  {[
-                    { label: "Score",   value: teamTotals.score,   color: "text-foreground" },
-                    { label: "Goals",   value: teamTotals.goals,   color: "text-rl-orange" },
-                    { label: "Assists", value: teamTotals.assists, color: "text-rl-blue" },
-                    { label: "Saves",   value: teamTotals.saves,   color: "text-cyan-400" },
-                    { label: "Shots",   value: teamTotals.shots,   color: "text-muted-foreground" },
-                  ].map(({ label, value, color }) => (
-                    <div key={label} className="flex flex-col items-center justify-center py-2 rounded-lg bg-background/50">
-                      <span className={cn("font-display font-bold text-xl leading-none", color)}>{value}</span>
-                      <span className="text-[9px] uppercase tracking-wider text-muted-foreground mt-1">{label}</span>
+            return (
+              <div>
+                {/* ── HERO TEAM BANNER ──────────────────────────────────────── */}
+                <div className={cn("relative overflow-hidden rounded-2xl border-2 p-5 mb-4", heroBg)}>
+                  {/* Decorative trophy watermark */}
+                  <Trophy className={cn("absolute -right-3 -top-3 w-24 h-24 opacity-[0.06]", heroAccent)} />
+
+                  {/* Top line: Title + win/loss tally + per-game W/L history */}
+                  <div className="relative flex items-end justify-between gap-3 mb-4 flex-wrap">
+                    <div>
+                      <p className={cn("text-[10px] uppercase tracking-[0.2em] font-bold mb-1", heroAccent)}>
+                        Team Recap
+                      </p>
+                      <p className="font-display text-3xl font-bold leading-none">
+                        <span className="text-rl-green">{wins}</span>
+                        <span className="text-muted-foreground/60 mx-1.5">–</span>
+                        <span className="text-rl-red">{totalGames - wins}</span>
+                      </p>
                     </div>
-                  ))}
-                </div>
-              </div>
+                    {/* Per-game W/L dot history */}
+                    <div className="flex items-center gap-1.5">
+                      {games.map((g, i) => (
+                        <span
+                          key={i}
+                          className={cn(
+                            "w-2.5 h-2.5 rounded-full",
+                            g.result === "win"
+                              ? "bg-rl-green shadow-[0_0_6px_hsl(var(--rl-green)/0.5)]"
+                              : "bg-rl-red shadow-[0_0_6px_hsl(var(--rl-red)/0.5)]"
+                          )}
+                          title={g.result === "win" ? "Win" : "Loss"}
+                        />
+                      ))}
+                    </div>
+                  </div>
 
-              {/* Per-teammate cards */}
-              <div className="space-y-2">
-                {teammates.map((p, i) => {
-                  const avgContrib = p.contribCount > 0 ? p.contribTotal / p.contribCount : null;
-                  return (
-                    <div
-                      key={i}
-                      className={cn(
-                        "rounded-xl border p-3.5",
-                        p.isSubject ? "bg-primary/5 border-primary/40 shadow-sm" : "bg-card/40 border-border/40"
-                      )}
-                    >
-                      <div className="flex items-center justify-between gap-2 mb-3">
-                        <span className={cn(
-                          "text-base font-display font-bold min-w-0 break-words",
-                          p.isSubject ? "text-primary" : "text-foreground"
-                        )}>
-                          {p.displayName || <span className="italic text-muted-foreground">Unknown</span>}
-                        </span>
-                        <span className="text-[11px] text-muted-foreground font-mono shrink-0">
-                          {p.gamesCount} game{p.gamesCount === 1 ? "" : "s"}
-                        </span>
+                  {/* Big stats line — horizontal split, no individual tile boxes */}
+                  <div className="relative grid grid-cols-5 divide-x divide-foreground/[0.06]">
+                    {[
+                      { label: "Score",   value: teamTotals.score,   color: "text-foreground" },
+                      { label: "Goals",   value: teamTotals.goals,   color: "text-rl-orange" },
+                      { label: "Assists", value: teamTotals.assists, color: "text-rl-blue" },
+                      { label: "Saves",   value: teamTotals.saves,   color: "text-cyan-400" },
+                      { label: "Shots",   value: teamTotals.shots,   color: "text-muted-foreground/80" },
+                    ].map(({ label, value, color }) => (
+                      <div key={label} className="flex flex-col items-center justify-center px-1">
+                        <span className={cn("font-display font-bold text-2xl leading-none tabular-nums", color)}>{value}</span>
+                        <span className="text-[9px] uppercase tracking-[0.15em] text-muted-foreground mt-1.5">{label}</span>
                       </div>
-                      <div className="grid grid-cols-5 gap-1.5">
-                        {[
-                          { label: "Score",   value: p.score,   color: "text-foreground" },
-                          { label: "Goals",   value: p.goals,   color: "text-rl-orange" },
-                          { label: "Assists", value: p.assists, color: "text-rl-blue" },
-                          { label: "Saves",   value: p.saves,   color: "text-cyan-400" },
-                          { label: "Shots",   value: p.shots,   color: "text-muted-foreground" },
-                        ].map(({ label, value, color }) => (
-                          <div key={label} className="flex flex-col items-center justify-center py-1.5 rounded-md bg-background/50">
-                            <span className={cn("font-display font-bold text-lg leading-none", color)}>{value}</span>
-                            <span className="text-[9px] uppercase tracking-wider text-muted-foreground mt-1">{label}</span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* ── ROSTER ────────────────────────────────────────────────── */}
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 px-0.5">Roster</p>
+                <div className="space-y-1.5">
+                  {teammates.map((p, i) => {
+                    const avgContrib = p.contribCount > 0 ? p.contribTotal / p.contribCount : null;
+                    return (
+                      <div
+                        key={i}
+                        className={cn(
+                          "rounded-lg border px-3 py-2.5 transition-colors",
+                          p.isSubject ? "bg-primary/5 border-primary/30" : "bg-card/40 border-border/30"
+                        )}
+                      >
+                        {/* Top row: name + games count */}
+                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className={cn(
+                              "w-1 h-5 rounded-full shrink-0",
+                              p.isSubject ? "bg-primary" : "bg-border"
+                            )} />
+                            <span className={cn(
+                              "text-sm font-display font-bold truncate",
+                              p.isSubject ? "text-primary" : "text-foreground"
+                            )}>
+                              {p.displayName || <span className="italic text-muted-foreground">Unknown</span>}
+                            </span>
                           </div>
-                        ))}
-                      </div>
-                      {avgContrib !== null && teamSize > 1 && (
-                        <div className="mt-3 pt-3 border-t border-border/30 flex items-center gap-3">
-                          <span className="text-[10px] uppercase tracking-wider text-muted-foreground shrink-0">Avg Carry</span>
-                          <div className="flex-1 min-w-0">
-                            <CarryMeter score={avgContrib} teamSize={teamSize} size="sm" />
-                          </div>
+                          <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-semibold shrink-0">
+                            {p.gamesCount}{p.gamesCount === 1 ? " game" : " games"}
+                          </span>
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
+
+                        {/* Inline horizontal stats row + avg carry */}
+                        <div className="flex items-center gap-3 font-mono text-xs flex-wrap pl-3">
+                          <span className="font-bold text-foreground/90 tabular-nums">{p.score}</span>
+                          <span className="text-rl-orange tabular-nums">{p.goals}G</span>
+                          <span className="text-rl-blue tabular-nums">{p.assists}A</span>
+                          <span className="text-cyan-400 tabular-nums">{p.saves}SV</span>
+                          <span className="text-muted-foreground tabular-nums">{p.shots}SH</span>
+                          {avgContrib !== null && teamSize > 1 && (
+                            <div className="ml-auto flex items-center gap-1.5 min-w-0">
+                              <span className="text-[9px] uppercase tracking-wider text-muted-foreground/70 shrink-0">Carry</span>
+                              <div className="w-16 shrink-0">
+                                <CarryMeter score={avgContrib} teamSize={teamSize} size="sm" />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Games list */}
           {games.length > 0 && (
