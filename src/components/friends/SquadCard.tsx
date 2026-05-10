@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { Users2, ChevronDown, ChevronUp, Loader2, Pencil, Trash2, User, Check, X as XIcon } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Users2, ChevronDown, ChevronUp, Loader2, Pencil, Trash2, Trophy } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { CarryMeter } from "@/components/game/CarryMeter";
 import { relativeDate } from "@/lib/relativeDate";
 import { getGameCategory, GAME_CATEGORY_SHORT_LABELS, isSeriousCategory } from "@/lib/gameModes";
+import RecentTournaments, { type RecentTournament } from "@/components/profile/RecentTournaments";
 import { cn } from "@/lib/utils";
 
 export type SquadCardData = {
@@ -58,7 +59,10 @@ export default function SquadCard({ squad, viewerUserId, onEdit, onDelete }: Pro
   const [detailLoaded, setDetailLoaded] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [games, setGames] = useState<GameRow[]>([]);
+  const [tournaments, setTournaments] = useState<RecentTournament[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [expandedGameId, setExpandedGameId] = useState<string | null>(null);
+  const [visibleGames, setVisibleGames] = useState(5);
 
   const memberIds = useMemo(
     () => [viewerUserId, ...squad.members.map((m) => m.userId)],
@@ -115,6 +119,25 @@ export default function SquadCard({ squad, viewerUserId, onEdit, onDelete }: Pro
         .order("played_at", { ascending: false });
 
       setGames((gamesData ?? []) as GameRow[]);
+
+      // 5. Find tournaments where the squad played together. A tournament
+      // counts when at least one of its games is in our togetherGameIds set.
+      const { data: tgRows } = await supabase
+        .from("tournament_games")
+        .select("tournament_id")
+        .in("game_id", togetherGameIds);
+      const tournamentIds = Array.from(new Set((tgRows ?? []).map((r) => r.tournament_id))).filter(Boolean) as string[];
+      if (tournamentIds.length > 0) {
+        const { data: tList } = await supabase
+          .from("tournaments")
+          .select("id, game_mode, tournament_type, status, outcome, current_round, created_at")
+          .in("id", tournamentIds)
+          .order("created_at", { ascending: false });
+        setTournaments((tList ?? []) as RecentTournament[]);
+      } else {
+        setTournaments([]);
+      }
+
       setDetailLoaded(true);
     } catch (err: any) {
       toast({ title: "Failed to load squad stats", description: err.message, variant: "destructive" });
@@ -129,7 +152,7 @@ export default function SquadCard({ squad, viewerUserId, onEdit, onDelete }: Pro
   };
 
   // ── Aggregate chemistry stats across together-games ─────────────────────
-  const { teamTotals, roster, totalGames, wins, recentGames, wlHistory, teamSize } = useMemo(() => {
+  const { teamTotals, roster, totalGames, wins, wlHistory, teamSize, goalsFor, goalsAgainst } = useMemo(() => {
     type RosterEntry = {
       userId: string;
       displayName: string;
@@ -148,6 +171,8 @@ export default function SquadCard({ squad, viewerUserId, onEdit, onDelete }: Pro
     const teamTotals = { goals: 0, assists: 0, saves: 0, shots: 0, mvps: 0 };
     const memberSet = new Set(memberIds);
     let teamSize = DEFAULT_TEAM_SIZE;
+    let goalsFor = 0;
+    let goalsAgainst = 0;
 
     games.forEach((g) => {
       // Filter to squad members on the team they shared in this game
@@ -159,6 +184,15 @@ export default function SquadCard({ squad, viewerUserId, onEdit, onDelete }: Pro
       // game-level team size hint
       const sameTeamCount = g.game_players.filter((p) => p.team === team).length;
       if (sameTeamCount > 0) teamSize = sameTeamCount;
+
+      // Team-level goal totals (squad's team vs opponents)
+      g.game_players.forEach((p) => {
+        if (p.team === team) {
+          goalsFor += p.goals ?? 0;
+        } else if (p.team) {
+          goalsAgainst += p.goals ?? 0;
+        }
+      });
 
       memberRows.forEach((p) => {
         if (!p.user_id) return;
@@ -210,10 +244,7 @@ export default function SquadCard({ squad, viewerUserId, onEdit, onDelete }: Pro
     // W/L history dots — last 10 games together, oldest -> newest visually
     const wlHistory = games.slice(0, 10).map((g) => g.result as "win" | "loss" | string).reverse();
 
-    // Recent 5 games together
-    const recentGames = games.slice(0, 5);
-
-    return { teamTotals, roster, totalGames, wins, recentGames, wlHistory, teamSize };
+    return { teamTotals, roster, totalGames, wins, wlHistory, teamSize, goalsFor, goalsAgainst };
   }, [games, memberIds, viewerUserId]);
 
   const winRate = totalGames > 0 ? Math.round((wins / totalGames) * 100) : 0;
@@ -331,9 +362,22 @@ export default function SquadCard({ squad, viewerUserId, onEdit, onDelete }: Pro
                     <span className="text-muted-foreground/60 mx-1.5">–</span>
                     <span className="text-rl-red">{totalGames - wins}</span>
                   </p>
+                  {/* Team goal differential — meaningful at the squad level */}
+                  <p className="mt-2 text-xs font-mono text-muted-foreground tabular-nums">
+                    <span className="text-rl-green font-bold">{goalsFor}</span> scored ·{" "}
+                    <span className="text-rl-red font-bold">{goalsAgainst}</span> allowed{" "}
+                    <span className={cn(
+                      "ml-1 font-bold",
+                      goalsFor > goalsAgainst ? "text-rl-green"
+                        : goalsFor < goalsAgainst ? "text-rl-red"
+                        : "text-muted-foreground"
+                    )}>
+                      ({goalsFor >= goalsAgainst ? "+" : ""}{goalsFor - goalsAgainst})
+                    </span>
+                  </p>
                 </div>
                 {/* W/L history dots — most recent on the right */}
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 self-start mt-1">
                   {wlHistory.map((res, i) => (
                     <span
                       key={i}
@@ -422,14 +466,29 @@ export default function SquadCard({ squad, viewerUserId, onEdit, onDelete }: Pro
             </div>
           )}
 
+          {/* ── Tournaments together (if any) ──────────────────────────────── */}
+          {tournaments.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 px-0.5 flex items-center gap-1.5">
+                <Trophy className="w-3.5 h-3.5 text-yellow-400" />
+                Tournaments Together
+              </p>
+              <RecentTournaments
+                tournaments={tournaments}
+                profileUserId={viewerUserId}
+                isOwnProfile={true}
+              />
+            </div>
+          )}
+
           {/* ── Recent games together ──────────────────────────────────────── */}
-          {recentGames.length > 0 && (
+          {games.length > 0 && (
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 px-0.5">
                 Recent Games Together
               </p>
               <div className="space-y-1.5">
-                {recentGames.map((g) => {
+                {games.slice(0, visibleGames).map((g) => {
                   const isWin = g.result === "win";
                   const cat = getGameCategory(g as any);
                   const serious = isSeriousCategory(cat);
@@ -441,6 +500,17 @@ export default function SquadCard({ squad, viewerUserId, onEdit, onDelete }: Pro
                   const oppGoals = myTeam
                     ? g.game_players.filter((p) => p.team !== myTeam && p.team != null).reduce((s, p) => s + (p.goals ?? 0), 0)
                     : null;
+                  const isGameExpanded = expandedGameId === g.id;
+
+                  // For the expanded scoreboard, group players by team relative
+                  // to the viewer's team
+                  const myTeamPlayers = myTeam
+                    ? g.game_players.filter((p) => p.team === myTeam).sort((a, b) => b.score - a.score)
+                    : [];
+                  const oppPlayers = myTeam
+                    ? g.game_players.filter((p) => p.team !== myTeam && p.team != null).sort((a, b) => b.score - a.score)
+                    : [];
+
                   return (
                     <div
                       key={g.id}
@@ -455,48 +525,129 @@ export default function SquadCard({ squad, viewerUserId, onEdit, onDelete }: Pro
                           ? "bg-gradient-to-r from-rl-green/80 via-rl-green/40 to-transparent"
                           : "bg-gradient-to-r from-rl-red/80 via-rl-red/40 to-transparent"
                       )} />
-                      <div className="px-3 py-2.5">
-                        <div className="flex items-start gap-3">
-                          <span className={cn(
-                            "w-1.5 h-7 rounded-full flex-shrink-0 mt-0.5",
-                            isWin
-                              ? "bg-rl-green shadow-[0_0_8px_hsl(var(--rl-green)/0.6)]"
-                              : "bg-rl-red shadow-[0_0_8px_hsl(var(--rl-red)/0.6)]"
-                          )} />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5 flex-nowrap min-w-0 overflow-hidden mb-0.5">
-                              <span className={cn(
-                                "font-display font-bold text-xs flex-shrink-0",
-                                isWin ? "text-rl-green" : "text-rl-red"
-                              )}>{isWin ? "WIN" : "LOSS"}</span>
-                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 flex-shrink-0">{g.game_mode}</Badge>
-                              <span className={cn(
-                                "text-[10px] truncate",
-                                serious ? "text-foreground/70 font-semibold" : "text-muted-foreground"
-                              )}>
-                                {GAME_CATEGORY_SHORT_LABELS[cat]}
-                              </span>
+                      <button
+                        onClick={() => setExpandedGameId(isGameExpanded ? null : g.id)}
+                        className="w-full text-left hover:bg-muted/10 transition-colors"
+                      >
+                        <div className="px-3 py-2.5">
+                          <div className="flex items-start gap-3">
+                            <span className={cn(
+                              "w-1.5 h-7 rounded-full flex-shrink-0 mt-0.5",
+                              isWin
+                                ? "bg-rl-green shadow-[0_0_8px_hsl(var(--rl-green)/0.6)]"
+                                : "bg-rl-red shadow-[0_0_8px_hsl(var(--rl-red)/0.6)]"
+                            )} />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5 flex-nowrap min-w-0 overflow-hidden mb-0.5">
+                                <span className={cn(
+                                  "font-display font-bold text-xs flex-shrink-0",
+                                  isWin ? "text-rl-green" : "text-rl-red"
+                                )}>{isWin ? "WIN" : "LOSS"}</span>
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 flex-shrink-0">{g.game_mode}</Badge>
+                                <span className={cn(
+                                  "text-[10px] truncate",
+                                  serious ? "text-foreground/70 font-semibold" : "text-muted-foreground"
+                                )}>
+                                  {GAME_CATEGORY_SHORT_LABELS[cat]}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                                {teamGoals !== null && oppGoals !== null && (
+                                  <>
+                                    <span className="font-display font-bold text-sm leading-none">
+                                      <span className={isWin ? "text-rl-green" : "text-rl-red"}>{teamGoals}</span>
+                                      <span className="text-muted-foreground mx-0.5">–</span>
+                                      <span className="text-muted-foreground">{oppGoals}</span>
+                                    </span>
+                                    <span className="text-border/60">·</span>
+                                  </>
+                                )}
+                                <span className="shrink-0">{relativeDate(g.played_at)}</span>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-                              {teamGoals !== null && oppGoals !== null && (
-                                <>
-                                  <span className="font-display font-bold text-sm leading-none">
-                                    <span className={isWin ? "text-rl-green" : "text-rl-red"}>{teamGoals}</span>
-                                    <span className="text-muted-foreground mx-0.5">–</span>
-                                    <span className="text-muted-foreground">{oppGoals}</span>
-                                  </span>
-                                  <span className="text-border/60">·</span>
-                                </>
-                              )}
-                              <span className="ml-auto shrink-0">{relativeDate(g.played_at)}</span>
+                            <div className="text-muted-foreground/60 shrink-0 mt-1">
+                              {isGameExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                             </div>
                           </div>
                         </div>
-                      </div>
+                      </button>
+
+                      {/* Expanded scoreboard */}
+                      {isGameExpanded && myTeam && (
+                        <div className="border-t border-border/20 px-2 pb-2 pt-2 bg-background/40">
+                          {/* Column headers */}
+                          <div className="grid grid-cols-[1fr_2.5rem_2rem_2.5rem_2rem_2rem] gap-x-1 px-2 pb-1.5 mb-0.5 border-b border-border/20">
+                            <span className="text-[9px] text-muted-foreground font-semibold uppercase tracking-wide">Player</span>
+                            <span className="text-[9px] text-muted-foreground font-semibold text-right">Score</span>
+                            <span className="text-[9px] text-muted-foreground font-semibold text-right">G</span>
+                            <span className="text-[9px] text-muted-foreground font-semibold text-right">A</span>
+                            <span className="text-[9px] text-muted-foreground font-semibold text-right">SV</span>
+                            <span className="text-[9px] text-muted-foreground font-semibold text-right">SH</span>
+                          </div>
+                          {[
+                            { label: isWin ? "Squad · WIN" : "Squad · LOSS", players: myTeamPlayers, isMyTeam: true },
+                            { label: isWin ? "Opponents · LOSS" : "Opponents · WIN", players: oppPlayers, isMyTeam: false },
+                          ].map((group, gi) => (
+                            <div key={gi} className="mb-1">
+                              <p className={cn(
+                                "text-[10px] font-bold uppercase tracking-wider mt-1.5 mb-0.5 px-2",
+                                group.isMyTeam ? "text-primary/80" : "text-muted-foreground"
+                              )}>
+                                {group.label}
+                              </p>
+                              {group.players.map((p, pi) => {
+                                const isMember = p.user_id ? memberIds.includes(p.user_id) : false;
+                                return (
+                                  <div
+                                    key={pi}
+                                    className={cn(
+                                      "grid grid-cols-[1fr_2.5rem_2rem_2.5rem_2rem_2rem] gap-x-1 px-2 py-1.5 items-start text-xs rounded-md",
+                                      isMember && "bg-primary/5"
+                                    )}
+                                  >
+                                    <div className="flex items-start gap-1.5 flex-wrap min-w-0">
+                                      <span className={cn(
+                                        "text-xs font-medium leading-snug break-words",
+                                        isMember ? "text-primary font-semibold" : "text-foreground"
+                                      )}>
+                                        {p.player_name || "—"}
+                                      </span>
+                                      {p.is_mvp && (
+                                        <span className="shrink-0 text-[9px] text-yellow-400 font-bold leading-snug">MVP</span>
+                                      )}
+                                    </div>
+                                    <span className={cn("font-mono font-bold text-right leading-snug", isMember ? "text-foreground" : "text-foreground/80")}>{p.score}</span>
+                                    <span className="font-mono text-muted-foreground text-right leading-snug">{p.goals}</span>
+                                    <span className="font-mono text-muted-foreground text-right leading-snug">{p.assists}</span>
+                                    <span className="font-mono text-muted-foreground text-right leading-snug">{p.saves}</span>
+                                    <span className="font-mono text-muted-foreground text-right leading-snug">{p.shots}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
               </div>
+              {games.length > visibleGames && (
+                <button
+                  onClick={() => setVisibleGames((n) => n + 10)}
+                  className="w-full mt-2 py-2 text-xs text-muted-foreground hover:text-foreground transition-colors text-center"
+                >
+                  Show {Math.min(games.length - visibleGames, 10)} more
+                </button>
+              )}
+              {visibleGames > 5 && games.length > 5 && (
+                <button
+                  onClick={() => setVisibleGames(5)}
+                  className="w-full py-1 text-[10px] text-muted-foreground/60 hover:text-foreground transition-colors text-center"
+                >
+                  Show less
+                </button>
+              )}
             </div>
           )}
         </div>
