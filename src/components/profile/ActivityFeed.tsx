@@ -234,7 +234,7 @@ function GameCard({
                 )}
               </div>
 
-              {/* Stats row: goal score + player stats + relative time */}
+              {/* Stats row: goal score + player stats on the left, time anchored right */}
               <div className="flex items-center gap-2 flex-wrap">
                 {hasScore && (
                   <>
@@ -253,8 +253,10 @@ function GameCard({
                   <span className="text-cyan-400">{game.saves}SV</span>
                   {game.shots != null && <span className="text-muted-foreground">{game.shots}SH</span>}
                 </div>
-                <span className="text-border/60 shrink-0">·</span>
-                <span className="text-xs text-muted-foreground shrink-0">{relativeDate(game.playedAt)}</span>
+                {/* Date anchored to the far right of the row regardless of stat width */}
+                <span className="ml-auto text-xs text-muted-foreground shrink-0">
+                  {relativeDate(game.playedAt)}
+                </span>
               </div>
             </div>
           </div>
