@@ -18,7 +18,7 @@ import { CarryMeter } from "@/components/game/CarryMeter";
 import { calculateContributionScores } from "@/lib/carryScore";
 import { getRankIcon } from "@/lib/rankIcons";
 import AppLayout from "@/components/layout/AppLayout";
-import { isStandardGame, getGameCategory, GAME_CATEGORY_LABELS, isSeriousCategory } from "@/lib/gameModes";
+import { isStandardGame, getGameCategory, GAME_CATEGORY_SHORT_LABELS, isSeriousCategory } from "@/lib/gameModes";
 
 // ─── CountUp component ────────────────────────────────────────────────────────
 const CountUp = ({ to, decimals = 0, suffix = "", duration = 700 }: { to: number; decimals?: number; suffix?: string; duration?: number }) => {
@@ -703,10 +703,10 @@ const Dashboard = () => {
                                 const serious = isSeriousCategory(cat);
                                 return (
                                   <span className={cn(
-                                    "text-[10px] truncate",
+                                    "text-[10px] flex-shrink-0",
                                     serious ? "text-foreground/70 font-semibold" : "text-muted-foreground"
                                   )}>
-                                    {GAME_CATEGORY_LABELS[cat]}
+                                    {GAME_CATEGORY_SHORT_LABELS[cat]}
                                   </span>
                                 );
                               })()}

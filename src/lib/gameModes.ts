@@ -87,6 +87,15 @@ export const GAME_CATEGORY_LABELS: Record<GameCategory, string> = {
   special_tournament: "Special Tournament",
 };
 
+/** Short labels for compact previews where horizontal space is tight. */
+export const GAME_CATEGORY_SHORT_LABELS: Record<GameCategory, string> = {
+  competitive:        "Comp",
+  tournament:         "Tourny",
+  casual:             "Casual",
+  extra_mode:         "Extra",
+  special_tournament: "Sp. Tourny",
+};
+
 /** Categories that contribute to standard stats and leaderboard */
 export const SERIOUS_CATEGORIES: GameCategory[] = ["competitive", "tournament"];
 
