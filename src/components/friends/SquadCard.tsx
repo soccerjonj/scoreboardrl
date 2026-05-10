@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { Users2, ChevronDown, ChevronUp, Loader2, Pencil, Trash2, Trophy } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Users2, ChevronDown, ChevronUp, Loader2, Pencil, Trash2, Trophy, BarChart3, ChevronRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
@@ -464,6 +465,25 @@ export default function SquadCard({ squad, viewerUserId, onEdit, onDelete }: Pro
                 })}
               </div>
             </div>
+          )}
+
+          {/* ── Compare in detail CTA ──────────────────────────────────────── */}
+          {games.length > 0 && roster.length > 1 && (
+            <Link
+              to={`/squad/${squad.id}/compare`}
+              className="w-full flex items-center justify-between gap-2 px-4 py-3 rounded-xl border border-primary/30 bg-gradient-to-r from-primary/10 to-primary/5 hover:from-primary/15 hover:to-primary/8 transition-colors"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <BarChart3 className="w-4 h-4 text-primary shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-sm font-display font-bold text-primary">Compare members in detail</p>
+                  <p className="text-[11px] text-muted-foreground/80">
+                    Per-game averages, contribution, accuracy and more
+                  </p>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-primary shrink-0" />
+            </Link>
           )}
 
           {/* ── Tournaments together (if any) ──────────────────────────────── */}

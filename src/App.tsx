@@ -17,6 +17,7 @@ const Notifications = lazy(() => import("./pages/Notifications.tsx"));
 const Profile = lazy(() => import("./pages/Profile.tsx"));
 const Settings = lazy(() => import("./pages/Settings.tsx"));
 const FriendProfile = lazy(() => import("./pages/FriendProfile.tsx"));
+const SquadCompare = lazy(() => import("./pages/SquadCompare.tsx"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 const Onboarding = lazy(() => import("./pages/Onboarding.tsx"));
@@ -50,6 +51,7 @@ const App = () => (
               <Route path="/settings" element={<Settings />} />
               <Route path="/profile/:userId" element={<FriendProfile />} />
               <Route path="/squad" element={<Navigate to="/friends" replace />} />
+              <Route path="/squad/:id/compare" element={<SquadCompare />} />
               <Route path="/leaderboard" element={<Leaderboard />} />
               <Route path="/tournaments" element={<Tournaments />} />
               <Route path="/reset-password" element={<ResetPassword />} />
