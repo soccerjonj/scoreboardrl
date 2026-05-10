@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { ChevronDown, ChevronUp, Clock } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ChevronDown, ChevronUp, Clock, ChevronRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -249,18 +250,41 @@ function GameCard({
         {/* Expanded scoreboard */}
         {expanded && game.allPlayers.length > 0 && (
           <>
-            {detailLine && (
-              <div className={cn(
-                "mt-3 px-3 py-1.5 rounded-md border text-[11px] inline-flex items-center gap-1.5",
+            {detailLine && (() => {
+              const isTournament = category === "tournament" || category === "special_tournament";
+              const canLink = isTournament && !!game.tournamentId;
+              const chipClasses = cn(
+                "mt-3 px-3 py-1.5 rounded-md border text-[11px] inline-flex items-center gap-1.5 transition-colors",
                 category === "tournament"         && "bg-yellow-400/8 border-yellow-400/25 text-yellow-300",
                 category === "special_tournament" && "bg-muted/40 border-border/40 text-muted-foreground",
                 category === "extra_mode"         && "bg-muted/40 border-border/40 text-muted-foreground",
-              )}>
-                <span className="font-semibold">{categoryLabel}</span>
-                <span className="opacity-60">·</span>
-                <span>{detailLine}</span>
-              </div>
-            )}
+                canLink && (category === "tournament"
+                  ? "hover:bg-yellow-400/15 hover:border-yellow-400/40"
+                  : "hover:bg-muted/60 hover:text-foreground hover:border-border/60"
+                ),
+              );
+              const inner = (
+                <>
+                  <span className="font-semibold">{categoryLabel}</span>
+                  <span className="opacity-60">·</span>
+                  <span>{detailLine}</span>
+                  {canLink && <ChevronRight className="w-3 h-3 opacity-70" />}
+                </>
+              );
+              if (canLink) {
+                return (
+                  <Link
+                    to={`/tournaments?focus=${game.tournamentId}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className={chipClasses}
+                    title="View full tournament"
+                  >
+                    {inner}
+                  </Link>
+                );
+              }
+              return <div className={chipClasses}>{inner}</div>;
+            })()}
             <Scoreboard
               players={game.allPlayers}
               currentUserId={currentUserId}

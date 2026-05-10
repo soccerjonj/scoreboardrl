@@ -192,7 +192,7 @@ const FriendProfile = () => {
           const gameIds = playerRows.map((r) => r.game_id);
           const { data: gamesData, error: gamesError } = await supabase
             .from("games")
-            .select("id, result, played_at, game_mode, game_type, tournament_type, game_players(user_id, player_name, score, goals, assists, saves, shots, is_mvp, contribution_score, team)")
+            .select("id, result, played_at, game_mode, game_type, tournament_type, tournament_games(tournament_id), game_players(user_id, player_name, score, goals, assists, saves, shots, is_mvp, contribution_score, team)")
             .in("id", gameIds)
             .order("played_at", { ascending: false });
 
@@ -375,6 +375,7 @@ const FriendProfile = () => {
               gameMode: game.game_mode,
               gameType: (game as any).game_type ?? "competitive",
               tournamentType: (game as any).tournament_type ?? null,
+              tournamentId: ((game as any).tournament_games?.[0]?.tournament_id) ?? null,
               playedAt: game.played_at,
               score:   safeNum(myRow?.score),
               goals:   safeNum(myRow?.goals),

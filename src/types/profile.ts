@@ -32,6 +32,7 @@ export type ActivityGame = {
   gameMode: string;
   gameType: string;
   tournamentType?: string | null;
+  tournamentId?: string | null;
   playedAt: string;
   score: number;
   goals: number;

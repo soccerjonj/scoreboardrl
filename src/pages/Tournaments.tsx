@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import { Trophy, ChevronDown, ChevronUp, Plus } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
@@ -60,12 +60,26 @@ function highestRound(rounds: RoundResult[]): string {
   return "Round 1";
 }
 
-function TournamentCard({ tournament }: { tournament: Tournament }) {
-  const [expanded, setExpanded] = useState(false);
+function TournamentCard({ tournament, autoExpand = false }: { tournament: Tournament; autoExpand?: boolean }) {
+  const [expanded, setExpanded] = useState(autoExpand);
   const [bracketRounds, setBracketRounds] = useState<RoundResult[]>([]);
   const [games, setGames] = useState<GameResult[]>([]);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [detailLoaded, setDetailLoaded] = useState(false);
+  const cardRef = useRef<HTMLDivElement | null>(null);
+
+  // Auto-expand and scroll into view if the URL points at this tournament
+  useEffect(() => {
+    if (autoExpand) {
+      setExpanded(true);
+      loadDetail();
+      // Wait a frame for layout, then scroll
+      requestAnimationFrame(() => {
+        cardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoExpand]);
 
   const loadDetail = async () => {
     if (detailLoaded) return;
@@ -128,11 +142,12 @@ function TournamentCard({ tournament }: { tournament: Tournament }) {
   const wins = games.filter((g) => g.result === "win").length;
 
   return (
-    <Card className={cn(
-      "overflow-hidden transition-all",
+    <Card ref={cardRef as any} className={cn(
+      "overflow-hidden transition-all scroll-mt-20",
       isWinner && "border-yellow-400/30",
       isEliminated && "border-border/40",
       isActive && "border-primary/30",
+      autoExpand && "ring-2 ring-primary/30",
     )}>
       {/* Top stripe */}
       <div className={cn(
@@ -272,6 +287,8 @@ function TournamentCard({ tournament }: { tournament: Tournament }) {
 export default function Tournaments() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const focusId = searchParams.get("focus");
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
   const [showStart, setShowStart] = useState(false);
@@ -280,16 +297,51 @@ export default function Tournaments() {
     if (!authLoading && !user) { navigate("/auth"); return; }
     if (!user) return;
 
-    supabase
-      .from("tournaments")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .then(({ data }) => {
-        setTournaments((data ?? []) as Tournament[]);
-        setLoading(false);
+    (async () => {
+      // Tournaments where I'm a participant (covers ones I joined as a partner)
+      const { data: pRows } = await supabase
+        .from("tournament_participants")
+        .select("tournaments!inner(*)")
+        .eq("user_id", user.id)
+        .eq("status", "joined");
+
+      const seen = new Set<string>();
+      let rows: Tournament[] = [];
+      (pRows as any[] ?? [])
+        .map((r) => r.tournaments as Tournament)
+        .filter((t) => t && !seen.has(t.id) && (seen.add(t.id), true))
+        .forEach((t) => rows.push(t));
+
+      // Defensive: also any tournaments where I'm the owner
+      const { data: ownerRows } = await supabase
+        .from("tournaments")
+        .select("*")
+        .eq("user_id", user.id);
+      (ownerRows as Tournament[] ?? []).forEach((t) => {
+        if (!seen.has(t.id)) { seen.add(t.id); rows.push(t); }
       });
-  }, [user, authLoading, navigate]);
+
+      // If a deep-link points at a tournament we don't already have, try to
+      // fetch it directly (RLS will gate access).
+      if (focusId && !seen.has(focusId)) {
+        const { data: t } = await supabase
+          .from("tournaments")
+          .select("*")
+          .eq("id", focusId)
+          .single();
+        if (t) rows.push(t as Tournament);
+      }
+
+      // Sort newest-first, but keep the focused tournament pinned at top
+      rows.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      if (focusId) {
+        rows.sort((a, b) => (a.id === focusId ? -1 : b.id === focusId ? 1 : 0));
+      }
+
+      setTournaments(rows);
+      setLoading(false);
+    })();
+  }, [user, authLoading, navigate, focusId]);
 
   if (authLoading || loading) {
     return (
@@ -333,7 +385,7 @@ export default function Tournaments() {
         ) : (
           <div className="space-y-3">
             {tournaments.map((t) => (
-              <TournamentCard key={t.id} tournament={t} />
+              <TournamentCard key={t.id} tournament={t} autoExpand={focusId === t.id} />
             ))}
           </div>
         )}
