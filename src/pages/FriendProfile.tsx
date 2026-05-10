@@ -9,7 +9,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { getRankIcon } from "@/lib/rankIcons";
 import ProfileHeader from "@/components/profile/ProfileHeader";
 import StatsShowcase from "@/components/profile/StatsShowcase";
-import TrophyShelf from "@/components/profile/TrophyShelf";
+import RecentTournaments, { type RecentTournament } from "@/components/profile/RecentTournaments";
 import ActivityFeed from "@/components/profile/ActivityFeed";
 import PerformanceChart from "@/components/profile/PerformanceChart";
 import { ROUND_ORDER } from "@/hooks/useTournamentSession";
@@ -110,6 +110,7 @@ const FriendProfile = () => {
   const [profileStats, setProfileStats] = useState<ProfileStats | null>(null);
   const [statsByMode, setStatsByMode] = useState<Record<string, ProfileStats>>({});
   const [tournamentData, setTournamentData] = useState<TournamentSummary | null>(null);
+  const [recentTournaments, setRecentTournaments] = useState<RecentTournament[]>([]);
   const [activityGames, setActivityGames] = useState<ActivityGame[]>([]);
   const [bestGame, setBestGame] = useState<BestGame | null>(null);
   const [leaderboardStanding, setLeaderboardStanding] = useState<LeaderboardStanding | null>(null);
@@ -180,18 +181,48 @@ const FriendProfile = () => {
         });
         setRanks(nextRanks);
 
-        // Tournament data (now readable by all authenticated users via new policy)
+        // Tournament data — both legacy summary AND the recent-tournaments list
         try {
-          const { data: tourneyData } = await supabase
-            .from("tournaments")
-            .select("outcome, current_round, status")
-            .eq("user_id", userId);
+          const seen = new Set<string>();
+          let rows: any[] = [];
 
-          const wins = (tourneyData ?? []).filter((t: any) => t.outcome === "winner").length;
-          const roundIndices = (tourneyData ?? []).map((t: any) => ROUND_ORDER.indexOf(t.current_round as RoundKey));
+          // Tournaments where this user is a participant (covers ones they joined as a partner)
+          const { data: pRows } = await supabase
+            .from("tournament_participants")
+            .select("tournaments!inner(id, game_mode, tournament_type, status, outcome, current_round, created_at, user_id)")
+            .eq("user_id", userId)
+            .eq("status", "joined");
+          (pRows as any[] ?? []).forEach((r: any) => {
+            const t = r.tournaments;
+            if (t && !seen.has(t.id)) { seen.add(t.id); rows.push(t); }
+          });
+
+          // Plus tournaments they own
+          const { data: ownerRows } = await supabase
+            .from("tournaments")
+            .select("id, game_mode, tournament_type, status, outcome, current_round, created_at, user_id")
+            .eq("user_id", userId);
+          (ownerRows as any[] ?? []).forEach((t: any) => {
+            if (t && !seen.has(t.id)) { seen.add(t.id); rows.push(t); }
+          });
+
+          rows.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+          setRecentTournaments(rows.map((t) => ({
+            id: t.id,
+            game_mode: t.game_mode,
+            tournament_type: t.tournament_type,
+            status: t.status,
+            outcome: t.outcome,
+            current_round: t.current_round,
+            created_at: t.created_at,
+          })));
+
+          const wins = rows.filter((t) => t.outcome === "winner").length;
+          const roundIndices = rows.map((t) => ROUND_ORDER.indexOf(t.current_round as RoundKey));
           const highestIdx = roundIndices.length > 0 ? Math.max(...roundIndices) : -1;
           setTournamentData({
-            totalEntered: tourneyData?.length ?? 0,
+            totalEntered: rows.length,
             wins,
             highestRoundReached: highestIdx >= 0 ? ROUND_ORDER[highestIdx] : null,
           });
@@ -576,7 +607,7 @@ const FriendProfile = () => {
         <ActivityFeed games={activityGames} currentUserId={userId} viewerFriendIds={viewerFriendIds} />
 
         {/* Tournament Trophy Shelf */}
-        <TrophyShelf tournaments={tournamentData} isOwnProfile={false} />
+        <RecentTournaments tournaments={recentTournaments} isOwnProfile={false} />
 
       </div>
     </AppLayout>
