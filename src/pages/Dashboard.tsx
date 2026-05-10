@@ -18,7 +18,8 @@ import { CarryMeter } from "@/components/game/CarryMeter";
 import { calculateContributionScores } from "@/lib/carryScore";
 import { getRankIcon } from "@/lib/rankIcons";
 import AppLayout from "@/components/layout/AppLayout";
-import { isStandardGame, getGameCategory, GAME_CATEGORY_SHORT_LABELS, isSeriousCategory } from "@/lib/gameModes";
+import { isStandardGame, getGameCategory, GAME_CATEGORY_LABELS, GAME_CATEGORY_SHORT_LABELS, EXTRA_MODE_LABELS, isSeriousCategory } from "@/lib/gameModes";
+import { TOURNAMENT_TYPE_LABELS } from "@/hooks/useTournamentSession";
 
 // ─── CountUp component ────────────────────────────────────────────────────────
 const CountUp = ({ to, decimals = 0, suffix = "", duration = 700 }: { to: number; decimals?: number; suffix?: string; duration?: number }) => {
@@ -126,14 +127,14 @@ const Dashboard = () => {
         if (allIds.length > 0) {
           gamesRes = await supabase
             .from("games")
-            .select("id, played_at, game_mode, game_type, tournament_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, contribution_score, submission_status, submitted_by, created_at, game_id)")
+            .select("id, played_at, game_mode, game_type, tournament_type, result, created_at, created_by, division_change, screenshot_url, tournament_games(tournament_id), game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, contribution_score, submission_status, submitted_by, created_at, game_id)")
             .or(`created_by.eq.${user.id},id.in.(${allIds.join(",")})`)
 
             .order("played_at", { ascending: false });
         } else {
           gamesRes = await supabase
             .from("games")
-            .select("id, played_at, game_mode, game_type, tournament_type, result, created_at, created_by, division_change, screenshot_url, game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, contribution_score, submission_status, submitted_by, created_at, game_id)")
+            .select("id, played_at, game_mode, game_type, tournament_type, result, created_at, created_by, division_change, screenshot_url, tournament_games(tournament_id), game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, contribution_score, submission_status, submitted_by, created_at, game_id)")
             .eq("created_by", user.id)
 
             .order("played_at", { ascending: false });
@@ -777,6 +778,54 @@ const Dashboard = () => {
                       {/* Expanded player breakdown */}
                       {isExpanded && (
                         <div className="mt-3 pt-3 border-t border-border/40">
+                          {/* Tournament / extra-mode info chip + View full tournament CTA */}
+                          {(() => {
+                            const cat = getGameCategory(game as any);
+                            const tournamentId = (game as any).tournament_games?.[0]?.tournament_id ?? null;
+                            const detailLine = (() => {
+                              if (cat === "tournament" || cat === "special_tournament") {
+                                const ttLabel = (game as any).tournament_type
+                                  ? (TOURNAMENT_TYPE_LABELS[(game as any).tournament_type as keyof typeof TOURNAMENT_TYPE_LABELS] ?? (game as any).tournament_type)
+                                  : "Tournament";
+                                return `${game.game_mode} ${ttLabel}`;
+                              }
+                              if (cat === "extra_mode") {
+                                return EXTRA_MODE_LABELS[game.game_mode as keyof typeof EXTRA_MODE_LABELS] ?? game.game_mode;
+                              }
+                              return null;
+                            })();
+                            if (!detailLine) return null;
+                            return (
+                              <div className="mb-3 space-y-2">
+                                <div className={cn(
+                                  "px-3 py-1.5 rounded-md border text-[11px] inline-flex items-center gap-1.5",
+                                  cat === "tournament"         && "bg-yellow-400/8 border-yellow-400/25 text-yellow-300",
+                                  cat === "special_tournament" && "bg-muted/40 border-border/40 text-muted-foreground",
+                                  cat === "extra_mode"         && "bg-muted/40 border-border/40 text-muted-foreground",
+                                )}>
+                                  <span className="font-semibold">{GAME_CATEGORY_LABELS[cat]}</span>
+                                  <span className="opacity-60">·</span>
+                                  <span>{detailLine}</span>
+                                </div>
+                                {(cat === "tournament" || cat === "special_tournament") && tournamentId && (
+                                  <Link
+                                    to={`/tournaments?focus=${tournamentId}`}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className={cn(
+                                      "w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg border transition-colors",
+                                      cat === "tournament"
+                                        ? "bg-yellow-400/8 border-yellow-400/30 text-yellow-300 hover:bg-yellow-400/15 hover:border-yellow-400/50"
+                                        : "bg-card/60 border-border/50 text-foreground hover:bg-card/90 hover:border-border"
+                                    )}
+                                  >
+                                    <span className="text-xs font-semibold">View full tournament stats</span>
+                                    <ChevronRight className="w-4 h-4" />
+                                  </Link>
+                                )}
+                              </div>
+                            );
+                          })()}
+
                           {/* Scoreboard column headers */}
                           <div className="grid grid-cols-[1fr_2.5rem_2rem_2.5rem_2rem_2rem] gap-x-1 px-2 pb-1.5 mb-0.5 border-b border-border/20">
                             <span className="text-[9px] text-muted-foreground font-semibold uppercase tracking-wide">Player</span>
