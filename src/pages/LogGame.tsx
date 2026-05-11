@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, Sele
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Save, Loader2, AlertTriangle, ClipboardList, Trophy, X as XIcon } from "lucide-react";
+import { Save, Loader2, AlertTriangle, ClipboardList, Trophy, X as XIcon, Clock, Pencil } from "lucide-react";
+import { relativeDate } from "@/lib/relativeDate";
 import { CarryMeter } from "@/components/game/CarryMeter";
 import ScoreboardUploader from "@/components/game/ScoreboardUploader";
 import PhotoGuide from "@/components/game/PhotoGuide";
@@ -163,6 +164,7 @@ const LogGame = () => {
   // played_at — defaults to now, but the user can backdate when they missed
   // logging a game in the moment. Stored as an ISO string.
   const [playedAt, setPlayedAt] = useState<string>(() => new Date().toISOString());
+  const [showPlayedAtEditor, setShowPlayedAtEditor] = useState(false);
   const [divisionChange, setDivisionChange] = useState<string>("none");
   const [players, setPlayers] = useState<PlayerStat[]>([]);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -256,6 +258,7 @@ const LogGame = () => {
     // Default played_at to "now" each time a fresh photo is parsed — the user
     // can still backdate via the picker in the review step.
     setPlayedAt(new Date().toISOString());
+    setShowPlayedAtEditor(false);
     setStep("review");
 
     // Use AI-detected result if available, otherwise fall back to goal comparison
@@ -845,35 +848,78 @@ const LogGame = () => {
                     </Select>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="played-at">Played at</Label>
-                    <Input
-                      id="played-at"
-                      type="datetime-local"
-                      value={(() => {
-                        // Convert ISO -> local 'YYYY-MM-DDTHH:mm' (no seconds, no timezone)
-                        const d = new Date(playedAt);
-                        if (Number.isNaN(d.getTime())) return "";
-                        const pad = (n: number) => String(n).padStart(2, "0");
-                        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-                      })()}
-                      max={(() => {
-                        // Cap at "now" — can't log a game from the future
-                        const d = new Date();
-                        const pad = (n: number) => String(n).padStart(2, "0");
-                        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-                      })()}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        if (!v) { setPlayedAt(new Date().toISOString()); return; }
-                        const parsed = new Date(v);
-                        if (!Number.isNaN(parsed.getTime())) setPlayedAt(parsed.toISOString());
-                      }}
-                    />
-                    <p className="text-[10px] text-muted-foreground/70">
-                      Defaults to now. Backdate this if you're catching up on a game from earlier.
-                    </p>
-                  </div>
+                  {/* Played-at editor — collapsed by default. Most users log
+                      right after the match so the default of 'now' is correct;
+                      they only need this when backdating a missed game. */}
+                  {(() => {
+                    const isBackdated = (() => {
+                      const diff = Math.abs(Date.now() - new Date(playedAt).getTime());
+                      return diff > 5 * 60 * 1000; // > 5 min from now counts as backdated
+                    })();
+                    if (!showPlayedAtEditor) {
+                      return (
+                        <div className="col-span-full flex items-center justify-between gap-2 text-[11px] text-muted-foreground/80 px-1">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <Clock className="w-3 h-3 shrink-0" />
+                            <span className="truncate">
+                              Played {isBackdated ? relativeDate(playedAt) : "just now"}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setShowPlayedAtEditor(true)}
+                            className="flex items-center gap-1 text-primary hover:underline shrink-0"
+                          >
+                            <Pencil className="w-3 h-3" />
+                            Change time
+                          </button>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div className="col-span-full space-y-1.5">
+                        <Label htmlFor="played-at" className="flex items-center gap-1.5 text-xs">
+                          <Clock className="w-3 h-3" />
+                          Played at
+                        </Label>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            id="played-at"
+                            type="datetime-local"
+                            className="flex-1"
+                            value={(() => {
+                              const d = new Date(playedAt);
+                              if (Number.isNaN(d.getTime())) return "";
+                              const pad = (n: number) => String(n).padStart(2, "0");
+                              return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                            })()}
+                            max={(() => {
+                              const d = new Date();
+                              const pad = (n: number) => String(n).padStart(2, "0");
+                              return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                            })()}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              if (!v) { setPlayedAt(new Date().toISOString()); return; }
+                              const parsed = new Date(v);
+                              if (!Number.isNaN(parsed.getTime())) setPlayedAt(parsed.toISOString());
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPlayedAt(new Date().toISOString());
+                              setShowPlayedAtEditor(false);
+                            }}
+                            className="shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors px-2"
+                            title="Reset to now and hide"
+                          >
+                            Reset
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {gameType === "competitive" && STANDARD_MODES.includes(gameMode as any) && (
                     <div className="space-y-2">
