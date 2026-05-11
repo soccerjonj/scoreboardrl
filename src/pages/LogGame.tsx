@@ -160,6 +160,9 @@ const LogGame = () => {
   const [showModePicker, setShowModePicker] = useState(false);
   const [gameType, setGameType] = useState<GameType>("competitive");
   const [result, setResult] = useState<"win" | "loss">("win");
+  // played_at — defaults to now, but the user can backdate when they missed
+  // logging a game in the moment. Stored as an ISO string.
+  const [playedAt, setPlayedAt] = useState<string>(() => new Date().toISOString());
   const [divisionChange, setDivisionChange] = useState<string>("none");
   const [players, setPlayers] = useState<PlayerStat[]>([]);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -250,6 +253,9 @@ const LogGame = () => {
     setPlayers(data.players.map((p) => ({ ...p, damage: (p as any).damage ?? 0 })));
     setImageFile(file);
     setWasPhotoParsed(true);
+    // Default played_at to "now" each time a fresh photo is parsed — the user
+    // can still backdate via the picker in the review step.
+    setPlayedAt(new Date().toISOString());
     setStep("review");
 
     // Use AI-detected result if available, otherwise fall back to goal comparison
@@ -341,8 +347,12 @@ const LogGame = () => {
       const overridingConflictId = override && conflictGame ? conflictGame.id : null;
 
       if (!override && linkedUserIds.length > 0) {
-        const windowStart = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-        const windowEnd   = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+        // Center the duplicate-detection window on the played_at the user
+        // selected (defaults to now). This way a backdated game still finds
+        // a teammate's existing log of the same match.
+        const center = new Date(playedAt).getTime();
+        const windowStart = new Date(center - 10 * 60 * 1000).toISOString();
+        const windowEnd   = new Date(center + 10 * 60 * 1000).toISOString();
 
         const { data: candidateGames } = await supabase
           .from("games")
@@ -392,6 +402,7 @@ const LogGame = () => {
           screenshot_url: screenshotUrl,
           logged_via_photo: wasPhotoParsed,
           tournament_type: isTournamentActive && activeTournament ? activeTournament.tournament_type : null,
+          played_at: playedAt,
         })
         .select()
         .single();
@@ -770,6 +781,7 @@ const LogGame = () => {
                       emptyPlayers.push({ name: "", team: "orange", score: 0, goals: 0, assists: 0, saves: 0, shots: 0, damage: 0, is_mvp: false });
                     }
                     setPlayers(emptyPlayers);
+                    setPlayedAt(new Date().toISOString());
                     setStep("review");
                   }}
                   className="gap-2"
@@ -831,6 +843,36 @@ const LogGame = () => {
                         <SelectItem value="loss">Loss</SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="played-at">Played at</Label>
+                    <Input
+                      id="played-at"
+                      type="datetime-local"
+                      value={(() => {
+                        // Convert ISO -> local 'YYYY-MM-DDTHH:mm' (no seconds, no timezone)
+                        const d = new Date(playedAt);
+                        if (Number.isNaN(d.getTime())) return "";
+                        const pad = (n: number) => String(n).padStart(2, "0");
+                        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                      })()}
+                      max={(() => {
+                        // Cap at "now" — can't log a game from the future
+                        const d = new Date();
+                        const pad = (n: number) => String(n).padStart(2, "0");
+                        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                      })()}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (!v) { setPlayedAt(new Date().toISOString()); return; }
+                        const parsed = new Date(v);
+                        if (!Number.isNaN(parsed.getTime())) setPlayedAt(parsed.toISOString());
+                      }}
+                    />
+                    <p className="text-[10px] text-muted-foreground/70">
+                      Defaults to now. Backdate this if you're catching up on a game from earlier.
+                    </p>
                   </div>
 
                   {gameType === "competitive" && STANDARD_MODES.includes(gameMode as any) && (
