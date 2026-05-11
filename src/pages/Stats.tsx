@@ -30,6 +30,14 @@ import LeaderboardView from "@/components/leaderboard/LeaderboardView";
 import { isStandardGame } from "@/lib/gameModes";
 import TournamentHistoryPanel from "@/components/tournament/TournamentHistoryPanel";
 import RecentTournaments, { type RecentTournament } from "@/components/profile/RecentTournaments";
+import { getSessionGames } from "@/lib/session";
+import {
+  buildTarget,
+  findPlayer,
+  matchesTarget,
+  normalizeName,
+  type PlayerMatchTarget,
+} from "@/lib/playerMatch";
 
 type GameMode = Database["public"]["Enums"]["game_mode"];
 type GameType = Database["public"]["Enums"]["game_type"];
@@ -76,31 +84,17 @@ type TimeRange = "season" | "7d" | "30d" | "all";
 type TogetherRange = "session" | "7d" | "28d" | "season" | "all";
 type ViewMode = "summary" | "charts";
 
-const SESSION_GAP_MS = 3 * 60 * 60 * 1000; // 3 hours — max gap within a session
+// Session detection + player-match helpers live in shared libs — see imports
+// above. `normalizeName`, `buildTarget`, `findPlayer`, `matchesTarget` are
+// imported from `@/lib/playerMatch`; `SESSION_GAP_MS` from `@/lib/session`.
 
-const normalizeName = (v?: string | null) => v?.trim().toLowerCase() ?? "";
-const safeNumber = (v: number | null | undefined) => (typeof v === "number" && !Number.isNaN(v) ? v : 0);
+const safeNumber = (v: number | null | undefined) =>
+  typeof v === "number" && !Number.isNaN(v) ? v : 0;
 
 const formatAverage = (value: number | null, decimals = 1) =>
   value === null || Number.isNaN(value) ? "--" : value.toFixed(decimals);
 const formatPercent = (value: number | null) =>
   value === null || Number.isNaN(value) ? "--" : `${Math.round(value)}%`;
-
-type PlayerMatchTarget = { userId?: string | null; names: string[] };
-
-const buildTarget = (userId: string | null | undefined, names: Array<string | null | undefined>): PlayerMatchTarget => ({
-  userId,
-  names: names.map(normalizeName).filter(Boolean),
-});
-
-const matchesTarget = (player: GamePlayerRow, target: PlayerMatchTarget) => {
-  if (target.userId && player.user_id === target.userId) return true;
-  if (!target.names.length) return false;
-  return target.names.includes(normalizeName(player.player_name));
-};
-
-const findPlayer = (players: GamePlayerRow[] | null | undefined, target: PlayerMatchTarget) =>
-  players?.find((p) => matchesTarget(p, target)) ?? null;
 
 const buildSummary = (t: {
   games: number; wins: number; points: number; goals: number; assists: number;
@@ -680,21 +674,11 @@ const Stats = () => {
     .filter((g) => !teammateTarget || Boolean(findPlayer(g.game_players, teammateTarget))),
   [games, selectedMode, selectedType, teammateTarget]);
 
-  // Last continuous play session — games within SESSION_GAP_MS of each other,
-  // walking backwards from the most recent game.
-  const sessionGames = useMemo(() => {
-    if (!selectedFriend) return [] as GameWithPlayers[];
-    const sorted = [...filteredGames].sort(
-      (a, b) => new Date(b.played_at).getTime() - new Date(a.played_at).getTime()
-    );
-    if (sorted.length === 0) return [] as GameWithPlayers[];
-    const sessionIds = new Set<string>([sorted[0].id]);
-    for (let i = 1; i < sorted.length; i++) {
-      const gap = new Date(sorted[i - 1].played_at).getTime() - new Date(sorted[i].played_at).getTime();
-      if (gap > SESSION_GAP_MS) break;
-      sessionIds.add(sorted[i].id);
-    }
-    return filteredGames.filter((g) => sessionIds.has(g.id));
+  // Last continuous play session — delegated to the shared helper so the
+  // home-tab Session Summary banner and this surface agree on what counts.
+  const sessionGames = useMemo<GameWithPlayers[]>(() => {
+    if (!selectedFriend) return [];
+    return getSessionGames(filteredGames);
   }, [filteredGames, selectedFriend]);
 
   const rangeFilteredGames = useMemo(() => {

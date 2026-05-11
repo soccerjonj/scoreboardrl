@@ -21,6 +21,8 @@ import AppLayout from "@/components/layout/AppLayout";
 import { isStandardGame, getGameCategory, GAME_CATEGORY_LABELS, GAME_CATEGORY_SHORT_LABELS, EXTRA_MODE_LABELS, isSeriousCategory } from "@/lib/gameModes";
 import { linkPlayersByName } from "@/lib/playerLinking";
 import { TOURNAMENT_TYPE_LABELS } from "@/hooks/useTournamentSession";
+import SessionSummaryBanner from "@/components/dashboard/SessionSummaryBanner";
+import type { FriendProfileInfo } from "@/lib/sessionSummary";
 
 // ─── CountUp component ────────────────────────────────────────────────────────
 const CountUp = ({ to, decimals = 0, suffix = "", duration = 700 }: { to: number; decimals?: number; suffix?: string; duration?: number }) => {
@@ -89,6 +91,8 @@ const Dashboard = () => {
   const [showContribInfo, setShowContribInfo] = useState(false);
   const [visibleCount, setVisibleCount]       = useState(5);
   const [friendIds, setFriendIds]             = useState<Set<string>>(new Set());
+  // Profile lookup map for the Session Summary's "Played With" section
+  const [friendProfiles, setFriendProfiles]   = useState<Map<string, FriendProfileInfo>>(new Map());
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/auth");
@@ -114,6 +118,24 @@ const Dashboard = () => {
           if (fid) friendIdSet.add(fid);
         });
         setFriendIds(friendIdSet);
+
+        // Fetch friend profile info (display name + avatar) so the Session
+        // Summary card can render rich "Played With" rows. Fire-and-forget;
+        // missing entries fall back to the player_name from the game row.
+        if (friendIdSet.size > 0) {
+          const { data: friendProfileRows } = await supabase
+            .from("profiles")
+            .select("user_id, username, rl_account_name, avatar_url")
+            .in("user_id", Array.from(friendIdSet));
+          const map = new Map<string, FriendProfileInfo>();
+          (friendProfileRows ?? []).forEach((p: any) => {
+            map.set(p.user_id, {
+              displayName: p.rl_account_name ?? p.username ?? "Friend",
+              avatarUrl: p.avatar_url ?? null,
+            });
+          });
+          setFriendProfiles(map);
+        }
 
         // Step 1: get all game IDs where user appears as a player
         const { data: playerGameRows } = await supabase
@@ -698,6 +720,16 @@ const Dashboard = () => {
             </CardContent>
           </Card>
         )}
+
+        {/* Session Summary — appears when the current play session (games
+            within 3h of each other) has ≥2 logged games. Dismissible per-
+            game so it doesn't nag during a long session. */}
+        <SessionSummaryBanner
+          games={games}
+          userTarget={userTarget}
+          friendProfiles={friendProfiles}
+          rlName={rlName}
+        />
 
         {/* Recent Games */}
         <div>
