@@ -139,6 +139,11 @@ const FriendProfile = () => {
         const otherId = r.sender_id === user.id ? r.receiver_id : r.sender_id;
         if (otherId) ids.add(otherId);
       });
+      // Include the viewer themselves so the "played with a friend" icon
+      // shows for games where the profile owner played alongside us — we're
+      // not in our own friend_requests rows, but from the profile owner's
+      // perspective we ARE a teammate-friend worth flagging.
+      ids.add(user.id);
       setViewerFriendIds(ids);
     })();
   }, [user]);
@@ -205,6 +210,39 @@ const FriendProfile = () => {
           (ownerRows as any[] ?? []).forEach((t: any) => {
             if (t && !seen.has(t.id)) { seen.add(t.id); rows.push(t); }
           });
+
+          // ── Played-in path ────────────────────────────────────────────
+          // Catches tournaments where the friend played at least one game
+          // but never formally accepted (or was never invited via) the
+          // tournament_participants row. Common when the host started the
+          // tournament solo and just logged the games — the friend has
+          // game_players rows but no participant row, so the two earlier
+          // queries miss it entirely.
+          const { data: playedRows } = await supabase
+            .from("game_players")
+            .select("game_id")
+            .eq("user_id", userId);
+          const playedGameIds = Array.from(
+            new Set((playedRows ?? []).map((r: any) => r.game_id).filter(Boolean))
+          ) as string[];
+          if (playedGameIds.length > 0) {
+            const { data: tgRows } = await supabase
+              .from("tournament_games")
+              .select("tournament_id")
+              .in("game_id", playedGameIds);
+            const playedTournamentIds = Array.from(
+              new Set((tgRows ?? []).map((r: any) => r.tournament_id).filter(Boolean))
+            ).filter((tid) => !seen.has(tid as string)) as string[];
+            if (playedTournamentIds.length > 0) {
+              const { data: playedTournaments } = await supabase
+                .from("tournaments")
+                .select("id, game_mode, tournament_type, status, outcome, current_round, created_at, user_id")
+                .in("id", playedTournamentIds);
+              (playedTournaments as any[] ?? []).forEach((t: any) => {
+                if (t && !seen.has(t.id)) { seen.add(t.id); rows.push(t); }
+              });
+            }
+          }
 
           rows.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
