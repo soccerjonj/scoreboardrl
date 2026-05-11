@@ -323,11 +323,16 @@ type Props = {
   viewerFriendIds?: Set<string>;
 };
 
+// Default collapsed page size. Kept small so users land on a profile and
+// can scroll to the Tournaments section without first wading through a
+// long Recent Games feed.
+const INITIAL_VISIBLE = 5;
+
 export default function ActivityFeed({ games, currentUserId = null, viewerFriendIds }: Props) {
   const [showAll, setShowAll] = useState(false);
   if (games.length === 0) return null;
 
-  const visible = showAll ? games : games.slice(0, 10);
+  const visible = showAll ? games : games.slice(0, INITIAL_VISIBLE);
 
   return (
     <div className="space-y-1.5">
@@ -340,12 +345,12 @@ export default function ActivityFeed({ games, currentUserId = null, viewerFriend
           <GameCard key={game.id} game={game} currentUserId={currentUserId} viewerFriendIds={viewerFriendIds} />
         ))}
       </div>
-      {games.length > 10 && (
+      {games.length > INITIAL_VISIBLE && (
         <button
           onClick={() => setShowAll((v) => !v)}
           className="w-full py-2 text-xs text-muted-foreground hover:text-foreground transition-colors text-center"
         >
-          {showAll ? "Show less" : `Show ${games.length - 10} more`}
+          {showAll ? "Show less" : `Show ${games.length - INITIAL_VISIBLE} more`}
         </button>
       )}
     </div>
