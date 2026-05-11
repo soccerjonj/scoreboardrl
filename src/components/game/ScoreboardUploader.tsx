@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Camera, Upload, X, Loader2 } from "lucide-react";
+import { Camera, Upload, X, Loader2, RefreshCcw, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -39,6 +39,9 @@ const ScoreboardUploader = ({ userRlName, onParsed }: ScoreboardUploaderProps) =
   const [parsing, setParsing] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [showUpgradeSheet, setShowUpgradeSheet] = useState(false);
+  const [parseError, setParseError] = useState<string | null>(null);
+  // Cached parse input so a retry doesn't require re-selecting / re-uploading the photo
+  const lastParseInput = useRef<{ base64: string; mimeType: string; file: File } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -74,6 +77,9 @@ const ScoreboardUploader = ({ userRlName, onParsed }: ScoreboardUploaderProps) =
   };
 
   const parseScoreboard = async (base64: string, mimeType: string, originalFile: File) => {
+    // Cache so the user can retry without re-selecting the file
+    lastParseInput.current = { base64, mimeType, file: originalFile };
+    setParseError(null);
     setParsing(true);
     try {
       const { data, error } = await supabase.functions.invoke("parse-scoreboard", {
@@ -93,17 +99,27 @@ const ScoreboardUploader = ({ userRlName, onParsed }: ScoreboardUploaderProps) =
       if (data.error) throw new Error(data.error);
 
       quota.refetch();
+      // Success — drop the cached input
+      lastParseInput.current = null;
       onParsed(data, originalFile);
       toast({ title: "Scoreboard parsed!", description: `Found ${data.players.length} players in a ${data.game_mode} ${data.game_type} game.` });
     } catch (err: any) {
+      const message = err.message || "Try again or enter stats manually.";
+      setParseError(message);
       toast({
         title: "Failed to parse scoreboard",
-        description: err.message || "Try again or enter stats manually.",
+        description: message,
         variant: "destructive",
       });
     } finally {
       setParsing(false);
     }
+  };
+
+  const retryParse = () => {
+    const cached = lastParseInput.current;
+    if (!cached) return;
+    parseScoreboard(cached.base64, cached.mimeType, cached.file);
   };
 
   const readRaw = (file: File): Promise<string> =>
@@ -164,6 +180,8 @@ const ScoreboardUploader = ({ userRlName, onParsed }: ScoreboardUploaderProps) =
     setPreview(null);
     setSelectedFile(null);
     setParsing(false);
+    setParseError(null);
+    lastParseInput.current = null;
     if (fileInputRef.current) fileInputRef.current.value = "";
     if (cameraInputRef.current) cameraInputRef.current.value = "";
   };
@@ -261,6 +279,45 @@ const ScoreboardUploader = ({ userRlName, onParsed }: ScoreboardUploaderProps) =
               </button>
             )}
           </div>
+
+          {/* Retry / fallback UI when a parse attempt failed. The cached
+              base64 + mimeType in lastParseInput.current means we can rerun
+              the parse without the user having to re-select the file. */}
+          {!parsing && parseError && lastParseInput.current && (
+            <div className="rounded-lg border border-rl-red/30 bg-rl-red/5 px-3 py-3 space-y-2">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-rl-red shrink-0 mt-0.5" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-rl-red">Couldn't parse this scoreboard</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 break-words">
+                    {parseError}
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 pl-6">
+                <Button
+                  type="button"
+                  variant="hero"
+                  size="sm"
+                  onClick={retryParse}
+                  className="gap-1.5"
+                >
+                  <RefreshCcw className="w-3.5 h-3.5" />
+                  Retry parse
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={clearImage}
+                  className="gap-1.5"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  Use different photo
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
