@@ -774,7 +774,9 @@ const Dashboard = () => {
                               : "bg-rl-red shadow-[0_0_8px_hsl(var(--rl-red)/0.6)]"
                           )} />
                           <div className="min-w-0 flex-1">
-                            {/* Row 1: essentials only — kept on a single line so it can't overflow into the points column */}
+                            {/* Row 1: WIN/LOSS, score, mode, Div change — the most essential
+                                items only. Category and date moved to lower rows so the Div ↑/↓
+                                badge never gets clipped on narrow screens. */}
                             <div className="flex items-center gap-1.5 flex-nowrap min-w-0 overflow-hidden">
                               <span className={cn(
                                 "font-display font-bold text-sm flex-shrink-0",
@@ -788,18 +790,6 @@ const Dashboard = () => {
                                 </span>
                               )}
                               <Badge variant="outline" className="text-[10px] px-1.5 py-0 flex-shrink-0">{gameModeLabels[game.game_mode] ?? game.game_mode}</Badge>
-                              {(() => {
-                                const cat = getGameCategory(game as any);
-                                const serious = isSeriousCategory(cat);
-                                return (
-                                  <span className={cn(
-                                    "text-[10px] flex-shrink-0",
-                                    serious ? "text-foreground/70 font-semibold" : "text-muted-foreground"
-                                  )}>
-                                    {GAME_CATEGORY_SHORT_LABELS[cat]}
-                                  </span>
-                                );
-                              })()}
                               {game.division_change && game.division_change !== "none" && (
                                 <Badge
                                   variant="outline"
@@ -813,9 +803,20 @@ const Dashboard = () => {
                                 </Badge>
                               )}
                             </div>
-                            {/* Row 2: meta — relative time + smaller icons (MVP, friend on team) */}
+                            {/* Row 2: secondary info — category label + small badges (MVP, friend) */}
                             <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-                              <span>{relativeDate(game.played_at)}</span>
+                              {(() => {
+                                const cat = getGameCategory(game as any);
+                                const serious = isSeriousCategory(cat);
+                                return (
+                                  <span className={cn(
+                                    "text-[10px] truncate",
+                                    serious ? "text-foreground/70 font-semibold" : "text-muted-foreground"
+                                  )}>
+                                    {GAME_CATEGORY_SHORT_LABELS[cat]}
+                                  </span>
+                                );
+                              })()}
                               {userRow?.is_mvp && (
                                 <>
                                   <span className="text-border/60">·</span>
@@ -852,17 +853,21 @@ const Dashboard = () => {
                         </div>
                       </div>
 
-                      {/* Contribution row — full-width below the main row so its width
-                          doesn't constrain the right-side score column above. */}
-                      {userRow && userCarry > 0 && (
-                        <div className="mt-2 flex items-center gap-1.5 justify-end">
-                          <span className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Contribution</span>
-                          <button onClick={(e) => { e.stopPropagation(); setShowContribInfo(true); }} className="text-muted-foreground hover:text-foreground transition-colors">
-                            <Info className="w-2.5 h-2.5" />
-                          </button>
-                          <CarryMeter score={userCarry} teamSize={teamSize} size="sm" />
-                        </div>
-                      )}
+                      {/* Row 3: date on the left, contribution meter (when applicable) on
+                          the right. Full-width so its size doesn't constrain the right-side
+                          score column on rows 1 and 2. */}
+                      <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                        <span className="shrink-0">{relativeDate(game.played_at)}</span>
+                        {userRow && userCarry > 0 && (
+                          <div className="ml-auto flex items-center gap-1.5">
+                            <span className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Contribution</span>
+                            <button onClick={(e) => { e.stopPropagation(); setShowContribInfo(true); }} className="text-muted-foreground hover:text-foreground transition-colors">
+                              <Info className="w-2.5 h-2.5" />
+                            </button>
+                            <CarryMeter score={userCarry} teamSize={teamSize} size="sm" />
+                          </div>
+                        )}
+                      </div>
 
                       {/* Expanded player breakdown */}
                       {isExpanded && (
