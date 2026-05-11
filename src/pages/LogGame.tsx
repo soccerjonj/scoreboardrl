@@ -10,8 +10,9 @@ import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, Sele
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Save, Loader2, AlertTriangle, ClipboardList, Trophy, X as XIcon, Clock, Pencil } from "lucide-react";
+import { Save, Loader2, AlertTriangle, ClipboardList, Trophy, X as XIcon, Clock } from "lucide-react";
 import { relativeDate } from "@/lib/relativeDate";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CarryMeter } from "@/components/game/CarryMeter";
 import ScoreboardUploader from "@/components/game/ScoreboardUploader";
 import PhotoGuide from "@/components/game/PhotoGuide";
@@ -164,7 +165,6 @@ const LogGame = () => {
   // played_at — defaults to now, but the user can backdate when they missed
   // logging a game in the moment. Stored as an ISO string.
   const [playedAt, setPlayedAt] = useState<string>(() => new Date().toISOString());
-  const [showPlayedAtEditor, setShowPlayedAtEditor] = useState(false);
   const [divisionChange, setDivisionChange] = useState<string>("none");
   const [players, setPlayers] = useState<PlayerStat[]>([]);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -258,7 +258,6 @@ const LogGame = () => {
     // Default played_at to "now" each time a fresh photo is parsed — the user
     // can still backdate via the picker in the review step.
     setPlayedAt(new Date().toISOString());
-    setShowPlayedAtEditor(false);
     setStep("review");
 
     // Use AI-detected result if available, otherwise fall back to goal comparison
@@ -799,227 +798,259 @@ const LogGame = () => {
 
         {step === "review" && (
           <>
-            {/* Game details */}
+            {/* Game details — compact redesign:
+                ▸ Big WIN/LOSS toggle as the headline action
+                ▸ Mode + Type + Played-at as inline editable chips (popovers don't
+                  reflow the card layout when opened)
+                ▸ Rank update inline section (only when ranked Soccar) */}
             <Card className="border-border/50 bg-card/80">
-              <CardHeader>
-                <CardTitle className="font-display text-xl">Game Details</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Game Mode</Label>
-                    <Select value={gameMode} onValueChange={(v) => setGameMode(v as GameMode)}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="1v1">1v1</SelectItem>
-                        <SelectItem value="2v2">2v2</SelectItem>
-                        <SelectItem value="3v3">3v3</SelectItem>
-                        <SelectItem value="4v4">4v4</SelectItem>
-                        <SelectSeparator />
-                        <SelectItem value="rumble_3v3">3v3 Rumble</SelectItem>
-                        <SelectItem value="hoops_2v2">2v2 Hoops</SelectItem>
-                        <SelectItem value="snowday_3v3">3v3 Snow Day</SelectItem>
-                        <SelectItem value="dropshot_3v3">3v3 Dropshot</SelectItem>
-                        <SelectItem value="heatseeker_2v2">2v2 Heatseeker</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+              <CardContent className="pt-5 pb-4 space-y-4">
+                {/* Result toggle */}
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setResult("win")}
+                    className={cn(
+                      "py-3 rounded-xl border-2 font-display font-bold text-lg transition-all",
+                      result === "win"
+                        ? "bg-rl-green/15 border-rl-green text-rl-green shadow-[0_0_18px_hsl(var(--rl-green)/0.25)]"
+                        : "bg-card/40 border-border/40 text-muted-foreground hover:border-border/70"
+                    )}
+                  >
+                    WIN
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setResult("loss")}
+                    className={cn(
+                      "py-3 rounded-xl border-2 font-display font-bold text-lg transition-all",
+                      result === "loss"
+                        ? "bg-rl-red/15 border-rl-red text-rl-red shadow-[0_0_18px_hsl(var(--rl-red)/0.25)]"
+                        : "bg-card/40 border-border/40 text-muted-foreground hover:border-border/70"
+                    )}
+                  >
+                    LOSS
+                  </button>
+                </div>
 
-                  <div className="space-y-2">
-                    <Label>Game Type</Label>
-                    <Select value={gameType} onValueChange={(v) => setGameType(v as GameType)} disabled={isTournamentActive}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="competitive">Competitive</SelectItem>
-                        <SelectItem value="casual">Casual</SelectItem>
-                        <SelectItem value="tournament">Tournament</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                {/* Inline summary row — Mode · Type · Played-at, each a small popover trigger.
+                    Popovers float above the form so opening one never shifts the layout. */}
+                <div className="flex items-center gap-1.5 flex-wrap text-xs">
+                  {/* Mode chip */}
+                  <Select value={gameMode} onValueChange={(v) => setGameMode(v as GameMode)}>
+                    <SelectTrigger className="h-8 w-auto px-2.5 text-xs gap-1 rounded-full border-border/50">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1v1">1v1</SelectItem>
+                      <SelectItem value="2v2">2v2</SelectItem>
+                      <SelectItem value="3v3">3v3</SelectItem>
+                      <SelectItem value="4v4">4v4</SelectItem>
+                      <SelectSeparator />
+                      <SelectItem value="rumble_3v3">3v3 Rumble</SelectItem>
+                      <SelectItem value="hoops_2v2">2v2 Hoops</SelectItem>
+                      <SelectItem value="snowday_3v3">3v3 Snow Day</SelectItem>
+                      <SelectItem value="dropshot_3v3">3v3 Dropshot</SelectItem>
+                      <SelectItem value="heatseeker_2v2">2v2 Heatseeker</SelectItem>
+                    </SelectContent>
+                  </Select>
 
-                  <div className="space-y-2">
-                    <Label>Result</Label>
-                    <Select value={result} onValueChange={(v) => setResult(v as "win" | "loss")}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="win">Win</SelectItem>
-                        <SelectItem value="loss">Loss</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <span className="text-border/60">·</span>
 
-                  {/* Played-at editor — collapsed by default. Most users log
-                      right after the match so the default of 'now' is correct;
-                      they only need this when backdating a missed game. */}
-                  {(() => {
-                    const isBackdated = (() => {
-                      const diff = Math.abs(Date.now() - new Date(playedAt).getTime());
-                      return diff > 5 * 60 * 1000; // > 5 min from now counts as backdated
-                    })();
-                    if (!showPlayedAtEditor) {
-                      return (
-                        <div className="col-span-full flex items-center justify-between gap-2 text-[11px] text-muted-foreground/80 px-1">
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <Clock className="w-3 h-3 shrink-0" />
-                            <span className="truncate">
-                              Played {isBackdated ? relativeDate(playedAt) : "just now"}
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setShowPlayedAtEditor(true)}
-                            className="flex items-center gap-1 text-primary hover:underline shrink-0"
-                          >
-                            <Pencil className="w-3 h-3" />
-                            Change time
-                          </button>
-                        </div>
-                      );
-                    }
-                    return (
-                      <div className="col-span-full space-y-1.5">
-                        <Label htmlFor="played-at" className="flex items-center gap-1.5 text-xs">
-                          <Clock className="w-3 h-3" />
-                          Played at
+                  {/* Type chip */}
+                  <Select value={gameType} onValueChange={(v) => setGameType(v as GameType)} disabled={isTournamentActive}>
+                    <SelectTrigger className="h-8 w-auto px-2.5 text-xs gap-1 rounded-full border-border/50">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="competitive">Competitive</SelectItem>
+                      <SelectItem value="casual">Casual</SelectItem>
+                      <SelectItem value="tournament">Tournament</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <span className="text-border/60">·</span>
+
+                  {/* Played-at chip → popover (no layout shift) */}
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        className="h-8 px-2.5 rounded-full border border-border/50 bg-background text-xs flex items-center gap-1.5 hover:border-border transition-colors"
+                      >
+                        <Clock className="w-3 h-3 text-muted-foreground" />
+                        {(() => {
+                          const diff = Math.abs(Date.now() - new Date(playedAt).getTime());
+                          return diff > 5 * 60 * 1000 ? relativeDate(playedAt) : "Just now";
+                        })()}
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent align="start" className="w-72 p-3 space-y-2.5">
+                      <div>
+                        <Label htmlFor="played-at-pop" className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                          <Clock className="w-3 h-3" /> Played at
                         </Label>
-                        <div className="flex items-center gap-2">
-                          <Input
-                            id="played-at"
-                            type="datetime-local"
-                            className="flex-1"
-                            value={(() => {
-                              const d = new Date(playedAt);
-                              if (Number.isNaN(d.getTime())) return "";
-                              const pad = (n: number) => String(n).padStart(2, "0");
-                              return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-                            })()}
-                            max={(() => {
-                              const d = new Date();
-                              const pad = (n: number) => String(n).padStart(2, "0");
-                              return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-                            })()}
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              if (!v) { setPlayedAt(new Date().toISOString()); return; }
-                              const parsed = new Date(v);
-                              if (!Number.isNaN(parsed.getTime())) setPlayedAt(parsed.toISOString());
-                            }}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setPlayedAt(new Date().toISOString());
-                              setShowPlayedAtEditor(false);
-                            }}
-                            className="shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors px-2"
-                            title="Reset to now and hide"
-                          >
-                            Reset
-                          </button>
-                        </div>
+                        <Input
+                          id="played-at-pop"
+                          type="datetime-local"
+                          className="mt-1.5"
+                          value={(() => {
+                            const d = new Date(playedAt);
+                            if (Number.isNaN(d.getTime())) return "";
+                            const pad = (n: number) => String(n).padStart(2, "0");
+                            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                          })()}
+                          max={(() => {
+                            const d = new Date();
+                            const pad = (n: number) => String(n).padStart(2, "0");
+                            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                          })()}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            if (!v) { setPlayedAt(new Date().toISOString()); return; }
+                            const parsed = new Date(v);
+                            if (!Number.isNaN(parsed.getTime())) setPlayedAt(parsed.toISOString());
+                          }}
+                        />
                       </div>
-                    );
-                  })()}
+                      <p className="text-[10px] text-muted-foreground/70 leading-snug">
+                        Defaults to now. Backdate this if you're catching up on a game from earlier.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setPlayedAt(new Date().toISOString())}
+                        className="w-full text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors py-1 border border-border/30 rounded-md"
+                      >
+                        Reset to now
+                      </button>
+                    </PopoverContent>
+                  </Popover>
+                </div>
 
-                  {gameType === "competitive" && STANDARD_MODES.includes(gameMode as any) && (
-                    <div className="space-y-2">
-                      <Label>Division Change</Label>
-                      <Select value={divisionChange} onValueChange={setDivisionChange}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">No change</SelectItem>
-                          <SelectItem value="up">Division Up ↑</SelectItem>
-                          <SelectItem value="down">Division Down ↓</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      {currentRank && divisionChange === "none" && (
-                        <p className="text-xs text-muted-foreground">
-                          {formatRank(currentRank.rank_tier, currentRank.rank_division)}
+                {/* Rank update — only for ranked Soccar */}
+                {gameType === "competitive" && STANDARD_MODES.includes(gameMode as any) && (
+                  <div className="rounded-xl border border-border/40 bg-card/40 p-3 space-y-3">
+                    <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      Rank Update
+                    </Label>
+
+                    {/* Division change pills */}
+                    <div className="grid grid-cols-3 gap-2">
+                      {([
+                        { value: "none", label: "No change",    color: "border-border/50 text-muted-foreground" },
+                        { value: "up",   label: "Up ↑",         color: "border-rl-green/50 text-rl-green" },
+                        { value: "down", label: "Down ↓",       color: "border-rl-red/50 text-rl-red" },
+                      ] as const).map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setDivisionChange(opt.value)}
+                          className={cn(
+                            "py-1.5 rounded-md text-xs font-semibold border transition-all",
+                            divisionChange === opt.value
+                              ? `${opt.color} bg-card/80`
+                              : "border-border/30 text-muted-foreground/60 hover:border-border/50 hover:text-muted-foreground"
+                          )}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {currentRank && divisionChange === "none" && (
+                      <p className="text-[11px] text-muted-foreground">
+                        Current rank: {formatRank(currentRank.rank_tier, currentRank.rank_division)}
+                      </p>
+                    )}
+
+                    {/* Resulting rank — only when up/down */}
+                    {(divisionChange === "up" || divisionChange === "down") && (
+                      <div className="space-y-1.5">
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                          Resulting rank
+                          {currentRank && (
+                            <span className="normal-case ml-1 text-muted-foreground/60">
+                              (was {formatRank(currentRank.rank_tier, currentRank.rank_division)})
+                            </span>
+                          )}
                         </p>
-                      )}
-                      {(divisionChange === "up" || divisionChange === "down") && (
-                        <div className="mt-2 space-y-1.5">
-                          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                            Resulting rank
-                            {currentRank && (
-                              <span className="normal-case ml-1 text-muted-foreground/60">
-                                (was {formatRank(currentRank.rank_tier, currentRank.rank_division)})
-                              </span>
-                            )}
-                          </p>
-                          <div className="flex gap-2">
+                        <div className="flex gap-2">
+                          <Select
+                            value={parsedNewRank?.rank_tier ?? ""}
+                            onValueChange={(v) =>
+                              setParsedNewRank((prev) => ({
+                                rank_tier: v as RankTier,
+                                rank_division: v === "unranked" || v === "supersonic_legend" ? null : (prev?.rank_division ?? "I"),
+                              }))
+                            }
+                          >
+                            <SelectTrigger className="h-8 text-xs flex-1">
+                              <SelectValue placeholder="Tier" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {RANK_TIERS.filter((t) => t !== "unranked").map((t) => (
+                                <SelectItem key={t} value={t} className="text-xs">
+                                  {TIER_LABELS[t]}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {parsedNewRank?.rank_tier &&
+                            parsedNewRank.rank_tier !== "unranked" &&
+                            parsedNewRank.rank_tier !== "supersonic_legend" && (
                             <Select
-                              value={parsedNewRank?.rank_tier ?? ""}
+                              value={parsedNewRank?.rank_division ?? "I"}
                               onValueChange={(v) =>
-                                setParsedNewRank((prev) => ({
-                                  rank_tier: v as RankTier,
-                                  rank_division: v === "unranked" || v === "supersonic_legend" ? null : (prev?.rank_division ?? "I"),
-                                }))
+                                setParsedNewRank((prev) =>
+                                  prev ? { ...prev, rank_division: v as RankDivision } : null
+                                )
                               }
                             >
-                              <SelectTrigger className="h-8 text-xs flex-1">
-                                <SelectValue placeholder="Tier" />
+                              <SelectTrigger className="h-8 text-xs w-20">
+                                <SelectValue placeholder="Div" />
                               </SelectTrigger>
                               <SelectContent>
-                                {RANK_TIERS.filter((t) => t !== "unranked").map((t) => (
-                                  <SelectItem key={t} value={t} className="text-xs">
-                                    {TIER_LABELS[t]}
-                                  </SelectItem>
+                                {RANK_DIVISIONS.map((d) => (
+                                  <SelectItem key={d} value={d} className="text-xs">Div {d}</SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
-                            {parsedNewRank?.rank_tier &&
-                              parsedNewRank.rank_tier !== "unranked" &&
-                              parsedNewRank.rank_tier !== "supersonic_legend" && (
-                              <Select
-                                value={parsedNewRank?.rank_division ?? "I"}
-                                onValueChange={(v) =>
-                                  setParsedNewRank((prev) =>
-                                    prev ? { ...prev, rank_division: v as RankDivision } : null
-                                  )
-                                }
-                              >
-                                <SelectTrigger className="h-8 text-xs w-20">
-                                  <SelectValue placeholder="Div" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {RANK_DIVISIONS.map((d) => (
-                                    <SelectItem key={d} value={d} className="text-xs">Div {d}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            )}
-                          </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  )}
-                </div>
+                      </div>
+                    )}
 
-                {gameType === "competitive" && STANDARD_MODES.includes(gameMode as any) && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>MMR (after game)</Label>
-                      <Input
-                        type="number"
-                        placeholder="e.g. 847"
-                        value={mmr ?? ""}
-                        onChange={(e) => setMmr(e.target.value === "" ? null : Number(e.target.value))}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>MMR Change</Label>
-                      <Input
-                        type="number"
-                        placeholder="e.g. +12 or -8"
-                        value={mmrChange ?? ""}
-                        onChange={(e) => setMmrChange(e.target.value === "" ? null : Number(e.target.value))}
-                      />
-                      {mmrChange !== null && (
-                        <p className={`text-xs ${mmrChange >= 0 ? "text-green-500" : "text-red-500"}`}>
-                          {mmrChange >= 0 ? `+${mmrChange}` : mmrChange}
-                        </p>
-                      )}
+                    {/* MMR inputs — single compact row */}
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/30">
+                      <div className="space-y-1">
+                        <Label htmlFor="mmr" className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                          MMR after
+                        </Label>
+                        <Input
+                          id="mmr"
+                          type="number"
+                          placeholder="847"
+                          className="h-8 text-sm"
+                          value={mmr ?? ""}
+                          onChange={(e) => setMmr(e.target.value === "" ? null : Number(e.target.value))}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="mmrChange" className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                          ± Change
+                        </Label>
+                        <Input
+                          id="mmrChange"
+                          type="number"
+                          placeholder="+12"
+                          className={cn(
+                            "h-8 text-sm",
+                            mmrChange !== null && (mmrChange >= 0 ? "text-rl-green" : "text-rl-red")
+                          )}
+                          value={mmrChange ?? ""}
+                          onChange={(e) => setMmrChange(e.target.value === "" ? null : Number(e.target.value))}
+                        />
+                      </div>
                     </div>
                   </div>
                 )}
