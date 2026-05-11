@@ -29,6 +29,7 @@ import AppLayout from "@/components/layout/AppLayout";
 import LeaderboardView from "@/components/leaderboard/LeaderboardView";
 import { isStandardGame } from "@/lib/gameModes";
 import TournamentHistoryPanel from "@/components/tournament/TournamentHistoryPanel";
+import RecentTournaments, { type RecentTournament } from "@/components/profile/RecentTournaments";
 
 type GameMode = Database["public"]["Enums"]["game_mode"];
 type GameType = Database["public"]["Enums"]["game_type"];
@@ -553,6 +554,9 @@ const Stats = () => {
   const [togetherRange, setTogetherRange] = useState<TogetherRange>("all");
   const [togetherVisibleCount, setTogetherVisibleCount] = useState(5);
   const [togetherExpandedGameId, setTogetherExpandedGameId] = useState<string | null>(null);
+  // Tournaments where the viewer AND the selected teammate played on the SAME
+  // team in at least one game. Loaded lazily from the tournament_games join.
+  const [sharedTournaments, setSharedTournaments] = useState<RecentTournament[]>([]);
   const [seasonStartsAt, setSeasonStartsAt] = useState<string | null>(null);
   const [currentSeasonName, setCurrentSeasonName] = useState<string>("This Season");
 
@@ -873,6 +877,53 @@ const Stats = () => {
       .filter((g) => findPlayer(g.game_players || [], userTarget) && findPlayer(g.game_players || [], teammateTarget))
       .reverse();
   }, [rangeFilteredGames, userTarget, teammateTarget]);
+
+  // Same-team shared games — used as the seed set for "Tournaments Together".
+  // A tournament shows up here only when at least one of its games has the
+  // viewer + teammate on the SAME team (same logic Squad uses for chemistry).
+  const sameTeamSharedGameIds = useMemo(() => {
+    if (!teammateTarget) return [] as string[];
+    return recentSharedGames
+      .filter((g) => {
+        const a = findPlayer(g.game_players || [], userTarget);
+        const b = findPlayer(g.game_players || [], teammateTarget);
+        return a && b && a.team && b.team && a.team === b.team;
+      })
+      .map((g) => g.id);
+  }, [recentSharedGames, userTarget, teammateTarget]);
+
+  // Fetch tournaments that include any same-team shared game between the viewer
+  // and the selected teammate. Refetches whenever the seed set changes.
+  useEffect(() => {
+    let cancelled = false;
+    const loadSharedTournaments = async () => {
+      if (!selectedFriend || sameTeamSharedGameIds.length === 0) {
+        if (!cancelled) setSharedTournaments([]);
+        return;
+      }
+      try {
+        const { data: tgRows } = await supabase
+          .from("tournament_games")
+          .select("tournament_id")
+          .in("game_id", sameTeamSharedGameIds);
+        const tIds = Array.from(new Set((tgRows ?? []).map((r) => r.tournament_id))).filter(Boolean) as string[];
+        if (tIds.length === 0) {
+          if (!cancelled) setSharedTournaments([]);
+          return;
+        }
+        const { data: tList } = await supabase
+          .from("tournaments")
+          .select("id, game_mode, tournament_type, status, outcome, current_round, created_at")
+          .in("id", tIds)
+          .order("created_at", { ascending: false });
+        if (!cancelled) setSharedTournaments((tList ?? []) as RecentTournament[]);
+      } catch {
+        if (!cancelled) setSharedTournaments([]);
+      }
+    };
+    loadSharedTournaments();
+    return () => { cancelled = true; };
+  }, [selectedFriend, sameTeamSharedGameIds]);
 
   // MMR history — multi-mode overlay from game_players.mmr (per-game values)
   const mmrChartData = useMemo(() => {
@@ -1367,6 +1418,21 @@ const Stats = () => {
                         Show more ({recentSharedGames.length - togetherVisibleCount} remaining)
                       </button>
                     )}
+                  </div>
+                )}
+
+                {/* ── Tournaments Together ───────────────────────────────────
+                    Mirrors the profile's "Tournaments" feed but only includes
+                    tournaments where the viewer + teammate played on the SAME
+                    team in at least one game. Empty by default — only renders
+                    once we've found a matching tournament. */}
+                {sharedTournaments.length > 0 && user && (
+                  <div className="animate-fade-in-up">
+                    <RecentTournaments
+                      tournaments={sharedTournaments}
+                      profileUserId={user.id}
+                      isOwnProfile={true}
+                    />
                   </div>
                 )}
               </>
