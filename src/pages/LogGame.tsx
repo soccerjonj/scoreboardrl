@@ -102,6 +102,41 @@ function compareRanks(
   return "none";
 }
 
+/**
+ * Look up `profiles` rows by `rl_account_name` in a CASE-INSENSITIVE manner.
+ *
+ * The straightforward `.in("rl_account_name", names)` PostgREST filter does
+ * an EXACT match, so a profile with `rl_account_name = "FriendName"` never
+ * matched a scoreboard-parsed "friendname" (and vice versa). That silently
+ * left `game_players.user_id` NULL for the friend — which is why their
+ * gamertag wasn't clickable, the "played with a friend" icon never appeared,
+ * and the game never showed up on their profile.
+ *
+ * One small `ilike` round-trip per parsed name is cheap (max ~8 names per
+ * game, all indexable) and bullet-proof against casing differences.
+ */
+async function lookupProfilesByPlayerNames(names: string[]) {
+  const cleaned = Array.from(
+    new Set(names.map((n) => n?.trim()).filter((n): n is string => !!n))
+  );
+  if (cleaned.length === 0) return [] as Array<{ user_id: string; rl_account_name: string | null }>;
+  const results = await Promise.all(
+    cleaned.map((name) =>
+      supabase
+        .from("profiles")
+        .select("user_id, rl_account_name")
+        // `%` / `_` are LIKE wildcards — extremely unlikely inside a real RL
+        // name, but escape them defensively so a literal underscore never
+        // turns into a broad pattern match.
+        .ilike("rl_account_name", name.replace(/[\\%_]/g, "\\$&"))
+        .limit(1)
+    )
+  );
+  return results
+    .flatMap((r) => r.data ?? [])
+    .filter((p): p is { user_id: string; rl_account_name: string | null } => !!p);
+}
+
 function shiftRank(
   tier: RankTier,
   division: RankDivision | null,
@@ -333,13 +368,10 @@ const LogGame = () => {
       // Skip this check when the user has explicitly chosen "Use my version".
       const norm = (v: string) => v.trim().toLowerCase();
       const playerNames   = players.map((p) => p.name);
-      const { data: linkedProfiles } = await supabase
-        .from("profiles")
-        .select("user_id, rl_account_name")
-        .in("rl_account_name", playerNames);
+      const linkedProfiles = await lookupProfilesByPlayerNames(playerNames);
 
       const nameToUserId = new Map<string, string>();
-      (linkedProfiles || []).forEach((p) => {
+      linkedProfiles.forEach((p) => {
         if (p.rl_account_name) nameToUserId.set(norm(p.rl_account_name), p.user_id);
       });
 
@@ -450,13 +482,10 @@ const LogGame = () => {
         friendAutoApprove.set(otherId, true);
       });
 
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, rl_account_name")
-        .in("rl_account_name", players.map((p) => p.name));
+      const profiles = await lookupProfilesByPlayerNames(players.map((p) => p.name));
 
       const playerNameToUserId = new Map<string, string>();
-      (profiles || []).forEach((p) => {
+      profiles.forEach((p) => {
         if (p.rl_account_name) playerNameToUserId.set(norm(p.rl_account_name), p.user_id);
       });
 
