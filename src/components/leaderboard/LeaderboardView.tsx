@@ -259,7 +259,7 @@ const LeaderboardView = ({ currentUserId, friendUserIds = [] }: Props) => {
 
                     {/* Avatar */}
                     {entry.avatar_url ? (
-                      <img src={entry.avatar_url} alt={entry.rl_name} className="w-8 h-8 rounded-full object-cover shrink-0" />
+                      <img src={entry.avatar_url} alt={entry.rl_name} loading="lazy" decoding="async" className="w-8 h-8 rounded-full object-cover shrink-0" />
                     ) : (
                       <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
                         <span className="text-xs font-display font-bold text-muted-foreground">
@@ -315,7 +315,7 @@ const LeaderboardView = ({ currentUserId, friendUserIds = [] }: Props) => {
 
               {/* Avatar */}
               {myEntry.avatar_url ? (
-                <img src={myEntry.avatar_url} alt={myEntry.rl_name} className="w-8 h-8 rounded-full object-cover shrink-0" />
+                <img src={myEntry.avatar_url} alt={myEntry.rl_name} decoding="async" className="w-8 h-8 rounded-full object-cover shrink-0" />
               ) : (
                 <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
                   <span className="text-xs font-display font-bold text-muted-foreground">

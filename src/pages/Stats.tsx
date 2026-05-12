@@ -221,7 +221,7 @@ const AvatarCircle = ({ url, name, size = "md" }: { url: string | null; name: st
   return (
     <div className={cn(dim, "rounded-full bg-muted overflow-hidden shrink-0 flex items-center justify-center border border-border/40")}>
       {url
-        ? <img src={url} alt={name} className="w-full h-full object-cover" />
+        ? <img src={url} alt={name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
         : <span className="font-bold text-muted-foreground">{name.slice(0, 2).toUpperCase()}</span>
       }
     </div>

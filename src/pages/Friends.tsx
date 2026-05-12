@@ -100,7 +100,7 @@ const Avatar = ({
   return (
     <div className={cn("rounded-full border-2 border-border/60 bg-muted/60 overflow-hidden shrink-0 flex items-center justify-center font-bold text-muted-foreground", sizeClass)}>
       {src ? (
-        <img src={src} alt={name} className="w-full h-full object-cover" />
+        <img src={src} alt={name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
       ) : (
         <span>{initials}</span>
       )}
@@ -462,7 +462,7 @@ const Friends = () => {
                     >
                       <div className="w-11 h-11 rounded-full border-2 border-border/60 group-hover:border-primary/60 transition-colors bg-muted/60 overflow-hidden flex items-center justify-center font-bold text-xs text-muted-foreground">
                         {p?.avatar_url ? (
-                          <img src={p.avatar_url} alt={name} className="w-full h-full object-cover" />
+                          <img src={p.avatar_url} alt={name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                         ) : (
                           <span>{name.slice(0, 2).toUpperCase()}</span>
                         )}

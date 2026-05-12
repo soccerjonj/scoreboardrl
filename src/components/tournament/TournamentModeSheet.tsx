@@ -290,7 +290,7 @@ export default function TournamentModeSheet({ open, onOpenChange }: Props) {
                         >
                           <div className="w-5 h-5 rounded-full overflow-hidden bg-muted/50 flex items-center justify-center shrink-0">
                             {prof?.avatar_url ? (
-                              <img src={prof.avatar_url} alt="" className="w-full h-full object-cover" />
+                              <img src={prof.avatar_url} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                             ) : (
                               <User className="w-3 h-3 text-muted-foreground" />
                             )}

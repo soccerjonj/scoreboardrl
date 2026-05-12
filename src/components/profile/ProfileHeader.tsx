@@ -163,7 +163,7 @@ export default function ProfileHeader({
             }}
           >
             {avatarUrl ? (
-              <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" />
+              <img src={avatarUrl} alt={displayName} decoding="async" className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center">
                 <User className="w-9 h-9 text-muted-foreground/60" />
@@ -281,7 +281,7 @@ export default function ProfileHeader({
                   >
                     <div className="w-11 h-11 rounded-full bg-muted/60 border-2 border-border/50 overflow-hidden shrink-0 flex items-center justify-center group-hover:border-primary/50 transition-colors">
                       {tm.avatarUrl
-                        ? <img src={tm.avatarUrl} alt={tm.name} className="w-full h-full object-cover" />
+                        ? <img src={tm.avatarUrl} alt={tm.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                         : <span className="text-xs font-bold text-muted-foreground">{tm.name.slice(0, 2).toUpperCase()}</span>
                       }
                     </div>

@@ -1,0 +1,5 @@
+[functions.prune-screenshots]
+# We do our own authorization (service-role key or PRUNE_SECRET) inside the
+# function — the platform's JWT verifier would reject cron-scheduled calls
+# from pg_net since they don't carry a user JWT.
+verify_jwt = false

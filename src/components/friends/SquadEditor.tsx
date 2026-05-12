@@ -179,7 +179,7 @@ export default function SquadEditor({ open, onOpenChange, friends, mode, onSaved
                     >
                       <div className="w-8 h-8 rounded-full overflow-hidden bg-muted/50 flex items-center justify-center shrink-0">
                         {f.avatarUrl ? (
-                          <img src={f.avatarUrl} alt="" className="w-full h-full object-cover" />
+                          <img src={f.avatarUrl} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                         ) : (
                           <User className="w-4 h-4 text-muted-foreground" />
                         )}

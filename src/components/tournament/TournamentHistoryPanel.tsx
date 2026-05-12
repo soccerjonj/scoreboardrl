@@ -329,7 +329,7 @@ function TournamentCard({ tournament, userId, autoExpand = false }: { tournament
                   <>
                     <span className="inline-flex items-center gap-1 text-foreground/80">
                       {ownerProfile.avatarUrl ? (
-                        <img src={ownerProfile.avatarUrl} alt="" className="w-3.5 h-3.5 rounded-full object-cover" />
+                        <img src={ownerProfile.avatarUrl} alt="" loading="lazy" decoding="async" className="w-3.5 h-3.5 rounded-full object-cover" />
                       ) : (
                         <User className="w-3 h-3" />
                       )}

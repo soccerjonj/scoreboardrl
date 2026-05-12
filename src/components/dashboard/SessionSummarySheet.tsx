@@ -347,6 +347,8 @@ export default function SessionSummarySheet({
                         <img
                           src={f.avatarUrl}
                           alt=""
+                          loading="lazy"
+                          decoding="async"
                           className="w-8 h-8 rounded-full border border-border/40 object-cover shrink-0"
                         />
                       ) : (

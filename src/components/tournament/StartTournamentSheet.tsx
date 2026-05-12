@@ -232,7 +232,7 @@ export default function StartTournamentSheet({ open, onOpenChange }: Props) {
                     >
                       <div className="w-8 h-8 rounded-full overflow-hidden bg-muted/50 flex items-center justify-center shrink-0">
                         {f.avatar_url ? (
-                          <img src={f.avatar_url} alt="" className="w-full h-full object-cover" />
+                          <img src={f.avatar_url} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                         ) : (
                           <User className="w-4 h-4 text-muted-foreground" />
                         )}

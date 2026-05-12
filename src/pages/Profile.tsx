@@ -729,7 +729,7 @@ const Profile = () => {
                 <Loader2 className="w-6 h-6 animate-spin text-primary" />
               </div>
             ) : avatarUrl ? (
-              <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+              <img src={avatarUrl} alt="Avatar" decoding="async" className="w-full h-full object-cover" />
             ) : (
               <div className="absolute inset-0 flex items-center justify-center">
                 <User className="w-10 h-10 text-muted-foreground/60" />

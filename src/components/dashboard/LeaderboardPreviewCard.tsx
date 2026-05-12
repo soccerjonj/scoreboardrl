@@ -57,7 +57,7 @@ const LeaderboardPreviewCard = () => {
                   <Medal className={`w-4 h-4 ${rankColors[i]}`} />
                 </div>
                 {entry.avatar_url ? (
-                  <img src={entry.avatar_url} alt={entry.rl_name} className="w-6 h-6 rounded-full object-cover shrink-0" />
+                  <img src={entry.avatar_url} alt={entry.rl_name} loading="lazy" decoding="async" className="w-6 h-6 rounded-full object-cover shrink-0" />
                 ) : (
                   <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center shrink-0">
                     <span className="text-[10px] font-bold">{(entry.rl_name || "?")[0].toUpperCase()}</span>

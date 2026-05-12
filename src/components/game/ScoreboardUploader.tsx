@@ -42,6 +42,13 @@ const ScoreboardUploader = ({ userRlName, onParsed }: ScoreboardUploaderProps) =
   const [parseError, setParseError] = useState<string | null>(null);
   // Cached parse input so a retry doesn't require re-selecting / re-uploading the photo
   const lastParseInput = useRef<{ base64: string; mimeType: string; file: File } | null>(null);
+  // In-memory cache of (image SHA-256) → previously-successful parsed result.
+  // Per-tab only, intentional: we want to short-circuit Gemini calls when the
+  // user re-uploads the exact same image (deliberate retry, accidental
+  // double-pick, "Use different photo" reverted back), without locking the
+  // user into a cached result across reloads. Each cache hit saves one paid
+  // edge function invocation against the Supabase quota.
+  const parseCache = useRef<Map<string, ParsedScoreboard>>(new Map());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -80,11 +87,40 @@ const ScoreboardUploader = ({ userRlName, onParsed }: ScoreboardUploaderProps) =
     // Cache so the user can retry without re-selecting the file
     lastParseInput.current = { base64, mimeType, file: originalFile };
     setParseError(null);
+
+    // Hash the raw image bytes (strip the "data:image/...;base64," prefix so
+    // identical pixels always hash the same regardless of mime). If we've
+    // already parsed this exact image successfully in this tab, hand the
+    // cached result back instead of paying for another Gemini call.
+    const rawB64 = base64.split(",")[1] ?? base64;
+    let imageHash: string | null = null;
+    try {
+      const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(rawB64));
+      imageHash = Array.from(new Uint8Array(buf))
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+    } catch {
+      // SubtleCrypto unavailable (very old browsers / non-https). Skip cache.
+    }
+
+    if (imageHash) {
+      const hit = parseCache.current.get(imageHash);
+      if (hit) {
+        lastParseInput.current = null;
+        onParsed(hit, originalFile);
+        toast({
+          title: "Restored parsed scoreboard",
+          description: `Same image — using the saved result (no new parse charged).`,
+        });
+        return;
+      }
+    }
+
     setParsing(true);
     try {
       const { data, error } = await supabase.functions.invoke("parse-scoreboard", {
         body: {
-          image_base64: base64.split(",")[1],
+          image_base64: rawB64,
           user_rl_name: userRlName,
           mime_type: mimeType,
         },
@@ -99,8 +135,10 @@ const ScoreboardUploader = ({ userRlName, onParsed }: ScoreboardUploaderProps) =
       if (data.error) throw new Error(data.error);
 
       quota.refetch();
-      // Success — drop the cached input
+      // Success — drop the cached input AND remember the result by hash so
+      // a re-upload of the same image hits the cache.
       lastParseInput.current = null;
+      if (imageHash) parseCache.current.set(imageHash, data as ParsedScoreboard);
       onParsed(data, originalFile);
       toast({ title: "Scoreboard parsed!", description: `Found ${data.players.length} players in a ${data.game_mode} ${data.game_type} game.` });
     } catch (err: any) {
