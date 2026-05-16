@@ -32,10 +32,30 @@ const SessionShareCard = forwardRef<HTMLDivElement, Props>(({ summary, rlName },
   const topModeLabel = topMode ? `${topMode.modeLabel} ${topMode.categoryLabel}` : null;
 
   return (
+    // Zero-size clipping shell keeps the 1080×1920 card out of view WITHOUT
+    // pushing it off-screen with a huge negative offset. html-to-image clones
+    // computed styles into an <svg><foreignObject>; a cloned root that is
+    // `position:fixed; left:-99999px` lands outside that foreignObject's
+    // viewport and serializes as a fully blank PNG. By clipping with an
+    // overflow:hidden 0×0 wrapper instead, the captured node itself stays in
+    // normal flow at the origin and renders correctly.
+    <div
+      aria-hidden
+      style={{
+        position: "fixed",
+        left: 0,
+        top: 0,
+        width: 0,
+        height: 0,
+        overflow: "hidden",
+        opacity: 0,
+        pointerEvents: "none",
+        zIndex: -1,
+      }}
+    >
     <div
       ref={ref}
-      // Off-screen by default; the parent flips visibility before capture.
-      style={{ width: 1080, height: 1920, position: "fixed", left: -99999, top: 0 }}
+      style={{ width: 1080, height: 1920, position: "relative" }}
       className="bg-background text-foreground font-sans"
     >
       {/* Outer glow frame */}
@@ -210,6 +230,7 @@ const SessionShareCard = forwardRef<HTMLDivElement, Props>(({ summary, rlName },
           </div>
         </div>
       </div>
+    </div>
     </div>
   );
 });

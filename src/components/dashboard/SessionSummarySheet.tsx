@@ -49,10 +49,36 @@ export default function SessionSummarySheet({
     if (!node) return;
     setSharing(true);
     try {
-      const blob = await htmlToImage.toBlob(node, {
+      // Two attempts: the first includes friend avatars. If a cross-origin
+      // avatar taints the canvas (Supabase Storage not returning CORS headers
+      // for that object), toBlob throws a SecurityError and we'd otherwise
+      // hand the user a blank/failed share. Retry once with images skipped so
+      // they still get a usable card (initials fallback render in their place
+      // because the <img> simply won't be cloned).
+      const baseOpts = {
+        width: 1080,
+        height: 1920,
         pixelRatio: 2,
         cacheBust: true,
-      });
+        backgroundColor: "#0b0b12",
+        // Applied to the cloned root — guarantees it renders at the
+        // foreignObject origin rather than wherever it sat in the DOM.
+        style: { position: "relative", left: "0", top: "0", margin: "0" },
+      } as const;
+
+      let blob: Blob | null = null;
+      try {
+        blob = await htmlToImage.toBlob(node, baseOpts);
+      } catch (inner: any) {
+        if (inner?.name === "SecurityError" || /tainted|insecure/i.test(inner?.message ?? "")) {
+          blob = await htmlToImage.toBlob(node, {
+            ...baseOpts,
+            filter: (el: HTMLElement) => el.tagName !== "IMG",
+          });
+        } else {
+          throw inner;
+        }
+      }
       if (!blob) throw new Error("Could not generate image");
       const dateStr = new Date(summary.lastGameAt).toISOString().slice(0, 10);
       const file = new File([blob], `scoreboardrl-session-${dateStr}.png`, {
