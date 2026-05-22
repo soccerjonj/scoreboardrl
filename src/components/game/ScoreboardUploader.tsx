@@ -60,7 +60,13 @@ const ScoreboardUploader = ({ userRlName, onParsed }: ScoreboardUploaderProps) =
       const url = URL.createObjectURL(file);
       img.onload = () => {
         URL.revokeObjectURL(url);
-        const MAX = 1920;
+        // Scoreboards are read by Gemini OCR, and the stat digits are tiny —
+        // especially on an angled phone-photo of a TV. Aggressive downscaling
+        // (1920px @ 0.82) blurred those digits enough that the camera path
+        // routinely failed to parse while a full-res library upload of the
+        // same board succeeded. Keep far more detail: cap at 2560px and use
+        // quality 0.92. A scoreboard at this size is still well under 1 MB.
+        const MAX = 2560;
         let { width, height } = img;
         if (width > MAX || height > MAX) {
           if (width > height) {
@@ -76,7 +82,7 @@ const ScoreboardUploader = ({ userRlName, onParsed }: ScoreboardUploaderProps) =
         canvas.height = height;
         const ctx = canvas.getContext("2d")!;
         ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL("image/jpeg", 0.82));
+        resolve(canvas.toDataURL("image/jpeg", 0.92));
       };
       img.onerror = reject;
       img.src = url;
@@ -193,9 +199,13 @@ const ScoreboardUploader = ({ userRlName, onParsed }: ScoreboardUploaderProps) =
       return;
     }
 
-    // Standard images: only compress if over 2MB, otherwise send full quality
+    // Standard images: send the original untouched unless it's genuinely
+    // huge. A typical iOS camera JPEG is ~2–4 MB; recompressing those was
+    // exactly what was blurring the stat digits and breaking the parse, so
+    // only downscale when the file is big enough to risk Gemini's inline
+    // payload limit (~5 MB after base64 inflation → ~6.5 MB).
     try {
-      if (file.size > 2 * 1024 * 1024) {
+      if (file.size > 5 * 1024 * 1024) {
         const compressed = await compressImage(file);
         setPreview(compressed);
         parseScoreboard(compressed, "image/jpeg", file);
