@@ -119,13 +119,28 @@ Return ONLY valid JSON with no extra text or markdown:
           { inline_data: { mime_type: mime_type || "image/jpeg", data: image_base64 } },
         ],
       }],
-      generationConfig: { maxOutputTokens: 4096, temperature: 0 },
+      generationConfig: {
+        // gemini-2.5-flash is a THINKING model — its internal reasoning tokens
+        // count against maxOutputTokens. At 4096 a busy 3v3/4v4 board with
+        // per-player rank + MMR could exhaust the budget mid-thought and return
+        // truncated/empty JSON (finishReason: MAX_TOKENS), which surfaced to
+        // users as "failed to parse". 8192 leaves ample room for thinking + the
+        // full JSON payload.
+        maxOutputTokens: 8192,
+        temperature: 0,
+        // Force structured JSON so we never have to strip markdown fences and
+        // JSON.parse can't choke on stray prose.
+        responseMimeType: "application/json",
+      },
     };
 
     let response: Response | null = null;
     let lastError = "";
 
-    for (let attempt = 1; attempt <= 3; attempt++) {
+    // Retry on transient failures (429 rate-limit, 5xx) with exponential
+    // backoff. Previously a 429 failed instantly with no retry — under load on
+    // the Gemini free tier that turned every rate-limit into a parse failure.
+    for (let attempt = 1; attempt <= 4; attempt++) {
       const res = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
         {
@@ -135,37 +150,52 @@ Return ONLY valid JSON with no extra text or markdown:
         }
       );
 
-      if (res.status === 429) {
-        const rateLimitBody = await res.text();
-        console.error("Gemini 429:", rateLimitBody);
-        return fail(`Rate limited by Gemini: ${rateLimitBody.slice(0, 200)}`);
-      }
-
-      if (!res.ok) {
-        const errBody = await res.text();
-        lastError = `Gemini error ${res.status}: ${errBody}`;
-        console.error(`Attempt ${attempt}: ${lastError}`);
-        if (attempt < 3) {
-          await new Promise((r) => setTimeout(r, 1000 * attempt));
-          continue;
-        }
+      if (res.ok) {
+        response = res;
         break;
       }
 
-      response = res;
+      const errBody = await res.text();
+      lastError = `Gemini error ${res.status}: ${errBody}`;
+      console.error(`Attempt ${attempt}: ${lastError.slice(0, 300)}`);
+
+      const retryable = res.status === 429 || res.status >= 500;
+      if (retryable && attempt < 4) {
+        // Respect Retry-After (seconds) when present, else exponential backoff.
+        const retryAfter = Number(res.headers.get("retry-after"));
+        const waitMs =
+          Number.isFinite(retryAfter) && retryAfter > 0
+            ? Math.min(retryAfter * 1000, 8000)
+            : 800 * Math.pow(2, attempt - 1); // 0.8s → 1.6s → 3.2s
+        await new Promise((r) => setTimeout(r, waitMs));
+        continue;
+      }
       break;
     }
 
-    if (!response) return fail(lastError || "Gemini API failed");
+    if (!response) {
+      // Give a friendlier message for the most common transient case.
+      if (lastError.includes("429")) {
+        return fail("Gemini is rate-limiting right now. Wait a moment and tap Retry parse.");
+      }
+      return fail(lastError || "Gemini API failed");
+    }
 
     const aiResult = await response.json();
+    const candidate = aiResult.candidates?.[0];
+    const finishReason = candidate?.finishReason;
     // gemini-2.5-flash may return a "thought" part before the actual response part
-    const parts: { text?: string; thought?: boolean }[] = aiResult.candidates?.[0]?.content?.parts ?? [];
+    const parts: { text?: string; thought?: boolean }[] = candidate?.content?.parts ?? [];
     const responsePart = parts.find((p) => !p.thought && typeof p.text === "string");
     const content = responsePart?.text;
     if (!content) {
-      console.error("Gemini full response:", JSON.stringify(aiResult));
-      return fail("No response from Gemini");
+      console.error("Gemini empty content. finishReason:", finishReason, "full:", JSON.stringify(aiResult).slice(0, 800));
+      // MAX_TOKENS means the model ran out of budget mid-response — almost
+      // always recoverable on a retry, so tell the user that explicitly.
+      if (finishReason === "MAX_TOKENS") {
+        return fail("That scoreboard was too detailed to read in one pass — tap Retry parse.");
+      }
+      return fail("No response from Gemini. Tap Retry parse or enter stats manually.");
     }
 
     // Strip markdown code fences if present
