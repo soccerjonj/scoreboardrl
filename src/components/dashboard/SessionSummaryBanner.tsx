@@ -80,52 +80,54 @@ export default function SessionSummaryBanner({
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
+      <div
         className={cn(
-          "w-full rounded-xl border border-dashed border-primary/30 bg-card/60",
-          "px-4 py-2.5 flex items-center justify-between gap-3 text-left",
-          "hover:border-primary/50 hover:bg-card/80 transition-colors group"
+          "w-full rounded-xl border border-dashed border-primary/30 bg-card/60 overflow-hidden",
+          "flex items-stretch transition-colors hover:border-primary/50"
         )}
       >
-        <div className="flex items-center gap-2 min-w-0">
-          <Sparkles className="w-4 h-4 text-primary shrink-0" />
-          <span className="text-xs text-muted-foreground shrink-0">Session</span>
-          <span className="text-border/60 shrink-0">·</span>
-          <span className="text-xs font-mono tabular-nums shrink-0">
-            <span className="text-rl-green font-bold">{summary.wins}W</span>
-            <span className="text-muted-foreground/60 mx-0.5">-</span>
-            <span className="text-rl-red font-bold">{summary.losses}L</span>
-          </span>
-          <span className="text-border/60 shrink-0">·</span>
-          <span className="text-xs font-semibold text-foreground shrink-0">{winRate}%</span>
-          <span className="text-border/60 shrink-0 hidden sm:inline">·</span>
-          <span className="text-[11px] text-muted-foreground shrink-0 hidden sm:inline">
-            {summary.games} games
-          </span>
-        </div>
-        <div className="flex items-center gap-1 shrink-0">
-          <span className="text-[11px] font-semibold text-primary group-hover:translate-x-0.5 transition-transform">
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className={cn(
+            "group flex-1 min-w-0",
+            "px-4 py-2.5 flex items-center justify-between gap-3 text-left",
+            "hover:bg-card/80 transition-colors"
+          )}
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <Sparkles className="w-4 h-4 text-primary shrink-0" />
+            <span className="text-xs text-muted-foreground shrink-0">Session</span>
+            <span className="text-border/60 shrink-0">·</span>
+            <span className="text-xs font-mono tabular-nums shrink-0">
+              <span className="text-rl-green font-bold">{summary.wins}W</span>
+              <span className="text-muted-foreground/60 mx-0.5">-</span>
+              <span className="text-rl-red font-bold">{summary.losses}L</span>
+            </span>
+            <span className="text-border/60 shrink-0">·</span>
+            <span className="text-xs font-semibold text-foreground shrink-0">{winRate}%</span>
+            <span className="text-border/60 shrink-0 hidden sm:inline">·</span>
+            <span className="text-[11px] text-muted-foreground shrink-0 hidden sm:inline">
+              {summary.games} games
+            </span>
+          </div>
+          <span className="text-[11px] font-semibold text-primary shrink-0 group-hover:translate-x-0.5 transition-transform">
             View →
           </span>
-          <span
-            role="button"
-            aria-label="Dismiss session summary"
-            tabIndex={0}
-            onClick={(e) => { e.stopPropagation(); dismiss(); }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.stopPropagation();
-                dismiss();
-              }
-            }}
-            className="ml-1 p-1 rounded hover:bg-muted/50 text-muted-foreground/60 hover:text-foreground transition-colors cursor-pointer"
-          >
-            <X className="w-3.5 h-3.5" />
-          </span>
-        </div>
-      </button>
+        </button>
+        <button
+          type="button"
+          aria-label="Dismiss session summary"
+          onClick={dismiss}
+          className={cn(
+            "shrink-0 flex items-center justify-center px-3",
+            "border-l border-border/40",
+            "text-muted-foreground/60 hover:bg-muted/50 hover:text-foreground transition-colors"
+          )}
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
 
       {open && (
         <Suspense fallback={null}>
