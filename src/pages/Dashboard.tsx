@@ -22,6 +22,7 @@ import { isStandardGame, getGameCategory, GAME_CATEGORY_LABELS, GAME_CATEGORY_SH
 import { linkPlayersByName } from "@/lib/playerLinking";
 import { TOURNAMENT_TYPE_LABELS } from "@/hooks/useTournamentSession";
 import SessionSummaryBanner from "@/components/dashboard/SessionSummaryBanner";
+import SeasonCountdownCard from "@/components/dashboard/SeasonCountdownCard";
 import type { FriendProfileInfo } from "@/lib/sessionSummary";
 
 // ─── CountUp component ────────────────────────────────────────────────────────
@@ -530,6 +531,9 @@ const Dashboard = () => {
             </Button>
           </Link>
         </div>
+
+        {/* Season countdown */}
+        <SeasonCountdownCard />
 
         {/* Rank Cards */}
         {ranks.length > 0 && (() => {
