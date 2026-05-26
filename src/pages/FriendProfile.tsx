@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
+import { getLeaderboardCached } from "@/lib/leaderboardCache";
 import type { Database } from "@/integrations/supabase/types";
 import { getRankIcon } from "@/lib/rankIcons";
 import ProfileHeader from "@/components/profile/ProfileHeader";
@@ -539,7 +540,7 @@ const FriendProfile = () => {
 
           // Leaderboard standing
           try {
-            const { data: lbData } = await (supabase as any).rpc("get_leaderboard", { p_window: "7d", p_stat: "goals" });
+            const lbData = await getLeaderboardCached("7d", "goals");
             const entry = (lbData ?? []).find((e: any) => e.user_id === userId);
             if (entry && entry.rank <= 20) {
               setLeaderboardStanding({ stat: "Goals", rank: entry.rank, window: "7d" });

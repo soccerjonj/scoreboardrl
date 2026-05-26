@@ -25,6 +25,8 @@ import { ROUND_ORDER } from "@/hooks/useTournamentSession";
 import type { RoundKey } from "@/hooks/useTournamentSession";
 import type { BestGame, ActivityGame, TournamentSummary, LeaderboardStanding, ChartPoint, TeammateProfile } from "@/types/profile";
 import { EXTRA_MODES, EXTRA_MODE_LABELS, isStandardGame } from "@/lib/gameModes";
+import { compressImageForStorage } from "@/lib/imageCompress";
+import { getLeaderboardCached } from "@/lib/leaderboardCache";
 
 type GameMode     = Database["public"]["Enums"]["game_mode"];
 type GameType     = Database["public"]["Enums"]["game_type"];
@@ -521,7 +523,7 @@ const Profile = () => {
 
         // Leaderboard standing (non-blocking)
         try {
-          const { data: lbData } = await (supabase as any).rpc("get_leaderboard", { p_window: "7d", p_stat: "goals" });
+          const lbData = await getLeaderboardCached("7d", "goals");
           const myEntry = (lbData ?? []).find((e: any) => e.user_id === user.id);
           if (myEntry && myEntry.rank <= 20) {
             setLeaderboardStanding({ stat: "Goals", rank: myEntry.rank, window: "7d" });
@@ -554,17 +556,30 @@ const Profile = () => {
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
-    const ext = file.name.split(".").pop() ?? "jpg";
+    const previousUrl = avatarUrl;
+    // Avatars only ever render small — shrink to 256px so they cost a few KB
+    // each instead of full-res photos eating the storage/egress budget.
+    const blob = await compressImageForStorage(file, 256, 0.85);
+    const ext = blob.type === "image/jpeg" ? "jpg" : (file.name.split(".").pop() ?? "jpg");
     const path = `avatars/${user.id}/${Date.now()}.${ext}`;
     setUploadingAvatar(true);
     try {
-      const { error: uploadError } = await supabase.storage.from("screenshots").upload(path, file, { upsert: true });
+      const { error: uploadError } = await supabase.storage.from("screenshots").upload(path, blob, { upsert: true, contentType: blob.type || "image/jpeg" });
       if (uploadError) throw uploadError;
       const { data: urlData } = supabase.storage.from("screenshots").getPublicUrl(path);
       await supabase.from("profiles").update({ avatar_url: urlData.publicUrl } as any).eq("user_id", user.id);
       setAvatarUrl(urlData.publicUrl);
       localStorage.setItem(`avatar_url_${user.id}`, urlData.publicUrl);
       toast({ title: "Avatar updated" });
+      // Delete the previous avatar so old ones don't accumulate forever — the
+      // prune job only sweeps game screenshots, never avatars. Best-effort.
+      const marker = "/storage/v1/object/public/screenshots/";
+      if (previousUrl && previousUrl.includes(marker)) {
+        const oldPath = previousUrl.slice(previousUrl.indexOf(marker) + marker.length);
+        if (oldPath && oldPath !== path) {
+          supabase.storage.from("screenshots").remove([oldPath]).then(() => {}, () => {});
+        }
+      }
     } catch (err: any) {
       toast({ title: "Upload failed", description: err.message, variant: "destructive" });
     } finally {

@@ -25,6 +25,8 @@ import StartTournamentSheet from "@/components/tournament/StartTournamentSheet";
 import type { LinkGameResult, RoundResult, RoundKey } from "@/hooks/useTournamentSession";
 import type { Database } from "@/integrations/supabase/types";
 import { STANDARD_MODES } from "@/lib/gameModes";
+import { compressImageForStorage } from "@/lib/imageCompress";
+import { screenshotsEnabled } from "@/lib/appConfig";
 
 type GamePlayerRow = Database["public"]["Tables"]["game_players"]["Row"];
 type GameRow       = Database["public"]["Tables"]["games"]["Row"];
@@ -349,17 +351,29 @@ const LogGame = () => {
 
     setSaving(true);
     try {
-      // Upload screenshot if available
+      // Upload a compressed screenshot if available. This is only an
+      // audit/display copy, so a storage failure (e.g. the bucket hitting the
+      // free-tier 1 GB cap) must NOT block logging the game — we just save
+      // without it. The kill-switch lets us stop uploads from the dashboard.
       let screenshotUrl: string | null = null;
-      if (imageFile) {
-        const ext = imageFile.name.split(".").pop() || "jpg";
-        const path = `${user.id}/${Date.now()}.${ext}`;
-        const { error: uploadErr } = await supabase.storage
-          .from("screenshots")
-          .upload(path, imageFile);
-        if (uploadErr) throw uploadErr;
-        const { data: urlData } = supabase.storage.from("screenshots").getPublicUrl(path);
-        screenshotUrl = urlData.publicUrl;
+      if (imageFile && (await screenshotsEnabled())) {
+        try {
+          const blob = await compressImageForStorage(imageFile);
+          const ext = blob.type === "image/jpeg" ? "jpg" : (imageFile.name.split(".").pop() || "jpg");
+          const path = `${user.id}/${Date.now()}.${ext}`;
+          const { error: uploadErr } = await supabase.storage
+            .from("screenshots")
+            .upload(path, blob, { contentType: blob.type || "image/jpeg" });
+          if (uploadErr) throw uploadErr;
+          const { data: urlData } = supabase.storage.from("screenshots").getPublicUrl(path);
+          screenshotUrl = urlData.publicUrl;
+        } catch (e) {
+          console.warn("Screenshot upload skipped (continuing without it):", e);
+          toast({
+            title: "Saved without screenshot",
+            description: "Image storage is busy right now — your stats were still saved.",
+          });
+        }
       }
 
       // ── Duplicate detection ────────────────────────────────────────────────

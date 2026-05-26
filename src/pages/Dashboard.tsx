@@ -155,14 +155,16 @@ const Dashboard = () => {
             .select("id, played_at, game_mode, game_type, tournament_type, result, created_at, created_by, division_change, screenshot_url, tournament_games(tournament_id), game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, contribution_score, submission_status, submitted_by, created_at, game_id)")
             .or(`created_by.eq.${user.id},id.in.(${allIds.join(",")})`)
 
-            .order("played_at", { ascending: false });
+            .order("played_at", { ascending: false })
+            .limit(500);
         } else {
           gamesRes = await supabase
             .from("games")
             .select("id, played_at, game_mode, game_type, tournament_type, result, created_at, created_by, division_change, screenshot_url, tournament_games(tournament_id), game_players (id, user_id, player_name, team, score, goals, assists, saves, shots, is_mvp, contribution_score, submission_status, submitted_by, created_at, game_id)")
             .eq("created_by", user.id)
 
-            .order("played_at", { ascending: false });
+            .order("played_at", { ascending: false })
+            .limit(500);
         }
 
         if (gamesRes.error) throw gamesRes.error;

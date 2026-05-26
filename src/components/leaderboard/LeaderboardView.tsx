@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { getLeaderboardCached } from "@/lib/leaderboardCache";
 import { Loader2, Trophy, Medal, Camera, Target, Shield, Star, Globe, Users } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -73,11 +74,7 @@ const LeaderboardView = ({ currentUserId, friendUserIds = [] }: Props) => {
     const fetch = async () => {
       setLoading(true);
       try {
-        const { data, error } = await supabase.rpc("get_leaderboard", {
-          p_window: window,
-          p_stat:   stat,
-        } as any);
-        if (error) throw error;
+        const data = await getLeaderboardCached(window, stat);
         setEntries((data ?? []) as LeaderEntry[]);
       } catch (err: any) {
         console.error("Leaderboard fetch error:", err);

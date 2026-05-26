@@ -138,6 +138,12 @@ const ScoreboardUploader = ({ userRlName, onParsed }: ScoreboardUploaderProps) =
         setShowUpgradeSheet(true);
         return;
       }
+      if (data?.error === "rate_limited") {
+        const msg = data.message || "You're parsing too fast — wait a few seconds and tap Retry parse.";
+        setParseError(msg);
+        toast({ title: "Slow down a sec", description: msg, variant: "destructive" });
+        return;
+      }
       if (data.error) throw new Error(data.error);
 
       quota.refetch();

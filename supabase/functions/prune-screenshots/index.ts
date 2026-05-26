@@ -192,9 +192,67 @@ Deno.serve(async (req) => {
     if (rows.length < batchSize) break;
   }
 
+  // ── Orphaned avatar cleanup ────────────────────────────────────────────────
+  // Avatars live at `avatars/<user_id>/<ts>.<ext>` and are never tied to a game,
+  // so the loop above never touches them. The app deletes the previous avatar on
+  // change, but older ones (and any left by earlier app versions) accumulate.
+  // Delete every avatar object no profile currently points at that is older than
+  // a 1-day grace window (so we never race a fresh upload).
+  let avatarsDeleted = 0;
+  try {
+    const marker = `/storage/v1/object/public/${BUCKET}/`;
+    const { data: profs } = await admin
+      .from("profiles")
+      .select("avatar_url")
+      .not("avatar_url", "is", null);
+
+    const inUse = new Set<string>();
+    for (const p of profs ?? []) {
+      const u = (p as any).avatar_url as string | null;
+      if (!u) continue;
+      const i = u.indexOf(marker);
+      if (i !== -1) inUse.add(u.slice(i + marker.length));
+    }
+
+    const graceCutoff = Date.now() - 24 * 60 * 60 * 1000;
+    const { data: userDirs } = await admin.storage
+      .from(BUCKET)
+      .list("avatars", { limit: 1000 });
+
+    for (const dir of userDirs ?? []) {
+      // Storage folders come back with id === null; skip stray files at root.
+      if ((dir as any).id) continue;
+      const prefix = `avatars/${dir.name}`;
+      const { data: files } = await admin.storage
+        .from(BUCKET)
+        .list(prefix, { limit: 1000 });
+
+      const toRemove: string[] = [];
+      for (const f of files ?? []) {
+        const path = `${prefix}/${f.name}`;
+        if (inUse.has(path)) continue;
+        const created = (f as any).created_at ? new Date((f as any).created_at).getTime() : 0;
+        if (created && created > graceCutoff) continue; // too new — may be mid-upload
+        toRemove.push(path);
+      }
+
+      if (toRemove.length === 0) continue;
+      if (dryRun) {
+        avatarsDeleted += toRemove.length;
+        continue;
+      }
+      const { error: rmErr } = await admin.storage.from(BUCKET).remove(toRemove);
+      if (rmErr) errors.push(`avatar remove (${dir.name}): ${rmErr.message}`);
+      else avatarsDeleted += toRemove.length;
+    }
+  } catch (e) {
+    errors.push(`avatar cleanup: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
   return json(200, {
     deleted,
     cleared,
+    avatars_deleted: avatarsDeleted,
     batches,
     errors,
     dry_run: dryRun,

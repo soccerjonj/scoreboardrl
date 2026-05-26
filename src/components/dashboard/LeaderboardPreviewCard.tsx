@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Trophy, Camera, ChevronRight, Medal } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { supabase } from "@/integrations/supabase/client";
+import { getLeaderboardCached } from "@/lib/leaderboardCache";
 
 interface LeaderEntry {
   user_id: string;
@@ -19,12 +19,12 @@ const LeaderboardPreviewCard = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase
-      .rpc("get_leaderboard", { p_window: "season" })
-      .then(({ data }) => {
+    getLeaderboardCached("season")
+      .then((data) => {
         setEntries(((data ?? []) as LeaderEntry[]).slice(0, 3));
         setLoading(false);
-      });
+      })
+      .catch(() => setLoading(false));
   }, []);
 
   if (!loading && entries.length === 0) return null;

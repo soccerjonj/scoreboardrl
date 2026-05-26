@@ -18,6 +18,13 @@ const fail = (message: string) =>
 
 const TIER_QUOTAS: Record<string, number> = { free: 100, pro: 1000, lifetime: Infinity };
 
+async function sha256Hex(input: string): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -26,43 +33,6 @@ Deno.serve(async (req) => {
   try {
     const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
     if (!GEMINI_API_KEY) return fail("GEMINI_API_KEY is not configured");
-
-    // ── Quota check ───────────────────────────────────────────────────────────
-    const authHeader = req.headers.get("authorization");
-    const jwt = authHeader?.replace("Bearer ", "");
-    if (jwt) {
-      const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
-      const admin = createClient(
-        Deno.env.get("SUPABASE_URL")!,
-        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-      );
-      const { data: { user } } = await admin.auth.getUser(jwt);
-      if (user) {
-        const { data: sub } = await admin
-          .from("subscriptions")
-          .select("tier")
-          .eq("user_id", user.id)
-          .single();
-        const tier = sub?.tier ?? "free";
-        const quota = TIER_QUOTAS[tier] ?? 100;
-        if (isFinite(quota)) {
-          const today = new Date();
-          const monthStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
-          const { data: usage } = await admin.rpc("increment_parse_count", {
-            p_user_id: user.id,
-            p_month: monthStr,
-            p_quota: quota,
-          });
-          if (usage && !usage.allowed) {
-            return new Response(
-              JSON.stringify({ error: "quota_exceeded", used: usage.count, quota }),
-              { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
-          }
-        }
-      }
-    }
-    // ── End quota check ───────────────────────────────────────────────────────
 
     let body: { image_base64?: string; user_rl_name?: string; mime_type?: string };
     try {
@@ -73,6 +43,83 @@ Deno.serve(async (req) => {
 
     const { image_base64, user_rl_name, mime_type } = body;
     if (!image_base64) return fail("No image provided");
+
+    // ── Admin client (service role) — used for rate-limit, quota and cache ──────
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+    const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    let admin: any = null;
+    if (SUPABASE_URL && SERVICE_ROLE_KEY) {
+      const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
+      admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+    }
+
+    // Identify the caller. Anonymous calls still parse but skip quota/rate-limit.
+    let userId: string | null = null;
+    const authHeader = req.headers.get("authorization");
+    const jwt = authHeader?.replace("Bearer ", "");
+    if (admin && jwt) {
+      const { data: { user } } = await admin.auth.getUser(jwt);
+      userId = user?.id ?? null;
+    }
+
+    // ── Per-user rate limit ─────────────────────────────────────────────────────
+    // Stops one person (or a script) from hammering the shared Gemini key and
+    // 429-ing everyone else during a spike. The monthly quota is separate.
+    if (admin && userId) {
+      const { data: rl } = await admin.rpc("check_parse_rate", {
+        p_user_id: userId,
+        p_limit: 12,
+        p_window_seconds: 60,
+      });
+      if (rl && rl.allowed === false) {
+        return ok({
+          error: "rate_limited",
+          message: "You're parsing too fast — wait a few seconds and tap Retry parse.",
+        });
+      }
+    }
+
+    // ── Cross-session parse cache ────────────────────────────────────────────────
+    // Identical image + player name → return the previously parsed result for
+    // free (no Gemini call, no quota burn). Keyed on a hash of both because the
+    // win/loss result depends on user_rl_name.
+    let imageHash: string | null = null;
+    if (admin) {
+      try {
+        imageHash = await sha256Hex(`${image_base64}|${user_rl_name ?? ""}`);
+        const { data: cached } = await admin
+          .from("parse_cache")
+          .select("result")
+          .eq("image_hash", imageHash)
+          .maybeSingle();
+        if (cached?.result) return ok(cached.result);
+      } catch {
+        // Cache is best-effort; fall through to a live parse.
+      }
+    }
+
+    // ── Monthly quota ────────────────────────────────────────────────────────────
+    if (admin && userId) {
+      const { data: sub } = await admin
+        .from("subscriptions")
+        .select("tier")
+        .eq("user_id", userId)
+        .single();
+      const tier = sub?.tier ?? "free";
+      const quota = TIER_QUOTAS[tier] ?? 100;
+      if (isFinite(quota)) {
+        const today = new Date();
+        const monthStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
+        const { data: usage } = await admin.rpc("increment_parse_count", {
+          p_user_id: userId,
+          p_month: monthStr,
+          p_quota: quota,
+        });
+        if (usage && !usage.allowed) {
+          return ok({ error: "quota_exceeded", used: usage.count, quota });
+        }
+      }
+    }
 
     const prompt = `You are a Rocket League scoreboard parser. Extract all player stats AND match metadata from this screenshot.
 
@@ -167,7 +214,10 @@ Return ONLY valid JSON with no extra text or markdown:
           Number.isFinite(retryAfter) && retryAfter > 0
             ? Math.min(retryAfter * 1000, 8000)
             : 800 * Math.pow(2, attempt - 1); // 0.8s → 1.6s → 3.2s
-        await new Promise((r) => setTimeout(r, waitMs));
+        // Add jitter so many simultaneous failures don't all retry on the same
+        // tick and re-spike Gemini in lockstep.
+        const jitter = Math.floor(Math.random() * 400);
+        await new Promise((r) => setTimeout(r, waitMs + jitter));
         continue;
       }
       break;
@@ -208,6 +258,14 @@ Return ONLY valid JSON with no extra text or markdown:
     } catch {
       console.error("Failed to parse Gemini JSON:", jsonStr);
       return fail("Could not parse scoreboard. Please try again or enter stats manually.");
+    }
+
+    // Remember this result so an identical re-upload (any user/device) is free.
+    if (admin && imageHash) {
+      admin
+        .from("parse_cache")
+        .upsert({ image_hash: imageHash, result: parsed })
+        .then(() => {}, () => {});
     }
 
     return ok(parsed);
