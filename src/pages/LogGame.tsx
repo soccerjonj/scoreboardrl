@@ -25,8 +25,6 @@ import StartTournamentSheet from "@/components/tournament/StartTournamentSheet";
 import type { LinkGameResult, RoundResult, RoundKey } from "@/hooks/useTournamentSession";
 import type { Database } from "@/integrations/supabase/types";
 import { STANDARD_MODES } from "@/lib/gameModes";
-import { compressImageForStorage } from "@/lib/imageCompress";
-import { screenshotsEnabled } from "@/lib/appConfig";
 
 type GamePlayerRow = Database["public"]["Tables"]["game_players"]["Row"];
 type GameRow       = Database["public"]["Tables"]["games"]["Row"];
@@ -204,7 +202,6 @@ const LogGame = () => {
   const [playedAt, setPlayedAt] = useState<string>(() => new Date().toISOString());
   const [divisionChange, setDivisionChange] = useState<string>("none");
   const [players, setPlayers] = useState<PlayerStat[]>([]);
-  const [imageFile, setImageFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [rlName, setRlName] = useState<string | null>(null);
   const [step, setStep] = useState<"upload" | "review">("upload");
@@ -290,7 +287,6 @@ const LogGame = () => {
     // Never let Gemini override game_type when a tournament is active
     if (!isTournamentActive) setGameType(data.game_type);
     setPlayers(data.players.map((p) => ({ ...p, damage: (p as any).damage ?? 0 })));
-    setImageFile(file);
     setWasPhotoParsed(true);
     // Default played_at to "now" each time a fresh photo is parsed — the user
     // can still backdate via the picker in the review step.
@@ -351,31 +347,6 @@ const LogGame = () => {
 
     setSaving(true);
     try {
-      // Upload a compressed screenshot if available. This is only an
-      // audit/display copy, so a storage failure (e.g. the bucket hitting the
-      // free-tier 1 GB cap) must NOT block logging the game — we just save
-      // without it. The kill-switch lets us stop uploads from the dashboard.
-      let screenshotUrl: string | null = null;
-      if (imageFile && (await screenshotsEnabled())) {
-        try {
-          const blob = await compressImageForStorage(imageFile);
-          const ext = blob.type === "image/jpeg" ? "jpg" : (imageFile.name.split(".").pop() || "jpg");
-          const path = `${user.id}/${Date.now()}.${ext}`;
-          const { error: uploadErr } = await supabase.storage
-            .from("screenshots")
-            .upload(path, blob, { contentType: blob.type || "image/jpeg" });
-          if (uploadErr) throw uploadErr;
-          const { data: urlData } = supabase.storage.from("screenshots").getPublicUrl(path);
-          screenshotUrl = urlData.publicUrl;
-        } catch (e) {
-          console.warn("Screenshot upload skipped (continuing without it):", e);
-          toast({
-            title: "Saved without screenshot",
-            description: "Image storage is busy right now — your stats were still saved.",
-          });
-        }
-      }
-
       // ── Duplicate detection ────────────────────────────────────────────────
       // Look for a game with the same mode/type logged by any of our linked
       // players within a 10-minute window of now.
@@ -447,7 +418,7 @@ const LogGame = () => {
           game_type: gameType,
           result,
           division_change: (gameType === "competitive" && STANDARD_MODES.includes(gameMode as any)) ? divisionChange : null,
-          screenshot_url: screenshotUrl,
+          screenshot_url: null,
           logged_via_photo: wasPhotoParsed,
           tournament_type: isTournamentActive && activeTournament ? activeTournament.tournament_type : null,
           played_at: playedAt,

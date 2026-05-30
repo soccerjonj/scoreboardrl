@@ -1,11 +1,17 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ExternalLink, LayoutList, Loader2, LogOut, Monitor, Zap } from "lucide-react";
+import { AlertTriangle, Download, ExternalLink, LayoutList, Loader2, LogOut, Monitor, Trash2, Zap } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 import { useQuota } from "@/hooks/useQuota";
 import UpgradeSheet from "@/components/billing/UpgradeSheet";
 
@@ -13,11 +19,51 @@ const Settings = () => {
   const { user, loading: authLoading, signOut } = useAuth();
   const navigate = useNavigate();
   const quota = useQuota();
+  const { toast } = useToast();
 
   const [loading, setLoading] = useState(true);
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [showOnLeaderboard, setShowOnLeaderboard] = useState(true);
   const [savingLeaderboard, setSavingLeaderboard] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("export-data");
+      if (error) throw error;
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `scoreboardrl-export-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast({ title: "Export ready", description: "Your data downloaded as JSON." });
+    } catch (err: any) {
+      toast({ title: "Export failed", description: err?.message ?? "Try again later.", variant: "destructive" });
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      const { error } = await supabase.functions.invoke("delete-account");
+      if (error) throw error;
+      await signOut();
+      navigate("/");
+    } catch (err: any) {
+      toast({ title: "Delete failed", description: err?.message ?? "Try again later.", variant: "destructive" });
+      setDeleting(false);
+    }
+  };
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/auth");
@@ -169,6 +215,41 @@ const Settings = () => {
               Sign Out
             </Button>
           </div>
+
+          {/* Danger Zone — data export + account deletion (GDPR/CCPA) */}
+          <Card className="border-rl-red/30 bg-rl-red/5">
+            <CardContent className="pt-4 pb-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-rl-red" />
+                <p className="text-sm font-semibold text-rl-red">Danger Zone</p>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Download a JSON copy of everything we store about you, or permanently delete your account and all related data.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 flex-1"
+                  onClick={handleExport}
+                  disabled={exporting}
+                >
+                  {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                  Export my data
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 flex-1 border-rl-red/40 text-rl-red hover:bg-rl-red/10 hover:text-rl-red"
+                  onClick={() => { setConfirmText(""); setConfirmOpen(true); }}
+                  disabled={deleting}
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete account
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </AppLayout>
       <UpgradeSheet
@@ -178,6 +259,34 @@ const Settings = () => {
         parsesUsed={quota.parsesUsed}
         quota={quota.quota}
       />
+      <AlertDialog open={confirmOpen} onOpenChange={(o) => { if (!deleting) setConfirmOpen(o); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete your account?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently deletes your profile, games, ranks, tournaments, and uploaded images.
+              This action cannot be undone. Type <span className="font-mono font-semibold text-foreground">DELETE</span> to confirm.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Input
+            value={confirmText}
+            onChange={(e) => setConfirmText(e.target.value)}
+            placeholder="DELETE"
+            autoFocus
+            disabled={deleting}
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={confirmText !== "DELETE" || deleting}
+              className="bg-rl-red text-white hover:bg-rl-red/90 focus:ring-rl-red"
+            >
+              {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Delete forever"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 };
