@@ -1,7 +1,19 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
+import * as Sentry from "@sentry/react";
 import App from "./App.tsx";
 import "./index.css";
+
+// Error monitoring — only active when a DSN is provided at build time, so local
+// dev and preview builds stay quiet. Safe to leave unset.
+const SENTRY_DSN = import.meta.env.VITE_SENTRY_DSN;
+if (SENTRY_DSN) {
+  Sentry.init({
+    dsn: SENTRY_DSN,
+    environment: import.meta.env.MODE,
+    tracesSampleRate: 0.1,
+  });
+}
 
 const RECOVERY_KEY = "vite_chunk_error_reloaded_at";
 const RECOVERY_TTL_MS = 30_000; // a recovery flag older than 30s is stale; allow another reload
@@ -57,6 +69,9 @@ class RootErrorBoundary extends Component<RootErrorBoundaryProps, RootErrorBound
     // Errors raised here often indicate a stale chunk after a deploy.
     // eslint-disable-next-line no-console
     console.error("App crashed at root boundary:", error, errorInfo);
+    if (SENTRY_DSN) {
+      Sentry.captureException(error, { extra: { componentStack: errorInfo.componentStack } });
+    }
   }
 
   handleHardReload = () => {

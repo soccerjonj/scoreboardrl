@@ -7,6 +7,7 @@ import Logo from "@/components/ui/Logo";
 import { useQuota } from "@/hooks/useQuota";
 import { useState } from "react";
 import UpgradeSheet from "@/components/billing/UpgradeSheet";
+import { BILLING_ENABLED } from "@/lib/featureFlags";
 
 const tabs = [
   { to: "/dashboard",   label: "Home",        icon: Home },
@@ -77,7 +78,7 @@ const TopNav = () => {
         </nav>
 
         <div className="flex items-center gap-1">
-          {quota.tier === "free" && !quota.isLoading && (
+          {BILLING_ENABLED && quota.tier === "free" && !quota.isLoading && (
             <Button
               variant="ghost"
               size="sm"

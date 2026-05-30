@@ -5,7 +5,10 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist"] },
+  // Deno edge functions run in a different runtime (Deno globals, remote ESM
+  // imports) and are not part of the Vite browser bundle, so the browser-globals
+  // app lint config doesn't apply to them.
+  { ignores: ["dist", "supabase/functions"] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],

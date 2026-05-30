@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQuota } from "@/hooks/useQuota";
 import UpgradeSheet from "@/components/billing/UpgradeSheet";
+import { BILLING_ENABLED } from "@/lib/featureFlags";
 
 const Settings = () => {
   const { user, loading: authLoading, signOut } = useAuth();
@@ -45,8 +46,9 @@ const Settings = () => {
       a.remove();
       URL.revokeObjectURL(url);
       toast({ title: "Export ready", description: "Your data downloaded as JSON." });
-    } catch (err: any) {
-      toast({ title: "Export failed", description: err?.message ?? "Try again later.", variant: "destructive" });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Try again later.";
+      toast({ title: "Export failed", description: message, variant: "destructive" });
     } finally {
       setExporting(false);
     }
@@ -59,8 +61,9 @@ const Settings = () => {
       if (error) throw error;
       await signOut();
       navigate("/");
-    } catch (err: any) {
-      toast({ title: "Delete failed", description: err?.message ?? "Try again later.", variant: "destructive" });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Try again later.";
+      toast({ title: "Delete failed", description: message, variant: "destructive" });
       setDeleting(false);
     }
   };
@@ -133,7 +136,7 @@ const Settings = () => {
                     </p>
                   )}
                 </div>
-                {quota.tier === "free" && (
+                {BILLING_ENABLED && quota.tier === "free" && (
                   <Button
                     size="sm"
                     variant="hero"

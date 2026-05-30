@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "react-router-dom";
 import Logo from "@/components/ui/Logo";
@@ -16,6 +17,7 @@ const Auth = () => {
   const [mode, setMode] = useState<AuthMode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
   const { signIn, signUp, resetPassword, user } = useAuth();
   const navigate = useNavigate();
@@ -28,6 +30,14 @@ const Auth = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (mode === "signup" && !agreed) {
+      toast({
+        title: "Please confirm",
+        description: "You must be 13+ and agree to the Terms & Privacy Policy to sign up.",
+        variant: "destructive",
+      });
+      return;
+    }
     setLoading(true);
     try {
       if (mode === "signin") {
@@ -145,6 +155,23 @@ const Auth = () => {
                       required
                       minLength={6}
                     />
+                  </div>
+                )}
+
+                {mode === "signup" && (
+                  <div className="flex items-start gap-2 pt-1">
+                    <Checkbox
+                      id="agree"
+                      checked={agreed}
+                      onCheckedChange={(v) => setAgreed(v === true)}
+                      className="mt-0.5"
+                    />
+                    <Label htmlFor="agree" className="text-xs text-muted-foreground font-normal leading-snug cursor-pointer">
+                      I am at least 13 years old and agree to the{" "}
+                      <Link to="/terms" className="text-primary hover:underline" target="_blank">Terms</Link>
+                      {" "}and{" "}
+                      <Link to="/privacy" className="text-primary hover:underline" target="_blank">Privacy Policy</Link>.
+                    </Label>
                   </div>
                 )}
               </CardContent>

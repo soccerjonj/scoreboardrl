@@ -123,8 +123,12 @@ const Index = () => {
         </div>
       </main>
 
-      <footer className="relative z-10 py-6 px-4 text-center text-xs text-muted-foreground">
-        Not affiliated with Psyonix or Epic Games. Rocket League is a registered trademark.
+      <footer className="relative z-10 py-6 px-4 text-center text-xs text-muted-foreground space-y-2">
+        <div className="flex items-center justify-center gap-4">
+          <Link to="/privacy" className="hover:text-foreground transition-colors">Privacy</Link>
+          <Link to="/terms" className="hover:text-foreground transition-colors">Terms</Link>
+        </div>
+        <p>Not affiliated with Psyonix or Epic Games. Rocket League is a registered trademark.</p>
       </footer>
     </div>
   );

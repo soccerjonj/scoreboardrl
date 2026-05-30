@@ -1,6 +1,7 @@
 import { Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { QuotaInfo } from "@/hooks/useQuota";
+import { BILLING_ENABLED } from "@/lib/featureFlags";
 
 interface QuotaMeterProps {
   quota: QuotaInfo;
@@ -35,13 +36,19 @@ const QuotaMeter = ({ quota, onUpgradeClick }: QuotaMeterProps) => {
           {" / "}
           {quota.quota} photo parses this month
         </span>
-        <button
-          onClick={onUpgradeClick}
-          className="flex items-center gap-1 text-primary hover:text-primary/80 font-medium transition-colors"
-        >
-          <Zap className="w-3 h-3" />
-          Upgrade
-        </button>
+        {BILLING_ENABLED ? (
+          <button
+            onClick={onUpgradeClick}
+            className="flex items-center gap-1 text-primary hover:text-primary/80 font-medium transition-colors"
+          >
+            <Zap className="w-3 h-3" />
+            Upgrade
+          </button>
+        ) : (
+          quota.isOverLimit && (
+            <span className="text-muted-foreground/70">Resets next month</span>
+          )
+        )}
       </div>
       <div className={cn("h-1.5 w-full rounded-full overflow-hidden", trackColor)}>
         <div

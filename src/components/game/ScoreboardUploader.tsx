@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuota } from "@/hooks/useQuota";
 import QuotaMeter from "@/components/billing/QuotaMeter";
 import UpgradeSheet from "@/components/billing/UpgradeSheet";
+import { BILLING_ENABLED } from "@/lib/featureFlags";
 
 interface ParsedPlayer {
   name: string;
@@ -135,7 +136,7 @@ const ScoreboardUploader = ({ userRlName, onParsed }: ScoreboardUploaderProps) =
       if (error) throw error;
       if (data?.error === "quota_exceeded") {
         quota.refetch();
-        setShowUpgradeSheet(true);
+        handleBlocked();
         return;
       }
       if (data?.error === "rate_limited") {
@@ -242,6 +243,19 @@ const ScoreboardUploader = ({ userRlName, onParsed }: ScoreboardUploaderProps) =
 
   const isBlocked = quota.isOverLimit && !quota.isLoading;
 
+  // When the free quota is exhausted: open the upgrade sheet if billing is live,
+  // otherwise just tell the user the limit resets next month (free-only launch).
+  const handleBlocked = () => {
+    if (BILLING_ENABLED) {
+      setShowUpgradeSheet(true);
+    } else {
+      toast({
+        title: "Monthly limit reached",
+        description: `You've used all ${quota.quota} photo parses this month. Your limit resets at the start of next month — you can still log games manually.`,
+      });
+    }
+  };
+
   return (
     <>
     <div className="space-y-4">
@@ -258,7 +272,7 @@ const ScoreboardUploader = ({ userRlName, onParsed }: ScoreboardUploaderProps) =
             <Button
               type="button"
               variant="hero"
-              onClick={() => isBlocked ? setShowUpgradeSheet(true) : cameraInputRef.current?.click()}
+              onClick={() => isBlocked ? handleBlocked() : cameraInputRef.current?.click()}
               className="gap-2"
             >
               <Camera className="w-4 h-4" />
@@ -268,7 +282,7 @@ const ScoreboardUploader = ({ userRlName, onParsed }: ScoreboardUploaderProps) =
             <Button
               type="button"
               variant="outline"
-              onClick={() => isBlocked ? setShowUpgradeSheet(true) : fileInputRef.current?.click()}
+              onClick={() => isBlocked ? handleBlocked() : fileInputRef.current?.click()}
               className="gap-2"
             >
               <Upload className="w-4 h-4" />

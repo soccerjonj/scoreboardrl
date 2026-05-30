@@ -6,6 +6,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
+import CookieConsent from "@/components/legal/CookieConsent";
 
 const Index = lazy(() => import("./pages/Index.tsx"));
 const Auth = lazy(() => import("./pages/Auth.tsx"));
@@ -23,6 +24,8 @@ const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 const Onboarding = lazy(() => import("./pages/Onboarding.tsx"));
 const Leaderboard = lazy(() => import("./pages/Leaderboard.tsx"));
 const Tournaments = lazy(() => import("./pages/Tournaments.tsx"));
+const Privacy = lazy(() => import("./pages/Privacy.tsx"));
+const Terms = lazy(() => import("./pages/Terms.tsx"));
 
 const queryClient = new QueryClient();
 
@@ -57,10 +60,13 @@ const App = () => (
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/notifications" element={<Notifications />} />
               <Route path="/onboarding" element={<Onboarding />} />
+              <Route path="/privacy" element={<Privacy />} />
+              <Route path="/terms" element={<Terms />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>
+          <CookieConsent />
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
