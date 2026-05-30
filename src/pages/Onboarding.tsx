@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, ChevronRight } from "lucide-react";
+import { RL_NAME_MAX, validateUserText } from "@/lib/contentModeration";
 
 const Onboarding = () => {
   const { user, loading: authLoading } = useAuth();
@@ -36,8 +37,9 @@ const Onboarding = () => {
 
   const handleComplete = async () => {
     if (!user) return;
-    if (!rlName.trim()) {
-      toast({ title: "RL name required", description: "Please enter your Rocket League username.", variant: "destructive" });
+    const check = validateUserText(rlName, { label: "RL username", maxLen: RL_NAME_MAX, required: true });
+    if (!check.ok) {
+      toast({ title: "Can't use that name", description: check.message, variant: "destructive" });
       return;
     }
     setSaving(true);
@@ -95,6 +97,7 @@ const Onboarding = () => {
                 value={rlName}
                 onChange={(e) => setRlName(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") handleComplete(); }}
+                maxLength={RL_NAME_MAX}
                 autoFocus
               />
               <p className="text-xs text-muted-foreground">

@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { SQUAD_NAME_MAX, validateUserText } from "@/lib/contentModeration";
 
 export type SquadFriendOption = {
   userId: string;
@@ -66,6 +67,11 @@ export default function SquadEditor({ open, onOpenChange, friends, mode, onSaved
     const trimmed = name.trim();
     if (!trimmed) {
       toast({ title: "Squad needs a name", variant: "destructive" });
+      return;
+    }
+    const nameCheck = validateUserText(trimmed, { label: "Squad name", maxLen: SQUAD_NAME_MAX });
+    if (!nameCheck.ok) {
+      toast({ title: "Can't save", description: nameCheck.message, variant: "destructive" });
       return;
     }
     if (selectedIds.size === 0) {
@@ -138,7 +144,7 @@ export default function SquadEditor({ open, onOpenChange, friends, mode, onSaved
               placeholder="e.g. Tourney Trio"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              maxLength={40}
+              maxLength={SQUAD_NAME_MAX}
             />
           </div>
 

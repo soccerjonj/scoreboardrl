@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Loader2, User } from "lucide-react";
+import { ArrowLeft, Flag, Loader2, User } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,6 +17,7 @@ import { ROUND_ORDER } from "@/hooks/useTournamentSession";
 import type { RoundKey } from "@/hooks/useTournamentSession";
 import type { BestGame, ActivityGame, TournamentSummary, LeaderboardStanding, ChartPoint, TeammateProfile } from "@/types/profile";
 import { EXTRA_MODES, EXTRA_MODE_LABELS, isStandardGame } from "@/lib/gameModes";
+import { buildReportMailto } from "@/lib/contentModeration";
 
 type GameMode = Database["public"]["Enums"]["game_mode"];
 type RankTier = Database["public"]["Enums"]["rank_tier"];
@@ -586,14 +587,25 @@ const FriendProfile = () => {
   return (
     <AppLayout>
       <div className="space-y-4">
-        {/* Back button */}
-        <button
-          onClick={() => navigate("/friends")}
-          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors -mb-1"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Friends
-        </button>
+        {/* Back button + report (other users only) */}
+        <div className="flex items-center justify-between -mb-1">
+          <button
+            onClick={() => navigate("/friends")}
+            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Friends
+          </button>
+          {userId !== user?.id && (
+            <a
+              href={buildReportMailto(`${window.location.origin}/profile/${userId}`, displayName)}
+              className="flex items-center gap-1 text-xs text-muted-foreground/70 hover:text-rl-red transition-colors"
+            >
+              <Flag className="w-3 h-3" />
+              Report
+            </a>
+          )}
+        </div>
 
         {/* Profile Header */}
         <Card className="overflow-hidden p-0">

@@ -27,6 +27,7 @@ import type { BestGame, ActivityGame, TournamentSummary, LeaderboardStanding, Ch
 import { EXTRA_MODES, EXTRA_MODE_LABELS, isStandardGame } from "@/lib/gameModes";
 import { compressImageForStorage } from "@/lib/imageCompress";
 import { getLeaderboardCached } from "@/lib/leaderboardCache";
+import { RL_NAME_MAX, validateUserText } from "@/lib/contentModeration";
 
 type GameMode     = Database["public"]["Enums"]["game_mode"];
 type GameType     = Database["public"]["Enums"]["game_type"];
@@ -605,6 +606,19 @@ const Profile = () => {
   // ── Save ───────────────────────────────────────────────────────────────────
   const handleSave = async () => {
     if (!user) return;
+
+    // Content guard on the free-text fields before anything is persisted.
+    const nameCheck = validateUserText(draftRlName, { label: "RL name", maxLen: RL_NAME_MAX });
+    if (!nameCheck.ok) {
+      toast({ title: "Can't save", description: nameCheck.message, variant: "destructive" });
+      return;
+    }
+    const bioCheck = validateUserText(draftBio, { label: "Bio", maxLen: BIO_MAX });
+    if (!bioCheck.ok) {
+      toast({ title: "Can't save", description: bioCheck.message, variant: "destructive" });
+      return;
+    }
+
     setSaving(true);
     localStorage.setItem(`profile_bio_${user.id}`, draftBio);
     try {
@@ -779,7 +793,7 @@ const Profile = () => {
 
           {rlNameMode === 1 && editingRlName && (
             <div className="flex items-center gap-2">
-              <Input autoFocus placeholder="e.g. Jstn" value={rlNameDraft} onChange={(e) => setRlNameDraft(e.target.value)} className="flex-1" />
+              <Input autoFocus placeholder="e.g. Jstn" value={rlNameDraft} onChange={(e) => setRlNameDraft(e.target.value)} maxLength={RL_NAME_MAX} className="flex-1" />
               <button type="button" onClick={confirmRlNameEdit} className="p-1.5 rounded-md text-green-400 hover:bg-green-400/10 transition-colors"><Check className="w-4 h-4" /></button>
               <button type="button" onClick={() => setEditingRlName(false)} className="p-1.5 rounded-md text-muted-foreground hover:bg-muted/50 transition-colors"><XIcon className="w-4 h-4" /></button>
             </div>
