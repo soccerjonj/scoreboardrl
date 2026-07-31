@@ -1,0 +1,26 @@
+name: CI
+
+# Test on every push/PR so regressions surface before merge.
+#
+# Lint runs too, but non-blocking (continue-on-error): the codebase has a
+# large pre-existing backlog of `no-explicit-any` errors predating this
+# workflow. Flip continue-on-error off once that backlog is cleaned up.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+        continue-on-error: true
+      - run: npm run test
