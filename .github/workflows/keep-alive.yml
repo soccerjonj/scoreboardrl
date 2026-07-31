@@ -19,27 +19,11 @@ jobs:
       - name: Ping Supabase REST API
         run: |
           BASE="${SUPABASE_FUNCTIONS_URL%/functions/v1}"
-          echo "BASE=${BASE}"
-          echo "URL length: ${#SUPABASE_FUNCTIONS_URL}, KEY length: ${#SUPABASE_SERVICE_ROLE_KEY}"
-
-          # Decode the JWT payload (2nd segment) to inspect its non-secret
-          # claims (ref, role) — only the signature is sensitive, and we
-          # never print that.
-          PAYLOAD_B64=$(echo "$SUPABASE_SERVICE_ROLE_KEY" | cut -d '.' -f2)
-          # base64url -> base64: swap chars and pad
-          PAYLOAD_B64=$(echo "$PAYLOAD_B64" | tr '_-' '/+')
-          MOD=$(( ${#PAYLOAD_B64} % 4 ))
-          if [ "$MOD" -eq 2 ]; then PAYLOAD_B64="${PAYLOAD_B64}=="; fi
-          if [ "$MOD" -eq 3 ]; then PAYLOAD_B64="${PAYLOAD_B64}="; fi
-          echo "Decoded JWT claims:"
-          echo "$PAYLOAD_B64" | base64 -d 2>/dev/null || echo "  (could not base64-decode — key may not be a JWT at all)"
-          echo ""
-
-          curl -sS \
-            -w "\nHTTP_STATUS=%{http_code}\n" \
+          curl -fsS \
             "${BASE}/rest/v1/" \
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -o /dev/null
           echo "Pinged ${BASE} — project stays awake."
         env:
           SUPABASE_FUNCTIONS_URL: ${{ secrets.SUPABASE_FUNCTIONS_URL }}
