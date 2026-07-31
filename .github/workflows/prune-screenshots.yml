@@ -1,0 +1,37 @@
+name: Prune screenshots
+
+# Keeps the Supabase `screenshots` bucket under the free-tier 1 GB cap by
+# deleting game screenshots older than the retention window and any orphaned
+# avatars. Runs daily; can also be triggered manually.
+#
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#   SUPABASE_FUNCTIONS_URL   e.g. https://<project-ref>.supabase.co/functions/v1
+#   SUPABASE_SERVICE_ROLE_KEY  the project's service role key
+#
+# Tighten/loosen the window by changing retention_days below.
+
+on:
+  schedule:
+    - cron: "15 3 * * *" # 03:15 UTC daily
+  workflow_dispatch:
+    inputs:
+      retention_days:
+        description: "Delete screenshots older than this many days"
+        required: false
+        default: "7"
+
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call prune-screenshots edge function
+        run: |
+          curl -fsS -X POST \
+            "${SUPABASE_FUNCTIONS_URL}/prune-screenshots" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{\"retention_days\": ${RETENTION_DAYS}}"
+        env:
+          SUPABASE_FUNCTIONS_URL: ${{ secrets.SUPABASE_FUNCTIONS_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          RETENTION_DAYS: ${{ github.event.inputs.retention_days || '7' }}

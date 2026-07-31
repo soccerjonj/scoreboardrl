@@ -1,0 +1,30 @@
+name: Keep Supabase alive
+
+# Supabase free-tier pauses projects after 7 days of inactivity.
+# This hits the REST health endpoint every 4 days to stay well clear of that.
+#
+# Reuses existing secrets — no new secrets needed:
+#   SUPABASE_FUNCTIONS_URL   e.g. https://<ref>.supabase.co/functions/v1
+#   SUPABASE_SERVICE_ROLE_KEY
+
+on:
+  schedule:
+    - cron: "0 6 */4 * *" # 06:00 UTC every 4 days
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase REST API
+        run: |
+          BASE="${SUPABASE_FUNCTIONS_URL%/functions/v1}"
+          curl -fsS \
+            "${BASE}/rest/v1/" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -o /dev/null
+          echo "Pinged ${BASE} — project stays awake."
+        env:
+          SUPABASE_FUNCTIONS_URL: ${{ secrets.SUPABASE_FUNCTIONS_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
