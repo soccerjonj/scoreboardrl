@@ -1,5 +1,5 @@
-const SUPABASE_URL = "https://hnzrshgdhtukxgmlcjpw.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhuenJzaGdkaHR1a3hnbWxjanB3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4NjY5OTgsImV4cCI6MjA5MTQ0Mjk5OH0.nqgjJcXIZXi98hQQcdFkslaDtd_qLOulaf7TQuuVBuk";
+const SUPABASE_URL = "https://zpdxcizzaklqvmwpvocs.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpwZHhjaXp6YWtscXZtd3B2b2NzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5NjMyNDMsImV4cCI6MjA5MTUzOTI0M30.BV9-nnHhN3NOckOxwdEdtMAOsyFiywan1DCEXn7-_ig";
 const RL_WS_URL = "ws://localhost:49123";
 const DASHBOARD_URL = "https://scoreboardrl.vercel.app/dashboard";
 

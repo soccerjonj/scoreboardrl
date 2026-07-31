@@ -6,7 +6,7 @@
   "permissions": ["storage", "notifications"],
   "host_permissions": [
     "ws://localhost:49123/",
-    "https://hnzrshgdhtukxgmlcjpw.supabase.co/*"
+    "https://zpdxcizzaklqvmwpvocs.supabase.co/*"
   ],
   "background": {
     "service_worker": "background.js"
