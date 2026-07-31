@@ -19,11 +19,13 @@ jobs:
       - name: Ping Supabase REST API
         run: |
           BASE="${SUPABASE_FUNCTIONS_URL%/functions/v1}"
-          curl -fsS \
+          echo "BASE=${BASE}"
+          echo "URL length: ${#SUPABASE_FUNCTIONS_URL}, KEY length: ${#SUPABASE_SERVICE_ROLE_KEY}"
+          curl -sS \
+            -w "\nHTTP_STATUS=%{http_code}\n" \
             "${BASE}/rest/v1/" \
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
-            -o /dev/null
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"
           echo "Pinged ${BASE} — project stays awake."
         env:
           SUPABASE_FUNCTIONS_URL: ${{ secrets.SUPABASE_FUNCTIONS_URL }}
