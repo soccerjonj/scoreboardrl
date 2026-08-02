@@ -19,6 +19,11 @@ on:
         description: "Delete screenshots older than this many days"
         required: false
         default: "7"
+      dry_run:
+        description: "Preview what would be deleted without actually deleting"
+        type: boolean
+        required: false
+        default: false
 
 jobs:
   prune:
@@ -30,8 +35,9 @@ jobs:
             "${SUPABASE_FUNCTIONS_URL}/prune-screenshots" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Content-Type: application/json" \
-            -d "{\"retention_days\": ${RETENTION_DAYS}}"
+            -d "{\"retention_days\": ${RETENTION_DAYS}, \"dry_run\": ${DRY_RUN}}"
         env:
           SUPABASE_FUNCTIONS_URL: ${{ secrets.SUPABASE_FUNCTIONS_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           RETENTION_DAYS: ${{ github.event.inputs.retention_days || '7' }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
