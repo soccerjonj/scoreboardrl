@@ -26,12 +26,11 @@ jobs:
     steps:
       - name: Call prune-screenshots edge function
         run: |
-          curl -sS -X POST \
-            -w "\nHTTP_STATUS=%{http_code}\n" \
+          curl -fsS -X POST \
             "${SUPABASE_FUNCTIONS_URL}/prune-screenshots" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Content-Type: application/json" \
-            -d "{\"retention_days\": ${RETENTION_DAYS}, \"dry_run\": true}"
+            -d "{\"retention_days\": ${RETENTION_DAYS}}"
         env:
           SUPABASE_FUNCTIONS_URL: ${{ secrets.SUPABASE_FUNCTIONS_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
