@@ -3,6 +3,12 @@ name: Keep Supabase alive
 # Supabase free-tier pauses projects after 7 days of inactivity.
 # This hits the REST health endpoint every 4 days to stay well clear of that.
 #
+# It also commits a small heartbeat file each run. GitHub auto-disables
+# *scheduled* workflows after 60 days with no repository activity — a
+# schedule firing doesn't count as activity, only a push/commit does. Without
+# this, this very workflow (and prune-screenshots) would eventually get
+# silently disabled by GitHub, defeating the point.
+#
 # Reuses existing secrets — no new secrets needed:
 #   SUPABASE_FUNCTIONS_URL   e.g. https://<ref>.supabase.co/functions/v1
 #   SUPABASE_SERVICE_ROLE_KEY
@@ -12,10 +18,15 @@ on:
     - cron: "0 6 */4 * *" # 06:00 UTC every 4 days
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
       - name: Ping Supabase REST API
         run: |
           BASE="${SUPABASE_FUNCTIONS_URL%/functions/v1}"
@@ -28,3 +39,15 @@ jobs:
         env:
           SUPABASE_FUNCTIONS_URL: ${{ secrets.SUPABASE_FUNCTIONS_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Record heartbeat (keeps the repo active so GitHub won't auto-disable scheduled workflows)
+        run: |
+          mkdir -p .github
+          date -u +"Last keep-alive ping: %Y-%m-%dT%H:%M:%SZ" > .github/keepalive-heartbeat.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/keepalive-heartbeat.txt
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: keep-alive heartbeat [skip ci]"
+            git push
+          fi
